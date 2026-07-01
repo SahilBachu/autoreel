@@ -1,4 +1,5 @@
 import { claudeJson } from "./claude.js";
+import { visualBlock } from "./learn.js";
 import type { Word } from "./whisper.js";
 
 // Mirrors studio/src/auto/AutoReel.tsx Cutaway type.
@@ -8,7 +9,8 @@ export type Cutaway =
   | { kind: "agents"; startMs: number; endMs: number; kicker?: string }
   | { kind: "speed"; startMs: number; endMs: number; kicker?: string }
   | { kind: "terminal"; startMs: number; endMs: number; title?: string; lines: string[] }
-  | { kind: "logo"; startMs: number; endMs: number };
+  | { kind: "logo"; startMs: number; endMs: number }
+  | { kind: "screenshot"; startMs: number; endMs: number; url: string; src?: string; label?: string };
 
 // The director: read the word-timestamped transcript + topic and plan full-screen cutaways
 // timed to the words (Nick-style hard cuts). Claude decides; heuristic fallback if it fails.
@@ -34,7 +36,13 @@ visible between them). Choose the cutaway 'kind' that best fits each beat:
 - {"kind":"speed","startMs","endMs","kicker":"..."}       (a speed / benchmark claim)
 - {"kind":"terminal","startMs","endMs","title":"...","lines":["...","..."]}  (running a command / code)
 - {"kind":"logo","startMs","endMs"}                        (a product name drop)
+- {"kind":"screenshot","startMs","endMs","url":"https://REAL-url","label":"cursor.com"}  (show the ACTUAL product/site/repo — a real screenshot beats a mock)
+For "screenshot", use the REAL official URL of the tool/company/repo in the topic (e.g.
+https://cursor.com, https://claude.ai, https://openai.com, https://github.com/<org>/<repo>,
+a real docs or pricing page). Only use it when there's a concrete product to show, at most
+1-2 per reel, on the beat where you'd naturally cut to "here's the thing".
 Keep text short and punchy. ${editNote ? `IMPORTANT change requested: ${editNote}` : ""}
+${visualBlock()}
 Return ONLY a JSON array.`;
 
   try {

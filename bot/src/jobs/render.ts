@@ -5,6 +5,7 @@ import { config } from "../config.js";
 import { transcribe } from "../lib/whisper.js";
 import { alignCaptions } from "../lib/align.js";
 import { planCutaways } from "../lib/scenePlan.js";
+import { screenshot } from "../lib/shot.js";
 
 function run(cmd: string, args: string[], cwd: string): Promise<void> {
   return new Promise((res, rej) => {
@@ -88,7 +89,22 @@ export async function renderReel(opts: {
     "-c:a", "aac", "-b:a", "128k", "-pix_fmt", "yuv420p", "-y", resolve(studio, "public", clipRel)], studio);
 
   // 2. director plans cutaways (timed to the words)
-  const cutaways = await planCutaways({ topic: opts.topic, words: captions, editNote: opts.editNote });
+  const planned = await planCutaways({ topic: opts.topic, words: captions, editNote: opts.editNote });
+
+  // 2b. resolve "screenshot" cutaways into REAL local screenshots (Playwright); drop any that
+  // fail to fetch so the talking head just stays on screen for that beat instead of breaking.
+  await mkdir(resolve(studio, "public/generated"), { recursive: true });
+  const cutaways: any[] = [];
+  let shotN = 0;
+  for (const c of planned as any[]) {
+    if (c.kind === "screenshot") {
+      const rel = `generated/shot-${id}-${shotN++}.png`;
+      const ok = c.url ? await screenshot(c.url, resolve(studio, "public", rel)) : false;
+      if (ok) cutaways.push({ ...c, src: rel });
+    } else {
+      cutaways.push(c);
+    }
+  }
 
   // 3. audio: whoosh on each cutaway start (skipping its lead silence) + a music bed
   const { music, whoosh } = await pickAudio(studio);

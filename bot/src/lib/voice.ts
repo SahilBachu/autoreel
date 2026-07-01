@@ -44,11 +44,19 @@ Never write like this: "Is there even a reason to pay for Opus anymore?!",
 "Here's why this changes everything", "Drop a 🔥 if…", anything LinkedIn/growth-account.
 `.trim();
 
-export function scriptPrompt(topicOrIdea: string, why?: string): string {
+export function scriptPrompt(
+  topicOrIdea: string,
+  opts: { why?: string; learned?: string; examples?: string[] } = {},
+): string {
+  const { why, learned, examples } = opts;
   return [
     VOICE_RULES,
     "\nGold-standard examples (match this exactly):\n" + FEW_SHOTS,
+    examples?.length
+      ? "\nRecently APPROVED by this creator — match this style especially closely:\n" + examples.join("\n---\n")
+      : "",
     "\n" + ANTI_EXAMPLES,
+    learned || "",
     `\nWrite ONE script about: ${topicOrIdea}`,
     why ? `Angle: ${why}` : "",
     "\nOutput ONLY the script lines. No preamble, no quotes, no title.",
@@ -57,11 +65,17 @@ export function scriptPrompt(topicOrIdea: string, why?: string): string {
 
 // Iterate on an existing script from a free-text change request ("punchier hook",
 // "make it shorter", "lose the last line"). Keeps the voice; only changes what's asked.
-export function revisePrompt(topic: string, currentScript: string, feedback: string): string {
+export function revisePrompt(
+  topic: string,
+  currentScript: string,
+  feedback: string,
+  opts: { learned?: string } = {},
+): string {
   return [
     VOICE_RULES,
     "\nGold-standard examples (match this exactly):\n" + FEW_SHOTS,
     "\n" + ANTI_EXAMPLES,
+    opts.learned || "",
     `\nHere is the current script about "${topic}":\n${currentScript}`,
     `\nThe writer wants this change: ${feedback}`,
     "\nApply ONLY that change. Keep everything else close to the original and keep the voice.",

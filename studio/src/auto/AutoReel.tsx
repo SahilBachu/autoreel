@@ -1,8 +1,10 @@
 import {
   AbsoluteFill,
   Audio,
+  Img,
   OffthreadVideo,
   Sequence,
+  spring,
   staticFile,
   useVideoConfig,
   useCurrentFrame,
@@ -23,7 +25,8 @@ export type Cutaway =
   | { kind: "agents"; startMs: number; endMs: number; kicker?: string }
   | { kind: "speed"; startMs: number; endMs: number; kicker?: string }
   | { kind: "terminal"; startMs: number; endMs: number; title?: string; lines: string[] }
-  | { kind: "logo"; startMs: number; endMs: number };
+  | { kind: "logo"; startMs: number; endMs: number }
+  | { kind: "screenshot"; startMs: number; endMs: number; src: string; url?: string; label?: string };
 
 export type AutoReelData = {
   videoSrc: string;
@@ -51,6 +54,31 @@ const Paper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   </AbsoluteFill>
 );
 
+// a REAL website/product screenshot in a rounded browser frame (Nick-style real-UI cutaway)
+const ScreenshotCard: React.FC<{ src: string; label?: string }> = ({ src, label }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const s = spring({ frame, fps, config: { damping: 200 }, durationInFrames: 14 });
+  const scale = interpolate(s, [0, 1], [0.9, 1]);
+  return (
+    <AbsoluteFill style={{ background: "linear-gradient(160deg,#1c1815,#0b0a09)", justifyContent: "center", alignItems: "center" }}>
+      <div style={{ transform: `scale(${scale})`, width: 940, borderRadius: 30, overflow: "hidden", background: "#fff", boxShadow: "0 50px 130px rgba(0,0,0,0.55)", border: "1px solid rgba(0,0,0,0.06)" }}>
+        <div style={{ height: 62, background: "#ecebe6", display: "flex", alignItems: "center", gap: 11, padding: "0 26px" }}>
+          <div style={{ width: 17, height: 17, borderRadius: 9, background: "#ff5f57" }} />
+          <div style={{ width: 17, height: 17, borderRadius: 9, background: "#febc2e" }} />
+          <div style={{ width: 17, height: 17, borderRadius: 9, background: "#28c840" }} />
+          {label ? (
+            <div style={{ marginLeft: 18, padding: "7px 20px", background: "#fff", borderRadius: 999, fontFamily: SF.body, fontWeight: 600, fontSize: 23, color: "#666" }}>{label}</div>
+          ) : null}
+        </div>
+        <div style={{ height: 1040, overflow: "hidden" }}>
+          <Img src={asset(src)} style={{ width: "100%", display: "block" }} />
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+};
+
 const CutawayBody: React.FC<{ c: Cutaway }> = ({ c }) => {
   switch (c.kind) {
     case "title":
@@ -63,6 +91,8 @@ const CutawayBody: React.FC<{ c: Cutaway }> = ({ c }) => {
       return <Paper><div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%" }}><Kicker text={c.kicker ?? "Composer — their own model"} /><SpeedBars /></div></Paper>;
     case "logo":
       return <AbsoluteFill style={{ background: C.black, justifyContent: "center", alignItems: "center" }}><CursorLogo onDark /></AbsoluteFill>;
+    case "screenshot":
+      return <ScreenshotCard src={c.src} label={c.label} />;
     case "terminal":
       return (
         <AbsoluteFill style={{ background: S.orangeBg, justifyContent: "center", alignItems: "center" }}>

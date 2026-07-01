@@ -41,3 +41,6 @@ studio/public/generated/
 studio/props-*.json
 
 .bot-state.json
+
+# learning system runtime data (per-runner)
+bot/data/

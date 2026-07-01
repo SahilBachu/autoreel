@@ -1,6 +1,7 @@
 import { claude } from "./claude.js";
 import { VOICE_RULES } from "./voice.js";
 import { CAPTION_STRATEGY, KEYWORDS, hashtagPalette } from "./growth.js";
+import { captionBlock } from "./learn.js";
 
 // The Instagram POST caption (the description under the reel): dry voice + SEO/keyword
 // optimized for reach. First line = hook + real keyword; body weaves keywords; exactly 5
@@ -21,7 +22,7 @@ ${KEYWORDS.join(", ")}
 
 Hashtag bank for THIS post (choose exactly 5 total = 1 broad + 2 mid + 2 niche):
 ${hashtagPalette()}
-
+${captionBlock()}
 Output ONLY the finished caption (the dry lines, then a blank line, then the 5 hashtags). No
 preamble, no quotes, no explanation.`;
   return (await claude(prompt)).trim();

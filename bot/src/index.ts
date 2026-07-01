@@ -8,6 +8,16 @@ import { generateIdea, reviseScript } from "./jobs/idea.js";
 import { renderReel } from "./jobs/render.js";
 import { postReel } from "./jobs/post.js";
 import { genPostCaption } from "./lib/caption.js";
+import {
+  learnFromIdea,
+  learnFromRevision,
+  learnFromEdit,
+  learnFromRedo,
+  learnFromPost,
+  distill,
+  prefsSummary,
+  forgetPrefs,
+} from "./lib/learn.js";
 
 // self-hosted Bot API server = big-file support
 const bot = new Bot(config.telegram.token, {
@@ -60,14 +70,33 @@ async function makeAndSendReel(ctx: any, chat: string, editNote?: string) {
 }
 
 bot.command("start", (ctx) =>
-  ctx.reply("autoreel ready. /idea for a random one, or `idea: <your idea>`. Then send a clip."),
+  ctx.reply(
+    "autoreel ready.\n/idea — random idea, or `idea: <your idea>`. Then send a clip.\n/prefs — what I've learned about your taste · /learn — study now · /forget — reset.",
+  ),
 );
+
+// what the system has learned about the creator's taste
+bot.command("prefs", (ctx) => ctx.reply(prefsSummary(), { parse_mode: "Markdown" }));
+
+// force a learning pass right now (normally happens automatically on posts/edits)
+bot.command("learn", async (ctx) => {
+  await ctx.reply("🧠 studying your recent edits & posts…");
+  await distill();
+  await ctx.reply(prefsSummary(), { parse_mode: "Markdown" });
+});
+
+// wipe the learned profile (keeps approved-script examples)
+bot.command("forget", (ctx) => {
+  forgetPrefs();
+  ctx.reply("🧽 cleared the learned preferences. I'll relearn as you use it.");
+});
 
 // random idea
 bot.command("idea", async (ctx) => {
   await ctx.reply("💡 thinking of something…");
   const { topic, script } = await generateIdea();
   state.set(String(ctx.chat.id), { topic, script, stage: "script" });
+  learnFromIdea(topic);
   await ctx.reply(`*${topic}*\n\n${script}\n\n🎥 send the clip when it's right — or just tell me what to change.`, {
     parse_mode: "Markdown",
   });
@@ -79,6 +108,7 @@ bot.hears(/^idea:\s*(.+)/is, async (ctx) => {
   await ctx.reply("💡 writing that…");
   const { topic, script } = await generateIdea(desc);
   state.set(String(ctx.chat.id), { topic, script, stage: "script" });
+  learnFromIdea(topic);
   await ctx.reply(`*${topic}*\n\n${script}\n\n🎥 send the clip when it's right — or just tell me what to change.`, {
     parse_mode: "Markdown",
   });
@@ -122,6 +152,7 @@ bot.callbackQuery("post", async (ctx) => {
       onPublishing: () => set("🚀 *Posting…*\n✅ uploaded · sent · processed\n📣 publishing…"),
     });
     await set(`✅ *Posted!*\n${link}`);
+    learnFromPost(p.topic, p.script).catch(() => {}); // approved = strongest signal; learn in bg
     state.clear(chat);
   } catch (e: any) {
     state.patch(chat, { posting: false });
@@ -131,7 +162,9 @@ bot.callbackQuery("post", async (ctx) => {
 
 bot.callbackQuery("redo", async (ctx) => {
   await ctx.answerCallbackQuery();
-  await makeAndSendReel(ctx, String(ctx.chat!.id));
+  const chat = String(ctx.chat!.id);
+  learnFromRedo(state.get(chat)?.topic ?? ""); // they rejected that take
+  await makeAndSendReel(ctx, chat);
 });
 
 bot.callbackQuery("edit", async (ctx) => {
@@ -148,6 +181,7 @@ bot.on("message:text", async (ctx) => {
   if (!p) return;
 
   if (p.awaitingEdit) {
+    learnFromEdit(p.topic, ctx.message.text); // how they like the motion graphics
     await makeAndSendReel(ctx, chat, ctx.message.text); // reel-level edit, re-render
     return;
   }
@@ -155,8 +189,10 @@ bot.on("message:text", async (ctx) => {
   if (p.stage === "script" && p.script) {
     await ctx.reply("✏️ reworking it…");
     try {
-      const script = await reviseScript(p.topic, p.script, ctx.message.text);
+      const before = p.script;
+      const script = await reviseScript(p.topic, before, ctx.message.text);
       state.patch(chat, { script });
+      learnFromRevision(p.topic, before, script, ctx.message.text); // how they like scripts
       await ctx.reply(`*${p.topic}*\n\n${script}\n\n🎥 send the clip when it's right — or tell me another change.`, {
         parse_mode: "Markdown",
       });
