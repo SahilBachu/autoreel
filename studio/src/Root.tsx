@@ -6,6 +6,7 @@ import { Composition, type CalculateMetadataFunction } from "remotion";
 import { Reel } from "./Reel";
 import { NickReel, NICK_TOTAL } from "./nick/NickReel";
 import { CursorReel, CURSOR_TOTAL } from "./reel_cursor/CursorReel";
+import { AutoReel, type AutoReelData } from "./auto/AutoReel";
 import { Showcase, SHOWCASE_FRAMES } from "./showcase/Showcase";
 import { mockReel } from "./data/mockReel";
 import { totalFrames } from "./timing";
@@ -19,6 +20,19 @@ const calculateMetadata: CalculateMetadataFunction<ReelData> = ({ props }) => {
 export const RemotionRoot: React.FC = () => {
   return (
     <>
+    <Composition
+      id="AutoReel"
+      component={AutoReel}
+      fps={FPS}
+      width={WIDTH}
+      height={HEIGHT}
+      durationInFrames={300}
+      defaultProps={{ videoSrc: "", captions: [], cutaways: [] } as AutoReelData}
+      calculateMetadata={({ props }: { props: AutoReelData }) => {
+        const last = props.captions.length ? props.captions[props.captions.length - 1].endMs : 9000;
+        return { durationInFrames: Math.ceil((last / 1000) * FPS) + 18 };
+      }}
+    />
     <Composition
       id="CursorReel"
       component={CursorReel}

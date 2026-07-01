@@ -34,3 +34,8 @@ Thumbs.db
 # large reference videos + extracted frames (not needed on the runner)
 references/
 studio/out/
+
+# per-reel render artifacts (regenerated at runtime)
+studio/public/clips/
+studio/public/generated/
+studio/props-*.json
