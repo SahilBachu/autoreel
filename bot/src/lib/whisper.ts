@@ -9,8 +9,11 @@ export type Word = { text: string; startMs: number; endMs: number };
 //   npx remotion ffmpeg -i clip.mp4 -ar 16000 -ac 1 -y audio.wav   (in studio/)
 export function transcribe(wavPath: string): Promise<Word[]> {
   const script = resolve(REPO_ROOT, "scripts/whisper_transcribe.py");
+  // faster-whisper lives in a dedicated venv on the runner (system python3 lacks it).
+  // Point WHISPER_PYTHON at that interpreter; fall back to python3 elsewhere.
+  const python = process.env.WHISPER_PYTHON || "python3";
   return new Promise((res, rej) => {
-    const p = spawn("python3", [script, wavPath]);
+    const p = spawn(python, [script, wavPath]);
     let out = "";
     let err = "";
     p.stdout.on("data", (d) => (out += d));

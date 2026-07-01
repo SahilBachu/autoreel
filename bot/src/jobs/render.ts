@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { config } from "../config.js";
 import { transcribe } from "../lib/whisper.js";
@@ -39,16 +39,24 @@ function pickSpread<T>(arr: T[], n: number): T[] {
   return out;
 }
 
-// pick a music bed + an SFX file from the handpicked audio library (public/audio-manifest.json)
+// Music bed = a RANDOM lofi track from public/music (any *.mp3 dropped in there is picked up
+// automatically — no manifest edit needed). SFX (the hard-cut whoosh) still comes from the manifest.
 async function pickAudio(studio: string) {
+  let music: string | undefined;
+  try {
+    const files = (await readdir(resolve(studio, "public/music"))).filter((f) => f.toLowerCase().endsWith(".mp3"));
+    if (files.length) music = `music/${files[Math.floor(Math.random() * files.length)]}`;
+  } catch {
+    /* no music dir yet */
+  }
+  let whoosh: string | undefined;
   try {
     const man = JSON.parse(await readFile(resolve(studio, "public/audio-manifest.json"), "utf8"));
-    const music = man.music?.[0]?.file as string | undefined;
-    const whoosh = (man.sfx?.find((s: any) => s.tags?.includes("transition")) ?? man.sfx?.[0])?.file as string | undefined;
-    return { music, whoosh };
+    whoosh = (man.sfx?.find((s: any) => s.tags?.includes("transition")) ?? man.sfx?.[0])?.file as string | undefined;
   } catch {
-    return { music: undefined, whoosh: undefined };
+    /* no manifest — skip sfx */
   }
+  return { music, whoosh };
 }
 
 // clip -> whisper -> aligned captions (script spelling) -> director cutaways -> audio -> mp4
@@ -64,13 +72,20 @@ export async function renderReel(opts: {
 
   await mkdir(resolve(studio, "public/clips"), { recursive: true });
   await mkdir(resolve(studio, "out"), { recursive: true });
-  await copyFile(opts.clipPath, resolve(studio, "public", clipRel));
 
-  // 1. transcribe (timing) then align to the script (spelling)
+  // 1. transcribe (timing) from the original clip's audio, then align to the script (spelling)
   const wav = resolve(studio, "public/clips", `${id}.wav`);
-  await run("npx", ["remotion", "ffmpeg", "-i", resolve(studio, "public", clipRel), "-ar", "16000", "-ac", "1", "-y", wav], studio);
+  await run("npx", ["remotion", "ffmpeg", "-i", opts.clipPath, "-ar", "16000", "-ac", "1", "-y", wav], studio);
   const words = await transcribe(wav);
   const captions = alignCaptions(opts.script, words);
+
+  // Normalize the clip to EXACTLY 1080x1920 (center cover-crop) up front. Whatever it was
+  // recorded at — odd resolutions from weird apps, square, landscape — it now fills the 9:16
+  // frame with correct proportions and can NEVER stretch the face (Remotion then shows it 1:1).
+  // scale ...:increase makes both dims >= target while preserving aspect; crop trims the excess.
+  await run("npx", ["remotion", "ffmpeg", "-i", opts.clipPath,
+    "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
+    "-c:a", "aac", "-b:a", "128k", "-pix_fmt", "yuv420p", "-y", resolve(studio, "public", clipRel)], studio);
 
   // 2. director plans cutaways (timed to the words)
   const cutaways = await planCutaways({ topic: opts.topic, words: captions, editNote: opts.editNote });

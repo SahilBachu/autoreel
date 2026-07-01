@@ -1,9 +1,10 @@
 import { Bot, InlineKeyboard, InputFile } from "grammy";
 import { appendFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { homedir } from "node:os";
 import { config, REPO_ROOT } from "./config.js";
 import { state } from "./state.js";
-import { generateIdea } from "./jobs/idea.js";
+import { generateIdea, reviseScript } from "./jobs/idea.js";
 import { renderReel } from "./jobs/render.js";
 import { postReel } from "./jobs/post.js";
 import { genPostCaption } from "./lib/caption.js";
@@ -12,6 +13,18 @@ import { genPostCaption } from "./lib/caption.js";
 const bot = new Bot(config.telegram.token, {
   client: { apiRoot: config.telegram.apiRoot },
 });
+
+// The local Bot API server runs in Docker and writes received files under its container
+// path (/var/lib/telegram-bot-api/...). We bind-mount that dir to a host folder so the
+// renderer can read the clip. Translate the container prefix -> host prefix here.
+const TG_CONTAINER_ROOT = process.env.TG_FILES_CONTAINER_ROOT || "/var/lib/telegram-bot-api";
+const TG_HOST_ROOT = process.env.TG_FILES_HOST_ROOT || resolve(homedir(), "tg-files");
+function toHostPath(filePath: string): string {
+  if (filePath.startsWith(TG_CONTAINER_ROOT)) {
+    return resolve(TG_HOST_ROOT, filePath.slice(TG_CONTAINER_ROOT.length).replace(/^[/\\]+/, ""));
+  }
+  return filePath; // already a host/relative path (e.g. non-local Bot API)
+}
 
 // only talk to the owner
 bot.use(async (ctx, next) => {
@@ -31,8 +44,16 @@ async function makeAndSendReel(ctx: any, chat: string, editNote?: string) {
     const mp4 = await renderReel({ clipPath: p.clipPath, script: p.script, topic: p.topic, editNote });
     const caption = await genPostCaption(p.topic, p.script);
     state.patch(chat, { mp4Path: mp4, caption, awaitingEdit: false });
-    // show the generated IG caption under the reel; [Post] will publish with it
-    await ctx.replyWithVideo(new InputFile(mp4), { caption: `📝 caption:\n${caption}`, reply_markup: approveKeyboard });
+    // show the generated IG caption under the reel; [Post] will publish with it.
+    // width/height/supports_streaming are REQUIRED with the self-hosted local Bot API server:
+    // without them Telegram picks a wrong-aspect player box and displays the reel stretched.
+    await ctx.replyWithVideo(new InputFile(mp4), {
+      caption: `📝 caption:\n${caption}`,
+      reply_markup: approveKeyboard,
+      width: 1080,
+      height: 1920,
+      supports_streaming: true,
+    });
   } catch (e: any) {
     await ctx.reply(`⚠️ render not ready: ${e.message}`);
   }
@@ -46,8 +67,8 @@ bot.command("start", (ctx) =>
 bot.command("idea", async (ctx) => {
   await ctx.reply("💡 thinking of something…");
   const { topic, script } = await generateIdea();
-  state.set(String(ctx.chat.id), { topic, script });
-  await ctx.reply(`*${topic}*\n\n${script}\n\n🎥 record it and send the clip.`, {
+  state.set(String(ctx.chat.id), { topic, script, stage: "script" });
+  await ctx.reply(`*${topic}*\n\n${script}\n\n🎥 send the clip when it's right — or just tell me what to change.`, {
     parse_mode: "Markdown",
   });
 });
@@ -57,8 +78,8 @@ bot.hears(/^idea:\s*(.+)/is, async (ctx) => {
   const desc = ctx.match[1];
   await ctx.reply("💡 writing that…");
   const { topic, script } = await generateIdea(desc);
-  state.set(String(ctx.chat.id), { topic, script });
-  await ctx.reply(`*${topic}*\n\n${script}\n\n🎥 record it and send the clip.`, {
+  state.set(String(ctx.chat.id), { topic, script, stage: "script" });
+  await ctx.reply(`*${topic}*\n\n${script}\n\n🎥 send the clip when it's right — or just tell me what to change.`, {
     parse_mode: "Markdown",
   });
 });
@@ -73,23 +94,38 @@ bot.hears(/^tomorrow:\s*(.+)/is, async (ctx) => {
 bot.on(["message:video", "message:document"], async (ctx) => {
   const chat = String(ctx.chat.id);
   const file = await ctx.getFile(); // on the local Bot API server, file_path is a disk path
-  const clipPath = file.file_path!;
+  const clipPath = toHostPath(file.file_path!); // container path -> host-mounted path
   const prev = state.get(chat) ?? { topic: "untitled", script: "" };
-  state.set(chat, { ...prev, clipPath });
+  // the clip confirms the script -> lock the script stage, render.
+  state.set(chat, { ...prev, clipPath, stage: "reel", awaitingEdit: false });
   await makeAndSendReel(ctx, chat);
 });
 
 // approve / redo / edit
 bot.callbackQuery("post", async (ctx) => {
   await ctx.answerCallbackQuery();
-  const p = state.get(String(ctx.chat!.id));
-  if (!p?.mp4Path) return ctx.reply("Nothing to post yet.");
+  const chat = String(ctx.chat!.id);
+  const p = state.get(chat);
+  if (!p?.mp4Path) return ctx.reply("Nothing to post yet — send a clip first.");
+  if (p.posting) return ctx.reply("⏳ already posting that one — hang tight.");
+  state.patch(chat, { posting: true });
+
+  // one status message, edited in place so the user always knows where it's at
+  const msg = await ctx.reply("🚀 *Posting…*\n⬆️ uploading video to storage", { parse_mode: "Markdown" });
+  const set = (t: string) =>
+    ctx.api.editMessageText(chat, msg.message_id, t, { parse_mode: "Markdown" }).catch(() => {});
+
   try {
-    const link = await postReel(p.mp4Path, p.caption ?? p.script.split("\n")[0]);
-    await ctx.reply(`🚀 posted: ${link}`);
-    state.clear(String(ctx.chat!.id));
+    const link = await postReel(p.mp4Path, p.caption ?? p.script.split("\n")[0], {
+      onUploaded: () => set("🚀 *Posting…*\n✅ uploaded\n📤 sending to Instagram"),
+      onProcessing: () => set("🚀 *Posting…*\n✅ uploaded · sent\n⚙️ Instagram is processing the reel (transcoding)…"),
+      onPublishing: () => set("🚀 *Posting…*\n✅ uploaded · sent · processed\n📣 publishing…"),
+    });
+    await set(`✅ *Posted!*\n${link}`);
+    state.clear(chat);
   } catch (e: any) {
-    await ctx.reply(`⚠️ post not ready: ${e.message}`);
+    state.patch(chat, { posting: false });
+    await set(`⚠️ *Post failed:* ${e.message}\nTap 🔁 or [Post] again to retry.`);
   }
 });
 
@@ -104,12 +140,32 @@ bot.callbackQuery("edit", async (ctx) => {
   await ctx.reply("✏️ what should I change? (e.g. 'punchier hook', 'swap the title font')");
 });
 
-// an edit note (only when we're awaiting one)
+// free text = either a post-render reel edit ([Edit] tapped), or — while we're still on
+// the script — a change request that revises the script in place. Keep going until a clip.
 bot.on("message:text", async (ctx) => {
   const chat = String(ctx.chat.id);
   const p = state.get(chat);
-  if (!p?.awaitingEdit) return; // otherwise ignore free text
-  await makeAndSendReel(ctx, chat, ctx.message.text);
+  if (!p) return;
+
+  if (p.awaitingEdit) {
+    await makeAndSendReel(ctx, chat, ctx.message.text); // reel-level edit, re-render
+    return;
+  }
+
+  if (p.stage === "script" && p.script) {
+    await ctx.reply("✏️ reworking it…");
+    try {
+      const script = await reviseScript(p.topic, p.script, ctx.message.text);
+      state.patch(chat, { script });
+      await ctx.reply(`*${p.topic}*\n\n${script}\n\n🎥 send the clip when it's right — or tell me another change.`, {
+        parse_mode: "Markdown",
+      });
+    } catch (e: any) {
+      await ctx.reply(`⚠️ couldn't revise: ${e.message}`);
+    }
+    return;
+  }
+  // otherwise ignore free text
 });
 
 bot.catch((err) => console.error("bot error", err));

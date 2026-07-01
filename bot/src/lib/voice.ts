@@ -54,3 +54,17 @@ export function scriptPrompt(topicOrIdea: string, why?: string): string {
     "\nOutput ONLY the script lines. No preamble, no quotes, no title.",
   ].join("\n");
 }
+
+// Iterate on an existing script from a free-text change request ("punchier hook",
+// "make it shorter", "lose the last line"). Keeps the voice; only changes what's asked.
+export function revisePrompt(topic: string, currentScript: string, feedback: string): string {
+  return [
+    VOICE_RULES,
+    "\nGold-standard examples (match this exactly):\n" + FEW_SHOTS,
+    "\n" + ANTI_EXAMPLES,
+    `\nHere is the current script about "${topic}":\n${currentScript}`,
+    `\nThe writer wants this change: ${feedback}`,
+    "\nApply ONLY that change. Keep everything else close to the original and keep the voice.",
+    "\nOutput ONLY the revised script lines. No preamble, no quotes, no title.",
+  ].join("\n");
+}

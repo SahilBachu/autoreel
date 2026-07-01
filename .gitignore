@@ -39,3 +39,5 @@ studio/out/
 studio/public/clips/
 studio/public/generated/
 studio/props-*.json
+
+.bot-state.json

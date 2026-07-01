@@ -31,8 +31,10 @@ async function igPost(path: string, params: Record<string, string>) {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+export type PublishHooks = { onProcessing?: () => void; onPublishing?: () => void };
+
 /** Publish a reel from a PUBLIC mp4 URL. Returns the permalink. */
-export async function publishReel(videoUrl: string, caption: string): Promise<string> {
+export async function publishReel(videoUrl: string, caption: string, hooks: PublishHooks = {}): Promise<string> {
   if (!token() || !userId()) throw new Error("IG_ACCESS_TOKEN / IG_USER_ID not set");
 
   // 1. create container
@@ -43,6 +45,7 @@ export async function publishReel(videoUrl: string, caption: string): Promise<st
   });
 
   // 2. poll status until FINISHED (video transcode can take a while)
+  hooks.onProcessing?.();
   const deadline = Date.now() + 5 * 60_000;
   for (;;) {
     const { status_code } = await igGet(creationId, { fields: "status_code" });
@@ -54,6 +57,7 @@ export async function publishReel(videoUrl: string, caption: string): Promise<st
   }
 
   // 3. publish
+  hooks.onPublishing?.();
   const { id: mediaId } = await igPost(`${userId()}/media_publish`, { creation_id: creationId });
 
   // 4. permalink

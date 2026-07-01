@@ -5,7 +5,8 @@ import { spawn } from "node:child_process";
 export function claude(prompt: string, opts: { json?: boolean } = {}): Promise<string> {
   return new Promise((res, rej) => {
     const args = ["-p", prompt, "--output-format", opts.json ? "json" : "text"];
-    const p = spawn("claude", args, { shell: false });
+    // stdin: "ignore" -> the CLI won't stall 3s waiting for piped stdin (prompt is an arg).
+    const p = spawn("claude", args, { shell: false, stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
     let err = "";
     p.stdout.on("data", (d) => (out += d));
