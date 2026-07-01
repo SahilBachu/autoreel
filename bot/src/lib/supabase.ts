@@ -20,6 +20,9 @@ export async function uploadReel(localPath: string, destName?: string): Promise<
       "x-upsert": "true",
     },
     body,
+    // fail fast if Supabase's edge is unreachable (it flakes from some WSL/network combos) so
+    // the caller can fall back to another host instead of hanging.
+    signal: AbortSignal.timeout(25000),
   });
   if (!r.ok) throw new Error(`Supabase upload failed: ${r.status} ${await r.text()}`);
 
