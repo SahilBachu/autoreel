@@ -30,8 +30,15 @@ HARD RULES:
   screenshot, phone, linechart, barchart, donut, statgrid, tweet). Use plain-text kinds
   (headline/quote/callout/points) for at most ~40% of scenes.
 - Whenever a real PRODUCT/COMPANY is named (Anthropic, OpenAI, Claude, Cursor, GitHub, Gemini,
-  Google, Meta, Llama, Perplexity, Ollama, etc.), show its LOGO (logo/logowall/versus) or a
-  SCREENSHOT of its site — don't just write the name.
+  Google, Meta, Llama, Perplexity, Ollama, Vercel, Notion, Figma, etc.), show its LOGO
+  (logo/logowall/versus) or a SCREENSHOT of its site — don't just write the name.
+- LOGO/LOGOWALL/VERSUS only work with real BRAND names that have a logo (the companies above +
+  "Claude"). A MODEL name (Sonnet 5, Opus, GPT-5) has NO logo — for the opener use the company
+  logo with the model as the tagline (e.g. {"kind":"logo","name":"Claude","tagline":"Sonnet 5"}),
+  and for model number comparisons use compare/barchart/statgrid/donut, NOT versus.
+- SCREENSHOTS: give a real MARKETING, DOCS, or GITHUB url (https://anthropic.com,
+  https://cursor.com, https://github.com/<org>/<repo>, a docs/pricing page). NEVER an app/login
+  page (claude.ai, chatgpt.com) — those show a bot-check page and get dropped.
 - On-screen NUMBERS must be REAL (stated in the script or true). If you don't have a real number,
   don't use stat/donut/charts for it.
 - Vary the background across scenes (never same bg twice in a row): "paper", "cream", "dark",
@@ -39,11 +46,11 @@ HARD RULES:
 - Do NOT include captions — captions are added automatically from the audio.
 
 SCENE KINDS (use a rich mix, favor the visual ones):
-- {"kind":"logo","name":"Sonnet 5","tagline":"by Anthropic","bg":"dark"}  (real brand logo + name)
-- {"kind":"logowall","title":"everyone's adding it","brands":["Cursor","GitHub","Perplexity","Vercel"],"bg":"dark"}  (grid of REAL logos)
-- {"kind":"versus","a":"Sonnet 5","b":"Opus","aNote":"$3","bNote":"$15","bg":"paper"}  (two real logos head-to-head)
-- {"kind":"screenshot","url":"https://claude.ai","label":"claude.ai","bg":"dark"}  (REAL screenshot of the site — always give a real URL)
-- {"kind":"phone","url":"https://claude.ai","label":"the app","bg":"warm"}  (site/app screenshot in a phone frame)
+- {"kind":"logo","name":"Claude","tagline":"Sonnet 5","bg":"dark"}  (real brand logo + name; use a company that HAS a logo, model as tagline)
+- {"kind":"logowall","title":"everyone's adding it","brands":["Cursor","GitHub","Perplexity","Vercel","OpenAI"],"bg":"dark"}  (grid of REAL company logos)
+- {"kind":"versus","a":"Anthropic","b":"OpenAI","aNote":"$3 / M","bNote":"$15 / M","bg":"paper"}  (two real company logos head-to-head)
+- {"kind":"screenshot","url":"https://cursor.com","label":"cursor.com","bg":"dark"}  (REAL screenshot — use a marketing/docs/github URL, NOT an app login)
+- {"kind":"phone","url":"https://cursor.com","label":"the site","bg":"warm"}  (marketing/docs screenshot in a phone frame)
 - {"kind":"linechart","title":"benchmark over time","values":[40,55,72,90],"caption":"straight up","bg":"dark"}  (animated trend)
 - {"kind":"barchart","title":"SWE-bench %","unit":"%","rows":[{"label":"Opus","value":72},{"label":"Sonnet 5","value":78,"highlight":true}],"bg":"paper"}
 - {"kind":"donut","percent":90,"label":"as good as Opus","kicker":"benchmarks","bg":"dark"}  (a single % ring)

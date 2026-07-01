@@ -34,7 +34,15 @@ export async function screenshot(url: string, outPath: string): Promise<boolean>
       }
     }
 
-    await page.waitForTimeout(900); // let fonts/hero animations settle
+    await page.waitForTimeout(1100); // let fonts/hero animations settle (+ give CF a beat to auto-pass)
+
+    // bail on bot-wall / challenge / error pages — a screenshot of a Cloudflare "verify you are
+    // human" page looks terrible, so treat it as a failed fetch and let the caller drop the scene.
+    const title = (await page.title().catch(() => "")) || "";
+    const body = await page.evaluate(() => (document.body?.innerText || "").slice(0, 500)).catch(() => "");
+    const blocked = /just a moment|attention required|verify you are human|are you a robot|checking your browser|access denied|enable javascript and cookies|cloudflare/i;
+    if (blocked.test(title) || blocked.test(body)) return false;
+
     await page.screenshot({ path: outPath, clip: { x: 0, y: 0, width: 1280, height: 1600 } });
     return true;
   } catch {

@@ -1,7 +1,7 @@
 import { AbsoluteFill, Img, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig, Easing } from "remotion";
 import { S, SF } from "../reel_cursor/skin";
 import { SceneBg, type Bg } from "./scenes";
-import { Logo } from "./logos";
+import { Logo, hasLogo } from "./logos";
 
 // Visual-heavy component pack — real logos, charts, cards, device mocks. Same design language
 // as scenes.tsx (skin.ts), spring motion. The director fills them with the reel's real content.
@@ -17,17 +17,21 @@ export const LogoDrop: React.FC<{ name: string; tagline?: string; src?: string; 
   const { fps } = useVideoConfig();
   const e = spr(f, fps, 0, { damping: 18 });
   const dark = onDarkBg(bg);
+  const has = hasLogo(name);
   const size = Math.max(78, Math.min(160, Math.round(1500 / Math.max(name.length, 7))));
   return (
     <SceneBg bg={bg}>
       <div style={{ textAlign: "center", transform: `scale(${interpolate(e, [0, 1], [0.8, 1])})`, opacity: e }}>
-        <div style={{ marginBottom: 40, display: "flex", justifyContent: "center" }}>
-          {src ? (
-            <Img src={asset(src)} style={{ width: 190, height: 190, borderRadius: 44, objectFit: "cover", boxShadow: "0 30px 80px rgba(0,0,0,0.5)" }} />
-          ) : (
-            <Logo name={name} size={210} color={dark ? "#fff" : undefined} />
-          )}
-        </div>
+        {/* real logo (or a screenshot) above the name — skip when there's neither, so the name isn't shown twice */}
+        {src || has ? (
+          <div style={{ marginBottom: 40, display: "flex", justifyContent: "center" }}>
+            {src ? (
+              <Img src={asset(src)} style={{ width: 190, height: 190, borderRadius: 44, objectFit: "cover", boxShadow: "0 30px 80px rgba(0,0,0,0.5)" }} />
+            ) : (
+              <Logo name={name} size={210} color={dark ? "#fff" : undefined} />
+            )}
+          </div>
+        ) : null}
         <div style={{ fontFamily: SF.display, fontWeight: 700, fontSize: size, letterSpacing: "-0.03em", color: dark ? S.white : S.ink, whiteSpace: "nowrap" }}>{name}</div>
         {tagline ? <div style={{ fontFamily: SF.serif, fontStyle: "italic", fontSize: 56, color: dark ? S.whiteDim : S.inkSoft, marginTop: 16 }}>{tagline}</div> : null}
       </div>
@@ -68,18 +72,21 @@ export const Versus: React.FC<{ a: string; b: string; aNote?: string; bNote?: st
   const eA = spr(f, fps, 2, { damping: 18 });
   const eB = spr(f, fps, 8, { damping: 18 });
   const eV = spr(f, fps, 14, { damping: 12, stiffness: 180 });
-  const card = (name: string, note: string | undefined, e: number, from: number) => (
-    <div style={{ flex: 1, textAlign: "center", opacity: e, transform: `translateX(${interpolate(e, [0, 1], [from, 0])}px)` }}>
-      <Logo name={name} size={150} color={dark ? "#fff" : undefined} />
-      <div style={{ fontFamily: SF.display, fontWeight: 700, fontSize: 52, color: dark ? S.white : S.ink, marginTop: 22 }}>{name}</div>
-      {note ? <div style={{ fontFamily: SF.body, fontSize: 32, color: dark ? S.whiteDim : S.inkSoft, marginTop: 8 }}>{note}</div> : null}
-    </div>
-  );
+  const card = (name: string, note: string | undefined, e: number, from: number) => {
+    const has = hasLogo(name);
+    return (
+      <div style={{ flex: 1, textAlign: "center", opacity: e, transform: `translateX(${interpolate(e, [0, 1], [from, 0])}px)` }}>
+        {has ? <div style={{ marginBottom: 22 }}><Logo name={name} size={150} color={dark ? "#fff" : undefined} /></div> : null}
+        <div style={{ fontFamily: SF.display, fontWeight: 700, fontSize: has ? 52 : 62, color: dark ? S.white : S.ink, letterSpacing: "-0.02em" }}>{name}</div>
+        {note ? <div style={{ fontFamily: SF.display, fontWeight: 700, fontSize: 44, color: dark ? S.white : S.rust, marginTop: 10 }}>{note}</div> : null}
+      </div>
+    );
+  };
   return (
     <SceneBg bg={bg}>
       <div style={{ width: "100%", maxWidth: 940, display: "flex", alignItems: "center", gap: 20 }}>
         {card(a, aNote, eA, -80)}
-        <div style={{ fontFamily: SF.serif, fontStyle: "italic", fontWeight: 700, fontSize: 90, color: S.rust, transform: `scale(${eV})` }}>vs</div>
+        <div style={{ fontFamily: SF.serif, fontStyle: "italic", fontWeight: 700, fontSize: 88, color: dark ? S.white : S.rust, transform: `scale(${eV})`, flexShrink: 0 }}>vs</div>
         {card(b, bNote, eB, 80)}
       </div>
     </SceneBg>
