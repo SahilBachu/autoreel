@@ -4,12 +4,12 @@ import { spawn } from "node:child_process";
 // Complex creative steps (script, director, discovery) run on Opus; cheap utility
 // calls (captions etc.) stay on the default model.
 
-type Opts = { model?: string; resume?: string; json?: boolean };
+type Opts = { model?: string; resume?: string; json?: boolean; tools?: string[]; cwd?: string };
 
-function run(args: string[]): Promise<string> {
+function run(args: string[], cwd?: string): Promise<string> {
   return new Promise((res, rej) => {
     // stdin: "ignore" -> the CLI won't stall 3s waiting for piped stdin (prompt is an arg).
-    const p = spawn("claude", args, { shell: false, stdio: ["ignore", "pipe", "pipe"] });
+    const p = spawn("claude", args, { shell: false, stdio: ["ignore", "pipe", "pipe"], cwd });
     let out = "";
     let err = "";
     p.stdout.on("data", (d) => (out += d));
@@ -23,11 +23,13 @@ function baseArgs(prompt: string, opts: Opts): string[] {
   const args = ["-p", prompt];
   if (opts.model) args.push("--model", opts.model);
   if (opts.resume) args.push("--resume", opts.resume);
+  // agentic mode: grant specific tools (Write/Read/WebSearch/...) to a headless call
+  if (opts.tools?.length) args.push("--allowedTools", opts.tools.join(","), "--permission-mode", "acceptEdits");
   return args;
 }
 
 export async function claude(prompt: string, opts: Opts = {}): Promise<string> {
-  return run([...baseArgs(prompt, opts), "--output-format", "text"]);
+  return run([...baseArgs(prompt, opts), "--output-format", "text"], opts.cwd);
 }
 
 // Start (or continue) a conversation and get the session id back, so revisions can
@@ -36,7 +38,7 @@ export async function claudeSession(
   prompt: string,
   opts: Opts = {},
 ): Promise<{ text: string; sessionId?: string }> {
-  const raw = await run([...baseArgs(prompt, opts), "--output-format", "json"]);
+  const raw = await run([...baseArgs(prompt, opts), "--output-format", "json"], opts.cwd);
   try {
     const j = JSON.parse(raw);
     return { text: (j.result ?? "").trim(), sessionId: j.session_id };

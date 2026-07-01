@@ -15,6 +15,7 @@ import { Callout, Decrypt, Headline, Quote } from "./v2-text";
 import { BarChart, Donut, LineChart, Stat, StatRow, Table } from "./v2-data";
 import { Bento, CalendarCard, Chat, Checklist, Kbd, Notifications, Timeline } from "./v2-ui";
 import { Browser, CodeBlock, LogoDrop, LogoWall, Phone, Terminal, TweetCard, Versus } from "./v2-media";
+import { GENERATED } from "./generated/index";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AutoReel v2 — dark + one bright accent per video. The director emits `scenes`
@@ -95,6 +96,11 @@ const SceneBody: React.FC<{ s: Scene }> = ({ s }) => {
           <AsciiImage src={s.src} brand={s.brand} label={s.label} />
         </SceneWrap>
       );
+    case "custom": {
+      // bespoke per-video component, code-generated + typechecked at render time
+      const C = s.name ? GENERATED[s.name] : undefined;
+      return C ? <C {...(s.props ?? {})} /> : null;
+    }
     default:
       return null;
   }

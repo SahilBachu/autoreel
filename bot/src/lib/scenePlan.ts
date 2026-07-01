@@ -6,11 +6,14 @@ import type { Word } from "./whisper.js";
 // reel's REAL content. Full catalog with previews: COMPONENTS.md (repo root).
 export type Scene = any;
 
+export type Plan = { accent?: string; scenes: Scene[] };
+
 // The art director. Designs a DENSE (~70%) sequence of full-screen scenes timed to the words,
-// on the dark+accent design system, leaning HARD on real assets and product-grade UI.
-export async function planCutaways(args: { topic: string; words: Word[]; editNote?: string }): Promise<Scene[]> {
+// CHOOSES the video's accent color, and may commission bespoke components (kind "custom" —
+// code-generated + verified before render, see lib/studio.ts).
+export async function planCutaways(args: { topic: string; words: Word[]; editNote?: string }): Promise<Plan> {
   const { topic, words, editNote } = args;
-  if (!words.length) return [];
+  if (!words.length) return { scenes: [] };
   const totalMs = words[words.length - 1].endMs;
   const transcript = words.map((w) => `[${w.startMs}] ${w.text}`).join(" ");
 
@@ -69,21 +72,34 @@ media (real assets):
 - {"kind":"terminal","title":"zsh","lines":["claude -p \\"ship it\\"","done in 4s"]}
 - {"kind":"code","title":"agent.ts","lines":["const r = await claude.run(task)","// runs for hours"],"highlight":[1]}
 - {"kind":"tweet","name":"a dev","handle":"handle","text":"realistic hot take","brand":"Anthropic"}
+bespoke (use sparingly — it will be CODE-GENERATED for this video, then verified):
+- {"kind":"custom","name":"PascalCaseName","spec":"one tight paragraph: exactly what to show and how it animates","props":{...any data it needs...}}
+  ONLY when no kind above fits the beat. Max 1 per video. Great for topic-specific visuals
+  (e.g. a token-price ticker, a model-router diagram, a fake app UI specific to the story).
+
+ALSO CHOOSE the video's ACCENT color to fit the topic's vibe:
+blue (trust/infra) · cyan (futuristic) · green (money/win) · orange (energy) · red (drama/ban)
+· pink (fun/chaos) · violet (research/frontier).
 
 ${editNote ? `IMPORTANT change requested: ${editNote}` : ""}
 ${visualBlock()}
-Return ONLY a JSON array of scene objects.`;
+Return ONLY JSON: {"accent":"<color>","scenes":[...]}`;
 
+  let accent: string | undefined;
   let scenes: Scene[] = [];
   try {
-    const plan = await claudeJson<Scene[]>(prompt, { model: "opus" });
-    if (Array.isArray(plan)) scenes = plan;
+    const plan = await claudeJson<any>(prompt, { model: "opus" });
+    if (Array.isArray(plan)) scenes = plan; // tolerate old array shape
+    else if (plan && Array.isArray(plan.scenes)) {
+      scenes = plan.scenes;
+      accent = typeof plan.accent === "string" ? plan.accent : undefined;
+    }
   } catch {
     /* fall through */
   }
   scenes = sanitize(scenes, totalMs);
   if (!scenes.length) scenes = [{ kind: "headline", startMs: 200, endMs: 2600, text: topic.split(" ").slice(0, 6).join(" ") }];
-  return scenes;
+  return { accent, scenes };
 }
 
 function sanitize(scenes: Scene[], totalMs: number): Scene[] {

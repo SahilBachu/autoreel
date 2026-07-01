@@ -5,6 +5,7 @@ import { config } from "../config.js";
 import { transcribe } from "../lib/whisper.js";
 import { alignCaptions } from "../lib/align.js";
 import { planCutaways } from "../lib/scenePlan.js";
+import { buildCustomScenes } from "../lib/studio.js";
 import { screenshot } from "../lib/shot.js";
 
 function run(cmd: string, args: string[], cwd: string): Promise<void> {
@@ -93,8 +94,11 @@ export async function renderReel(opts: {
     "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
     "-c:a", "aac", "-b:a", "128k", "-pix_fmt", "yuv420p", "-y", resolve(studio, "public", clipRel)], studio);
 
-  // 2. director designs a dense sequence of motion-graphic scenes (timed to the words)
-  const planned = await planCutaways({ topic: opts.topic, words: captions, editNote: opts.editNote });
+  // 2. director designs a dense sequence of motion-graphic scenes (timed to the words),
+  // picks the video's accent, and may commission bespoke components (built + typechecked
+  // by lib/studio.ts; dropped safely on any failure)
+  const plan = await planCutaways({ topic: opts.topic, words: captions, editNote: opts.editNote });
+  const planned = await buildCustomScenes(plan.scenes, id);
 
   // 2b. resolve any real screenshots (Playwright) for "screenshot" scenes (and optional "logo"
   // art). Failed fetches: drop a screenshot scene, or keep a logo scene without the image.
@@ -119,9 +123,9 @@ export async function renderReel(opts: {
   const trimBeforeMs = whoosh ? await leadSilenceMs(studio, whoosh) : 0;
   const sfx = whoosh ? spacedStarts(scenes, 5000, 3).map((atMs) => ({ file: whoosh, atMs, trimBeforeMs, volume: 0.16 })) : [];
 
-  // 4. props + render — one bright accent per video, picked at random (brand v2)
+  // 4. props + render — the director chooses the accent to fit the topic; random fallback
   const ACCENTS = ["blue", "cyan", "green", "orange", "red", "pink", "violet"];
-  const accent = ACCENTS[Math.floor(Math.random() * ACCENTS.length)];
+  const accent = plan.accent && ACCENTS.includes(plan.accent) ? plan.accent : ACCENTS[Math.floor(Math.random() * ACCENTS.length)];
   const propsPath = resolve(studio, "out", `${id}.props.json`);
   await writeFile(propsPath, JSON.stringify({ videoSrc: clipRel, captions, scenes, accent, music, sfx, voiceBoost: 2.8 }));
   const mp4 = resolve(studio, "out", `${id}.mp4`);

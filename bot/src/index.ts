@@ -5,6 +5,7 @@ import { homedir } from "node:os";
 import { config, REPO_ROOT } from "./config.js";
 import { state } from "./state.js";
 import { generateIdea, reviseScript } from "./jobs/idea.js";
+import { buildDigest, formatDigest, loadDigest } from "./jobs/discover.js";
 import { renderReel } from "./jobs/render.js";
 import { postReel } from "./jobs/post.js";
 import { genPostCaption } from "./lib/caption.js";
@@ -73,6 +74,8 @@ const HELP = [
   "*commands*",
   "/idea — random idea + script",
   "`idea: <your idea>` — script for a specific idea",
+  "/discover — research what AI world is talking about right now (3 cards + scripts)",
+  "1 / 2 / 3 — pick from the morning digest (\"2 but shorter\" works too)",
   "`tomorrow: <idea>` — push onto the idea stack (newest first)",
   "any text — revises the current script (or the video, after Edit)",
   "send a video — confirms the script and renders the reel",
@@ -99,6 +102,17 @@ bot.command("learn", async (ctx) => {
 bot.command("forget", (ctx) => {
   forgetPrefs();
   ctx.reply("cleared the learned preferences. I'll relearn as you use it.");
+});
+
+// on-demand discovery (same machinery as the 3am digest)
+bot.command("discover", async (ctx) => {
+  await ctx.reply("researching what the AI world is talking about — takes a few minutes…");
+  try {
+    const digest = await buildDigest(3);
+    await ctx.reply(formatDigest(digest));
+  } catch (e: any) {
+    await ctx.reply(`discovery failed: ${e.message}`);
+  }
 });
 
 // random idea
@@ -189,6 +203,28 @@ bot.callbackQuery("edit", async (ctx) => {
 // the script — a change request that revises the script in place. Keep going until a clip.
 bot.on("message:text", async (ctx) => {
   const chat = String(ctx.chat.id);
+
+  // digest pick: "1" / "2" / "3", optionally "2 but <change>" — activates that card's script
+  // (and its live session), then the normal revise loop takes over.
+  const pick = ctx.message.text.match(/^\s*([1-3])\b[\s.,:-]*(?:but\s+(.+))?\s*$/is);
+  if (pick) {
+    const digest = await loadDigest();
+    const card = digest?.cards.find((c) => c.n === Number(pick[1]));
+    if (card) {
+      state.set(chat, { topic: card.topic, script: card.script, stage: "script", scriptSessionId: card.sessionId });
+      learnFromIdea(card.topic);
+      if (pick[2]) {
+        await ctx.reply("picked — reworking it…");
+        const r = await reviseScript(card.topic, card.script, pick[2], card.sessionId);
+        state.patch(chat, { script: r.script, scriptSessionId: r.sessionId ?? card.sessionId });
+        await ctx.reply(`*${card.topic}*\n\n${r.script}\n\nsend the clip when it's right — or tell me another change.`, { parse_mode: "Markdown" });
+      } else {
+        await ctx.reply(`*${card.topic}*\n\n${card.script}\n\nsend the clip when it's right — or tell me what to change.`, { parse_mode: "Markdown" });
+      }
+      return;
+    }
+  }
+
   const p = state.get(chat);
   if (!p) return;
 

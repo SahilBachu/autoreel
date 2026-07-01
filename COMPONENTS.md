@@ -53,6 +53,14 @@ belong in `studio/src/auto/generated/<videoId>/` and must (1) drive all motion f
 | code | title?, lines[], highlight?[] | code beats; accent-highlighted lines |
 | tweet | name, handle, text, brand? | a take as a dark X card |
 
+## bespoke
+| kind | props | use when |
+|---|---|---|
+| custom | name (PascalCase), spec (what to build/animate), props{} | nothing above fits the beat — the component is CODE-GENERATED at render time (Opus writes it into generated/, typecheck-gated, auto-dropped on failure). Max 1/video. |
+
+The director also CHOOSES the video's accent (blue/cyan/green/orange/red/pink/violet) to fit
+the topic's vibe — returned as `accent` alongside `scenes`.
+
 ## rules of taste
 - ≥ half the scenes visual (data/ui/media); text-only kinds ≤ ~40%.
 - Named product ⇒ show its logo/site, don't just write it.
