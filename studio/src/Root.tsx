@@ -27,7 +27,7 @@ export const RemotionRoot: React.FC = () => {
       width={WIDTH}
       height={HEIGHT}
       durationInFrames={300}
-      defaultProps={{ videoSrc: "", captions: [], cutaways: [] } as AutoReelData}
+      defaultProps={{ videoSrc: "", captions: [], scenes: [] } as AutoReelData}
       calculateMetadata={({ props }: { props: AutoReelData }) => {
         const last = props.captions.length ? props.captions[props.captions.length - 1].endMs : 9000;
         return { durationInFrames: Math.ceil((last / 1000) * FPS) + 18 };

@@ -20,9 +20,29 @@ export function claude(prompt: string, opts: { json?: boolean } = {}): Promise<s
 
 // Convenience: ask for JSON and parse it (director/scene-plan/component generation).
 export async function claudeJson<T>(prompt: string): Promise<T> {
-  const raw = await claude(prompt + "\n\nReturn ONLY valid JSON.", { json: false });
-  const start = raw.indexOf("{");
-  const startArr = raw.indexOf("[");
-  const s = start === -1 ? startArr : startArr === -1 ? start : Math.min(start, startArr);
-  return JSON.parse(raw.slice(s)) as T;
+  const raw = await claude(prompt + "\n\nReturn ONLY valid JSON — no markdown fences, no prose.", { json: false });
+  return JSON.parse(extractJson(raw)) as T;
+}
+
+// Pull the first balanced JSON value out of a model response — tolerant of ```json fences,
+// leading/trailing prose, etc. (the old naive slice broke on any trailing characters).
+function extractJson(raw: string): string {
+  const s = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
+  const candidates = [s.indexOf("["), s.indexOf("{")].filter((n) => n >= 0);
+  if (!candidates.length) return s;
+  const i = Math.min(...candidates);
+  const open = s[i];
+  const close = open === "[" ? "]" : "}";
+  let depth = 0, inStr = false, esc = false;
+  for (let j = i; j < s.length; j++) {
+    const c = s[j];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+    } else if (c === '"') inStr = true;
+    else if (c === open) depth++;
+    else if (c === close && --depth === 0) return s.slice(i, j + 1);
+  }
+  return s.slice(i);
 }

@@ -1,10 +1,8 @@
 import {
   AbsoluteFill,
   Audio,
-  Img,
   OffthreadVideo,
   Sequence,
-  spring,
   staticFile,
   useVideoConfig,
   useCurrentFrame,
@@ -12,141 +10,111 @@ import {
 } from "remotion";
 import type { Word } from "../types";
 import { NickCaption } from "../nick/Caption";
-import { DotGrid, TitleSerif, Statement, AgentGrid, SpeedBars, CursorLogo } from "../reel_cursor/parts";
-import { Window } from "../nick/components";
-import { S, SF } from "../reel_cursor/skin";
 import { C } from "../nick/tokens";
+import {
+  SceneBg,
+  Headline,
+  Stat,
+  Compare,
+  Terminal,
+  LogoDrop,
+  Points,
+  Quote,
+  Callout,
+  Screenshot,
+  type Bg,
+} from "./scenes";
 
-// Full cutaway vocabulary. The director (bot/src/lib/scenePlan.ts) emits these, timed to
-// the transcript. Add more kinds here + a matching case in <CutawayBody> as the kit grows.
-export type Cutaway =
-  | { kind: "title"; startMs: number; endMs: number; lines: { text: string; boxed?: boolean }[] }
-  | { kind: "statement"; startMs: number; endMs: number; pre: string; boxed: string; post?: string }
-  | { kind: "agents"; startMs: number; endMs: number; kicker?: string }
-  | { kind: "speed"; startMs: number; endMs: number; kicker?: string }
-  | { kind: "terminal"; startMs: number; endMs: number; title?: string; lines: string[] }
-  | { kind: "logo"; startMs: number; endMs: number }
+// Bespoke, animated, PARAMETRIC scene vocabulary. The director (bot/lib/scenePlan.ts) emits
+// these filled with the reel's ACTUAL content and covers ~70% of the timeline. See scenes.tsx.
+export type Scene =
+  | { kind: "headline"; startMs: number; endMs: number; text: string; emphasis?: string; bg?: Bg }
+  | { kind: "stat"; startMs: number; endMs: number; value: string; sub?: string; kicker?: string; bg?: Bg }
+  | { kind: "compare"; startMs: number; endMs: number; title?: string; unit?: string; rows: { label: string; value: number; note?: string; highlight?: boolean }[]; bg?: Bg }
+  | { kind: "terminal"; startMs: number; endMs: number; title?: string; lines: string[]; bg?: Bg }
+  | { kind: "logo"; startMs: number; endMs: number; name: string; tagline?: string; src?: string; bg?: Bg }
+  | { kind: "points"; startMs: number; endMs: number; title?: string; items: string[]; bg?: Bg }
+  | { kind: "quote"; startMs: number; endMs: number; pre: string; boxed: string; post?: string; bg?: Bg }
+  | { kind: "callout"; startMs: number; endMs: number; text: string; bg?: Bg }
   | { kind: "screenshot"; startMs: number; endMs: number; src: string; url?: string; label?: string };
 
 export type AutoReelData = {
   videoSrc: string;
   captions: Word[];
-  cutaways: Cutaway[];
-  music?: string; // public/ path
+  scenes: Scene[];
+  music?: string;
   sfx?: { file: string; atMs: number; trimBeforeMs?: number; volume?: number }[];
-  voiceBoost?: number; // multiply the clip's voice volume (soft audio -> louder)
+  voiceBoost?: number;
 };
 
 const asset = (s: string) => (s.startsWith("http") ? s : staticFile(s));
 
-const Kicker: React.FC<{ text: string }> = ({ text }) => (
-  <div style={{ fontFamily: SF.body, fontWeight: 700, fontSize: 26, letterSpacing: "0.22em", textTransform: "uppercase", color: S.rust, marginBottom: 34 }}>
-    {text}
-  </div>
-);
-
-const Paper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <AbsoluteFill>
-    <DotGrid />
-    <AbsoluteFill style={{ justifyContent: "center", alignItems: "center", padding: 80 }}>
-      {children}
-    </AbsoluteFill>
-  </AbsoluteFill>
-);
-
-// a REAL website/product screenshot in a rounded browser frame (Nick-style real-UI cutaway)
-const ScreenshotCard: React.FC<{ src: string; label?: string }> = ({ src, label }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const s = spring({ frame, fps, config: { damping: 200 }, durationInFrames: 14 });
-  const scale = interpolate(s, [0, 1], [0.9, 1]);
-  return (
-    <AbsoluteFill style={{ background: "linear-gradient(160deg,#1c1815,#0b0a09)", justifyContent: "center", alignItems: "center" }}>
-      <div style={{ transform: `scale(${scale})`, width: 940, borderRadius: 30, overflow: "hidden", background: "#fff", boxShadow: "0 50px 130px rgba(0,0,0,0.55)", border: "1px solid rgba(0,0,0,0.06)" }}>
-        <div style={{ height: 62, background: "#ecebe6", display: "flex", alignItems: "center", gap: 11, padding: "0 26px" }}>
-          <div style={{ width: 17, height: 17, borderRadius: 9, background: "#ff5f57" }} />
-          <div style={{ width: 17, height: 17, borderRadius: 9, background: "#febc2e" }} />
-          <div style={{ width: 17, height: 17, borderRadius: 9, background: "#28c840" }} />
-          {label ? (
-            <div style={{ marginLeft: 18, padding: "7px 20px", background: "#fff", borderRadius: 999, fontFamily: SF.body, fontWeight: 600, fontSize: 23, color: "#666" }}>{label}</div>
-          ) : null}
-        </div>
-        <div style={{ height: 1040, overflow: "hidden" }}>
-          <Img src={asset(src)} style={{ width: "100%", display: "block" }} />
-        </div>
-      </div>
-    </AbsoluteFill>
-  );
-};
-
-const CutawayBody: React.FC<{ c: Cutaway }> = ({ c }) => {
-  switch (c.kind) {
-    case "title":
-      return <Paper><TitleSerif lines={c.lines} /></Paper>;
-    case "statement":
-      return <Paper><Statement pre={c.pre} boxed={c.boxed} post={c.post} /></Paper>;
-    case "agents":
-      return <Paper><div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%" }}><Kicker text={c.kicker ?? "8 agents · in parallel"} /><AgentGrid /></div></Paper>;
-    case "speed":
-      return <Paper><div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%" }}><Kicker text={c.kicker ?? "Composer — their own model"} /><SpeedBars /></div></Paper>;
-    case "logo":
-      return <AbsoluteFill style={{ background: C.black, justifyContent: "center", alignItems: "center" }}><CursorLogo onDark /></AbsoluteFill>;
-    case "screenshot":
-      return <ScreenshotCard src={c.src} label={c.label} />;
+const SceneBody: React.FC<{ s: Scene }> = ({ s }) => {
+  switch (s.kind) {
+    case "headline":
+      return <Headline text={s.text} emphasis={s.emphasis} bg={s.bg} />;
+    case "stat":
+      return <Stat value={s.value} sub={s.sub} kicker={s.kicker} bg={s.bg} />;
+    case "compare":
+      return <Compare title={s.title} unit={s.unit} rows={s.rows} bg={s.bg} />;
     case "terminal":
-      return (
-        <AbsoluteFill style={{ background: S.orangeBg, justifyContent: "center", alignItems: "center" }}>
-          <Window title={c.title ?? "Composer"} variant="win" width={860} height={880}>
-            <div style={{ padding: 40, fontFamily: SF.mono, fontSize: 28, lineHeight: 1.7, color: S.whiteDim }}>
-              {c.lines.map((l, i) => (
-                <div key={i} style={{ color: i === 0 ? S.white : undefined }}>{l}</div>
-              ))}
-            </div>
-          </Window>
-        </AbsoluteFill>
-      );
+      return <Terminal title={s.title} lines={s.lines} bg={s.bg} />;
+    case "logo":
+      return <LogoDrop name={s.name} tagline={s.tagline} src={s.src} bg={s.bg} />;
+    case "points":
+      return <Points title={s.title} items={s.items} bg={s.bg} />;
+    case "quote":
+      return <Quote pre={s.pre} boxed={s.boxed} post={s.post} bg={s.bg} />;
+    case "callout":
+      return <Callout text={s.text} bg={s.bg} />;
+    case "screenshot":
+      return <Screenshot src={s.src} label={s.label} />;
+    default:
+      return null;
   }
 };
 
-// small fade so a cutaway doesn't flash at its edges
-const Fader: React.FC<{ durF: number; children: React.ReactNode }> = ({ durF, children }) => {
+// quick fade at the edges so a full-screen scene doesn't hard-flash in/out
+const Fade: React.FC<{ durF: number; children: React.ReactNode }> = ({ durF, children }) => {
   const f = useCurrentFrame();
-  const op = interpolate(f, [0, 3, durF - 3, durF], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const op = interpolate(f, [0, 4, durF - 4, durF], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   return <AbsoluteFill style={{ opacity: op }}>{children}</AbsoluteFill>;
 };
 
-export const AutoReel: React.FC<AutoReelData> = ({ videoSrc, captions, cutaways, music, sfx, voiceBoost }) => {
+export const AutoReel: React.FC<AutoReelData> = ({ videoSrc, captions, scenes, music, sfx, voiceBoost }) => {
   const { fps } = useVideoConfig();
   const frame = useCurrentFrame();
   const f = (ms: number) => Math.round((ms / 1000) * fps);
 
   return (
     <AbsoluteFill style={{ background: C.black }}>
-      {/* talking head (voice boosted) */}
+      {/* talking head base (shows between scenes) */}
       {videoSrc ? (
         <OffthreadVideo src={asset(videoSrc)} volume={voiceBoost ?? 1} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
       ) : (
         <AbsoluteFill style={{ background: "linear-gradient(165deg,#6b5b4d,#332c27)" }} />
       )}
 
-      {/* cutaways as timed sequences (their own animations play from local frame 0) */}
-      {cutaways.map((c, i) => {
-        const from = f(c.startMs);
-        const dur = f(c.endMs) - from;
+      {/* full-screen motion-graphic scenes, timed to the words (hard cuts, ~70% coverage) */}
+      {scenes.map((s, i) => {
+        const from = f(s.startMs);
+        const dur = Math.max(1, f(s.endMs) - from);
         return (
           <Sequence key={i} from={from} durationInFrames={dur} layout="none">
-            <Fader durF={dur}><CutawayBody c={c} /></Fader>
+            <Fade durF={dur}>
+              <SceneBody s={s} />
+            </Fade>
           </Sequence>
         );
       })}
 
-      {/* music bed, ducked low */}
-      {music ? <Audio src={asset(music)} volume={0.12} loop /> : null}
+      {/* lofi bed — the primary audio; clearly present (was too quiet before) */}
+      {music ? <Audio src={asset(music)} volume={0.32} loop /> : null}
 
-      {/* one-shot SFX — skip any leading silence in the file, play the full hit, louder */}
+      {/* subtle transition SFX (kept quiet so the music leads) */}
       {(sfx ?? []).map((s, i) => (
-        <Sequence key={`sfx${i}`} from={f(s.atMs)} durationInFrames={Math.round(2.6 * fps)} layout="none">
-          <Audio src={asset(s.file)} volume={s.volume ?? 0.9} trimBefore={f(s.trimBeforeMs ?? 0)} />
+        <Sequence key={`sfx${i}`} from={f(s.atMs)} durationInFrames={Math.round(1.6 * fps)} layout="none">
+          <Audio src={asset(s.file)} volume={s.volume ?? 0.18} trimBefore={f(s.trimBeforeMs ?? 0)} />
         </Sequence>
       ))}
 

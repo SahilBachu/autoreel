@@ -32,11 +32,15 @@ function leadSilenceMs(studio: string, relFile: string): Promise<number> {
   });
 }
 
-// pick up to n items, evenly spread across the list (so an SFX isn't spammed on every cut)
-function pickSpread<T>(arr: T[], n: number): T[] {
-  if (arr.length <= n) return arr;
-  const out: T[] = [];
-  for (let i = 0; i < n; i++) out.push(arr[Math.round((i * (arr.length - 1)) / (n - 1))]);
+// pick scene start times to place a whoosh on, spaced >= gapMs apart, max n, skipping the
+// very first beat (no whoosh right on the hook).
+function spacedStarts(scenes: { startMs: number }[], gapMs: number, n: number): number[] {
+  const out: number[] = [];
+  for (const s of scenes) {
+    if (out.length >= n) break;
+    if (s.startMs < 1500) continue;
+    if (!out.length || s.startMs - out[out.length - 1] >= gapMs) out.push(s.startMs);
+  }
   return out;
 }
 
@@ -88,33 +92,37 @@ export async function renderReel(opts: {
     "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
     "-c:a", "aac", "-b:a", "128k", "-pix_fmt", "yuv420p", "-y", resolve(studio, "public", clipRel)], studio);
 
-  // 2. director plans cutaways (timed to the words)
+  // 2. director designs a dense sequence of motion-graphic scenes (timed to the words)
   const planned = await planCutaways({ topic: opts.topic, words: captions, editNote: opts.editNote });
 
-  // 2b. resolve "screenshot" cutaways into REAL local screenshots (Playwright); drop any that
-  // fail to fetch so the talking head just stays on screen for that beat instead of breaking.
+  // 2b. resolve any real screenshots (Playwright) for "screenshot" scenes (and optional "logo"
+  // art). Failed fetches: drop a screenshot scene, or keep a logo scene without the image.
   await mkdir(resolve(studio, "public/generated"), { recursive: true });
-  const cutaways: any[] = [];
+  const scenes: any[] = [];
   let shotN = 0;
   for (const c of planned as any[]) {
     if (c.kind === "screenshot") {
       const rel = `generated/shot-${id}-${shotN++}.png`;
       const ok = c.url ? await screenshot(c.url, resolve(studio, "public", rel)) : false;
-      if (ok) cutaways.push({ ...c, src: rel });
+      if (ok) scenes.push({ ...c, src: rel }); // else drop — head stays on screen
+    } else if (c.kind === "logo" && c.url) {
+      const rel = `generated/shot-${id}-${shotN++}.png`;
+      const ok = await screenshot(c.url, resolve(studio, "public", rel));
+      scenes.push(ok ? { ...c, src: rel } : c); // logo still renders without the shot
     } else {
-      cutaways.push(c);
+      scenes.push(c);
     }
   }
 
-  // 3. audio: whoosh on each cutaway start (skipping its lead silence) + a music bed
+  // 3. audio: lofi bed leads (volume set in the composition); add only a FEW very quiet
+  // transition whooshes on scene changes, spaced >=5s apart, so they never cluster/overpower.
   const { music, whoosh } = await pickAudio(studio);
   const trimBeforeMs = whoosh ? await leadSilenceMs(studio, whoosh) : 0;
-  // each sound effect max 2x per video, spread across the cutaways
-  const sfx = whoosh ? pickSpread(cutaways, 2).map((c) => ({ file: whoosh, atMs: c.startMs, trimBeforeMs, volume: 0.9 })) : [];
+  const sfx = whoosh ? spacedStarts(scenes, 5000, 3).map((atMs) => ({ file: whoosh, atMs, trimBeforeMs, volume: 0.16 })) : [];
 
   // 4. props + render
   const propsPath = resolve(studio, "out", `${id}.props.json`);
-  await writeFile(propsPath, JSON.stringify({ videoSrc: clipRel, captions, cutaways, music, sfx, voiceBoost: 2.8 }));
+  await writeFile(propsPath, JSON.stringify({ videoSrc: clipRel, captions, scenes, music, sfx, voiceBoost: 2.8 }));
   const mp4 = resolve(studio, "out", `${id}.mp4`);
   await run("npx", ["remotion", "render", "AutoReel", mp4, `--props=${propsPath}`], studio);
   return mp4;
