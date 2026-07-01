@@ -1,6 +1,11 @@
-# secrets
+# secrets — PUBLIC REPO: never commit real env files
 .env
-.env.local
+.env.*
+*.env
+!.env.example
+secrets/
+*.key
+*.pem
 
 # node
 node_modules/

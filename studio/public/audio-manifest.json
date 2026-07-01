@@ -14,7 +14,6 @@
     { "file": "sfx/thud.mp3",     "tags": ["impact", "stop"],       "use": "punchline / hard stop" }
   ],
   "music": [
-    { "file": "music/bed-chill.mp3", "tags": ["calm", "lofi", "warm"],   "use": "default bed for dry/relaxed scripts" },
-    { "file": "music/bed-drive.mp3", "tags": ["driving", "energetic"],   "use": "hype-adjacent / faster reels" }
+    { "file": "music/rosewater.mp3", "tags": ["calm", "lofi", "warm"],   "use": "default bed for dry/relaxed scripts" }
   ]
 }
