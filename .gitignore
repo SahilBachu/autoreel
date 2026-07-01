@@ -1,0 +1,31 @@
+# secrets
+.env
+.env.local
+
+# node
+node_modules/
+studio/node_modules/
+**/dist/
+**/out/
+studio/out/
+
+# remotion
+.remotion/
+
+# python
+.venv/
+__pycache__/
+*.pyc
+
+# os / editor
+.DS_Store
+Thumbs.db
+
+# render + media scratch
+/renders/
+/tmp/
+*.log
+
+# large reference videos + extracted frames (not needed on the runner)
+references/
+studio/out/
