@@ -1,5 +1,5 @@
 import { Bot, InlineKeyboard, InputFile } from "grammy";
-import { appendFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { homedir } from "node:os";
 import { config, REPO_ROOT } from "./config.js";
@@ -42,14 +42,14 @@ bot.use(async (ctx, next) => {
 });
 
 const approveKeyboard = new InlineKeyboard()
-  .text("✅ Post", "post")
-  .text("🔁 Redo", "redo")
-  .text("✏️ Edit", "edit");
+  .text("Post", "post")
+  .text("Redo", "redo")
+  .text("Edit", "edit");
 
 async function makeAndSendReel(ctx: any, chat: string, editNote?: string) {
   const p = state.get(chat);
   if (!p?.clipPath || !p.script) return ctx.reply("Send me a clip first (with a script).");
-  await ctx.reply("🎬 rendering… this takes a bit.");
+  await ctx.reply("rendering — this takes a bit.");
   try {
     const mp4 = await renderReel({ clipPath: p.clipPath, script: p.script, topic: p.topic, editNote });
     const caption = await genPostCaption(p.topic, p.script);
@@ -58,29 +58,39 @@ async function makeAndSendReel(ctx: any, chat: string, editNote?: string) {
     // width/height/supports_streaming are REQUIRED with the self-hosted local Bot API server:
     // without them Telegram picks a wrong-aspect player box and displays the reel stretched.
     await ctx.replyWithVideo(new InputFile(mp4), {
-      caption: `📝 caption:\n${caption}`,
+      caption: `caption:\n${caption}`,
       reply_markup: approveKeyboard,
       width: 1080,
       height: 1920,
       supports_streaming: true,
     });
   } catch (e: any) {
-    await ctx.reply(`⚠️ render not ready: ${e.message}`);
+    await ctx.reply(`render not ready: ${e.message}`);
   }
 }
 
-bot.command("start", (ctx) =>
-  ctx.reply(
-    "autoreel ready.\n/idea — random idea, or `idea: <your idea>`. Then send a clip.\n/prefs — what I've learned about your taste · /learn — study now · /forget — reset.",
-  ),
-);
+const HELP = [
+  "*commands*",
+  "/idea — random idea + script",
+  "`idea: <your idea>` — script for a specific idea",
+  "`tomorrow: <idea>` — push onto the idea stack (newest first)",
+  "any text — revises the current script (or the video, after Edit)",
+  "send a video — confirms the script and renders the reel",
+  "Post / Redo / Edit — buttons under every render",
+  "/prefs — what it has learned about your taste",
+  "/learn — run a learning pass now",
+  "/forget — reset learned preferences",
+  "/help — this list",
+].join("\n");
+
+bot.command(["start", "help"], (ctx) => ctx.reply(HELP, { parse_mode: "Markdown" }));
 
 // what the system has learned about the creator's taste
 bot.command("prefs", (ctx) => ctx.reply(prefsSummary(), { parse_mode: "Markdown" }));
 
 // force a learning pass right now (normally happens automatically on posts/edits)
 bot.command("learn", async (ctx) => {
-  await ctx.reply("🧠 studying your recent edits & posts…");
+  await ctx.reply("studying your recent edits and posts…");
   await distill();
   await ctx.reply(prefsSummary(), { parse_mode: "Markdown" });
 });
@@ -88,16 +98,16 @@ bot.command("learn", async (ctx) => {
 // wipe the learned profile (keeps approved-script examples)
 bot.command("forget", (ctx) => {
   forgetPrefs();
-  ctx.reply("🧽 cleared the learned preferences. I'll relearn as you use it.");
+  ctx.reply("cleared the learned preferences. I'll relearn as you use it.");
 });
 
 // random idea
 bot.command("idea", async (ctx) => {
-  await ctx.reply("💡 thinking of something…");
+  await ctx.reply("thinking of something…");
   const { topic, script } = await generateIdea();
   state.set(String(ctx.chat.id), { topic, script, stage: "script" });
   learnFromIdea(topic);
-  await ctx.reply(`*${topic}*\n\n${script}\n\n🎥 send the clip when it's right — or just tell me what to change.`, {
+  await ctx.reply(`*${topic}*\n\n${script}\n\nsend the clip when it's right — or just tell me what to change.`, {
     parse_mode: "Markdown",
   });
 });
@@ -105,19 +115,21 @@ bot.command("idea", async (ctx) => {
 // described idea:  "idea: claude code now runs in the browser"
 bot.hears(/^idea:\s*(.+)/is, async (ctx) => {
   const desc = ctx.match[1];
-  await ctx.reply("💡 writing that…");
+  await ctx.reply("writing that…");
   const { topic, script } = await generateIdea(desc);
   state.set(String(ctx.chat.id), { topic, script, stage: "script" });
   learnFromIdea(topic);
-  await ctx.reply(`*${topic}*\n\n${script}\n\n🎥 send the clip when it's right — or just tell me what to change.`, {
+  await ctx.reply(`*${topic}*\n\n${script}\n\nsend the clip when it's right — or just tell me what to change.`, {
     parse_mode: "Markdown",
   });
 });
 
-// queue for the 3am job
+// push onto the idea STACK — topics.md, newest at the top; discovery/idea pulls from the top
 bot.hears(/^tomorrow:\s*(.+)/is, async (ctx) => {
-  await appendFile(resolve(REPO_ROOT, "topics.md"), `\n- ${ctx.match[1].trim()}`);
-  await ctx.reply("📌 added to the queue.");
+  const file = resolve(REPO_ROOT, "topics.md");
+  const existing = await readFile(file, "utf8").catch(() => "");
+  await writeFile(file, `- ${ctx.match[1].trim()}\n${existing}`);
+  await ctx.reply("pushed onto the idea stack.");
 });
 
 // the clip arrives -> render
@@ -137,26 +149,26 @@ bot.callbackQuery("post", async (ctx) => {
   const chat = String(ctx.chat!.id);
   const p = state.get(chat);
   if (!p?.mp4Path) return ctx.reply("Nothing to post yet — send a clip first.");
-  if (p.posting) return ctx.reply("⏳ already posting that one — hang tight.");
+  if (p.posting) return ctx.reply("already posting that one — hang tight.");
   state.patch(chat, { posting: true });
 
   // one status message, edited in place so the user always knows where it's at
-  const msg = await ctx.reply("🚀 *Posting…*\n⬆️ uploading video to storage", { parse_mode: "Markdown" });
+  const msg = await ctx.reply("*Posting…*\nuploading video to storage", { parse_mode: "Markdown" });
   const set = (t: string) =>
     ctx.api.editMessageText(chat, msg.message_id, t, { parse_mode: "Markdown" }).catch(() => {});
 
   try {
     const link = await postReel(p.mp4Path, p.caption ?? p.script.split("\n")[0], {
-      onUploaded: () => set("🚀 *Posting…*\n✅ uploaded\n📤 sending to Instagram"),
-      onProcessing: () => set("🚀 *Posting…*\n✅ uploaded · sent\n⚙️ Instagram is processing the reel (transcoding)…"),
-      onPublishing: () => set("🚀 *Posting…*\n✅ uploaded · sent · processed\n📣 publishing…"),
+      onUploaded: () => set("*Posting…*\nuploaded — sending to Instagram"),
+      onProcessing: () => set("*Posting…*\nuploaded, sent — Instagram is processing the reel (transcoding)…"),
+      onPublishing: () => set("*Posting…*\nuploaded, sent, processed — publishing…"),
     });
-    await set(`✅ *Posted!*\n${link}`);
+    await set(`*Posted:*\n${link}`);
     learnFromPost(p.topic, p.script).catch(() => {}); // approved = strongest signal; learn in bg
     state.clear(chat);
   } catch (e: any) {
     state.patch(chat, { posting: false });
-    await set(`⚠️ *Post failed:* ${e.message}\nTap 🔁 or [Post] again to retry.`);
+    await set(`*Post failed:* ${e.message}\nTap Post again to retry, or Redo.`);
   }
 });
 
@@ -170,7 +182,7 @@ bot.callbackQuery("redo", async (ctx) => {
 bot.callbackQuery("edit", async (ctx) => {
   await ctx.answerCallbackQuery();
   state.patch(String(ctx.chat!.id), { awaitingEdit: true });
-  await ctx.reply("✏️ what should I change? (e.g. 'punchier hook', 'swap the title font')");
+  await ctx.reply("what should I change? (e.g. 'punchier hook', 'swap the title font')");
 });
 
 // free text = either a post-render reel edit ([Edit] tapped), or — while we're still on
@@ -187,17 +199,17 @@ bot.on("message:text", async (ctx) => {
   }
 
   if (p.stage === "script" && p.script) {
-    await ctx.reply("✏️ reworking it…");
+    await ctx.reply("reworking it…");
     try {
       const before = p.script;
       const script = await reviseScript(p.topic, before, ctx.message.text);
       state.patch(chat, { script });
       learnFromRevision(p.topic, before, script, ctx.message.text); // how they like scripts
-      await ctx.reply(`*${p.topic}*\n\n${script}\n\n🎥 send the clip when it's right — or tell me another change.`, {
+      await ctx.reply(`*${p.topic}*\n\n${script}\n\nsend the clip when it's right — or tell me another change.`, {
         parse_mode: "Markdown",
       });
     } catch (e: any) {
-      await ctx.reply(`⚠️ couldn't revise: ${e.message}`);
+      await ctx.reply(`couldn't revise: ${e.message}`);
     }
     return;
   }

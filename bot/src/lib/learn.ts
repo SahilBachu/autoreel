@@ -203,10 +203,10 @@ export function prefsSummary(): string {
   const sec = (t: string, a: string[]) => (a.length ? `*${t}*\n` + a.map((x) => `• ${x}`).join("\n") : `*${t}*\n_nothing yet_`);
   const golden = readGolden().length;
   return [
-    sec("🎙️ Script / voice", p.voice),
-    sec("🎬 Visuals", p.visuals),
-    sec("💡 Topics", p.topics),
-    sec("📝 Captions", p.captions),
+    sec("Script / voice", p.voice),
+    sec("Visuals", p.visuals),
+    sec("Topics", p.topics),
+    sec("Captions", p.captions),
     `_${golden} approved script(s) saved as style examples._${p.updatedAt ? `\n_updated ${p.updatedAt.slice(0, 16).replace("T", " ")}_` : ""}`,
   ].join("\n\n");
 }
