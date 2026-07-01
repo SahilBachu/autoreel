@@ -9,37 +9,26 @@ import {
   interpolate,
 } from "remotion";
 import type { Word } from "../types";
-import { NickCaption } from "../nick/Caption";
-import { C } from "../nick/tokens";
-import { Headline, Stat, Compare, Terminal, Points, Quote, Callout, Screenshot, type Bg } from "./scenes";
-import { LogoDrop, LogoWall, Versus, LineChart, BarChart, Donut, StatGrid, TweetCard, PhoneMock, FeatureGrid } from "./pack";
+import { AccentProvider, resolveAccent, T } from "./theme";
+import { AsciiImage, Caption2, Scene as SceneWrap } from "./fx";
+import { Callout, Decrypt, Headline, Quote } from "./v2-text";
+import { BarChart, Donut, LineChart, Stat, StatRow, Table } from "./v2-data";
+import { Bento, CalendarCard, Chat, Checklist, Kbd, Notifications, Timeline } from "./v2-ui";
+import { Browser, CodeBlock, LogoDrop, LogoWall, Phone, Terminal, TweetCard, Versus } from "./v2-media";
 
-// Bespoke, animated, PARAMETRIC scene vocabulary. The director (bot/lib/scenePlan.ts) emits
-// these filled with the reel's ACTUAL content and covers ~70% of the timeline. See scenes.tsx.
-export type Scene =
-  | { kind: "headline"; startMs: number; endMs: number; text: string; emphasis?: string; bg?: Bg }
-  | { kind: "stat"; startMs: number; endMs: number; value: string; sub?: string; kicker?: string; bg?: Bg }
-  | { kind: "compare"; startMs: number; endMs: number; title?: string; unit?: string; rows: { label: string; value: number; note?: string; highlight?: boolean }[]; bg?: Bg }
-  | { kind: "terminal"; startMs: number; endMs: number; title?: string; lines: string[]; bg?: Bg }
-  | { kind: "logo"; startMs: number; endMs: number; name: string; tagline?: string; src?: string; url?: string; bg?: Bg }
-  | { kind: "points"; startMs: number; endMs: number; title?: string; items: string[]; bg?: Bg }
-  | { kind: "quote"; startMs: number; endMs: number; pre: string; boxed: string; post?: string; bg?: Bg }
-  | { kind: "callout"; startMs: number; endMs: number; text: string; bg?: Bg }
-  | { kind: "screenshot"; startMs: number; endMs: number; src: string; url?: string; label?: string; bg?: Bg }
-  | { kind: "logowall"; startMs: number; endMs: number; title?: string; brands: string[]; bg?: Bg }
-  | { kind: "versus"; startMs: number; endMs: number; a: string; b: string; aNote?: string; bNote?: string; bg?: Bg }
-  | { kind: "linechart"; startMs: number; endMs: number; title?: string; values: number[]; caption?: string; bg?: Bg }
-  | { kind: "barchart"; startMs: number; endMs: number; title?: string; unit?: string; rows: { label: string; value: number; highlight?: boolean }[]; bg?: Bg }
-  | { kind: "donut"; startMs: number; endMs: number; percent: number; label?: string; kicker?: string; bg?: Bg }
-  | { kind: "statgrid"; startMs: number; endMs: number; items: { value: string; label: string }[]; bg?: Bg }
-  | { kind: "tweet"; startMs: number; endMs: number; name: string; handle: string; text: string; brand?: string; bg?: Bg }
-  | { kind: "phone"; startMs: number; endMs: number; src?: string; url?: string; label?: string; bg?: Bg }
-  | { kind: "features"; startMs: number; endMs: number; title?: string; items: { label: string; brand?: string }[]; bg?: Bg };
+// ─────────────────────────────────────────────────────────────────────────────
+// AutoReel v2 — dark + one bright accent per video. The director emits `scenes`
+// (kinds below, catalog in ../../COMPONENTS.md); `accent` is picked at render
+// time in bot/src/jobs/render.ts and threads through every component.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type Scene = { kind: string; startMs: number; endMs: number } & Record<string, any>;
 
 export type AutoReelData = {
   videoSrc: string;
   captions: Word[];
   scenes: Scene[];
+  accent?: string; // blue | cyan | green | orange | red | pink | violet
   music?: string;
   sfx?: { file: string; atMs: number; trimBeforeMs?: number; volume?: number }[];
   voiceBoost?: number;
@@ -50,43 +39,62 @@ const asset = (s: string) => (s.startsWith("http") ? s : staticFile(s));
 const SceneBody: React.FC<{ s: Scene }> = ({ s }) => {
   switch (s.kind) {
     case "headline":
-      return <Headline text={s.text} emphasis={s.emphasis} bg={s.bg} />;
-    case "stat":
-      return <Stat value={s.value} sub={s.sub} kicker={s.kicker} bg={s.bg} />;
-    case "compare":
-      return <Compare title={s.title} unit={s.unit} rows={s.rows} bg={s.bg} />;
-    case "terminal":
-      return <Terminal title={s.title} lines={s.lines} bg={s.bg} />;
-    case "logo":
-      return <LogoDrop name={s.name} tagline={s.tagline} src={s.src} bg={s.bg} />;
-    case "points":
-      return <Points title={s.title} items={s.items} bg={s.bg} />;
-    case "quote":
-      return <Quote pre={s.pre} boxed={s.boxed} post={s.post} bg={s.bg} />;
+      return <Headline text={s.text} emphasis={s.emphasis} kicker={s.kicker} />;
+    case "decrypt":
+      return <Decrypt text={s.text} sub={s.sub} kicker={s.kicker} />;
     case "callout":
-      return <Callout text={s.text} bg={s.bg} />;
-    case "screenshot":
-      return <Screenshot src={s.src} label={s.label} />;
-    case "logo":
-      return <LogoDrop name={s.name} tagline={s.tagline} src={s.src} bg={s.bg} />;
-    case "logowall":
-      return <LogoWall title={s.title} brands={s.brands} bg={s.bg} />;
-    case "versus":
-      return <Versus a={s.a} b={s.b} aNote={s.aNote} bNote={s.bNote} bg={s.bg} />;
+      return <Callout text={s.text} emphasis={s.emphasis} />;
+    case "quote":
+      return <Quote pre={s.pre} boxed={s.boxed} post={s.post} />;
+    case "stat":
+      return <Stat value={s.value} label={s.label ?? s.sub} kicker={s.kicker} />;
+    case "statrow":
+      return <StatRow items={s.items} kicker={s.kicker} />;
     case "linechart":
-      return <LineChart title={s.title} values={s.values} caption={s.caption} bg={s.bg} />;
+      return <LineChart title={s.title} values={s.values} caption={s.caption} />;
     case "barchart":
-      return <BarChart title={s.title} unit={s.unit} rows={s.rows} bg={s.bg} />;
+      return <BarChart title={s.title} unit={s.unit} rows={s.rows} />;
     case "donut":
-      return <Donut percent={s.percent} label={s.label} kicker={s.kicker} bg={s.bg} />;
-    case "statgrid":
-      return <StatGrid items={s.items} bg={s.bg} />;
+      return <Donut percent={s.percent} label={s.label} kicker={s.kicker} />;
+    case "table":
+      return <Table title={s.title} columns={s.columns} rows={s.rows} />;
+    case "bento":
+      return <Bento title={s.title} cells={s.cells} />;
+    case "calendar":
+      return <CalendarCard month={s.month} highlights={s.highlights} label={s.label} />;
+    case "timeline":
+      return <Timeline title={s.title} steps={s.steps} />;
+    case "chat":
+      return <Chat app={s.app} messages={s.messages} />;
+    case "notifications":
+      return <Notifications items={s.items} />;
+    case "checklist":
+      return <Checklist title={s.title} items={s.items} />;
+    case "kbd":
+      return <Kbd keys={s.keys} label={s.label} />;
     case "tweet":
-      return <TweetCard name={s.name} handle={s.handle} text={s.text} brand={s.brand} bg={s.bg} />;
+      return <TweetCard name={s.name} handle={s.handle} text={s.text} brand={s.brand} />;
+    case "terminal":
+      return <Terminal title={s.title} lines={s.lines} />;
+    case "code":
+      return <CodeBlock title={s.title} lines={s.lines} highlight={s.highlight} />;
+    case "browser":
+    case "screenshot": // legacy alias
+      return s.src ? <Browser src={s.src} label={s.label} /> : null;
     case "phone":
-      return <PhoneMock src={s.src} label={s.label} bg={s.bg} />;
-    case "features":
-      return <FeatureGrid title={s.title} items={s.items} bg={s.bg} />;
+      return <Phone src={s.src} label={s.label} />;
+    case "logo":
+      return <LogoDrop name={s.name} tagline={s.tagline} src={s.src} />;
+    case "logowall":
+      return <LogoWall title={s.title} brands={s.brands} />;
+    case "versus":
+      return <Versus a={s.a} b={s.b} aNote={s.aNote} bNote={s.bNote} />;
+    case "ascii":
+      return (
+        <SceneWrap bg="plain">
+          <AsciiImage src={s.src} brand={s.brand} label={s.label} />
+        </SceneWrap>
+      );
     default:
       return null;
   }
@@ -99,44 +107,44 @@ const Fade: React.FC<{ durF: number; children: React.ReactNode }> = ({ durF, chi
   return <AbsoluteFill style={{ opacity: op }}>{children}</AbsoluteFill>;
 };
 
-export const AutoReel: React.FC<AutoReelData> = ({ videoSrc, captions, scenes, music, sfx, voiceBoost }) => {
+export const AutoReel: React.FC<AutoReelData> = ({ videoSrc, captions, scenes, accent, music, sfx, voiceBoost }) => {
   const { fps } = useVideoConfig();
   const frame = useCurrentFrame();
   const f = (ms: number) => Math.round((ms / 1000) * fps);
 
   return (
-    <AbsoluteFill style={{ background: C.black }}>
-      {/* talking head base (shows between scenes) */}
-      {videoSrc ? (
-        <OffthreadVideo src={asset(videoSrc)} volume={voiceBoost ?? 1} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-      ) : (
-        <AbsoluteFill style={{ background: "linear-gradient(165deg,#6b5b4d,#332c27)" }} />
-      )}
+    <AccentProvider value={resolveAccent(accent)}>
+      <AbsoluteFill style={{ background: T.bg }}>
+        {/* talking head base (shows between scenes) */}
+        {videoSrc ? (
+          <OffthreadVideo src={asset(videoSrc)} volume={voiceBoost ?? 1} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : (
+          <AbsoluteFill style={{ background: `linear-gradient(170deg, ${T.bg2}, ${T.bg})` }} />
+        )}
 
-      {/* full-screen motion-graphic scenes, timed to the words (hard cuts, ~70% coverage) */}
-      {scenes.map((s, i) => {
-        const from = f(s.startMs);
-        const dur = Math.max(1, f(s.endMs) - from);
-        return (
-          <Sequence key={i} from={from} durationInFrames={dur} layout="none">
-            <Fade durF={dur}>
-              <SceneBody s={s} />
-            </Fade>
+        {/* full-screen motion-graphic scenes, timed to the words */}
+        {(scenes ?? []).map((s, i) => {
+          const from = f(s.startMs);
+          const dur = Math.max(1, f(s.endMs) - from);
+          return (
+            <Sequence key={i} from={from} durationInFrames={dur} layout="none">
+              <Fade durF={dur}>
+                <SceneBody s={s} />
+              </Fade>
+            </Sequence>
+          );
+        })}
+
+        {/* lofi bed leads; SFX stay subtle */}
+        {music ? <Audio src={asset(music)} volume={0.32} loop /> : null}
+        {(sfx ?? []).map((s, i) => (
+          <Sequence key={`sfx${i}`} from={f(s.atMs)} durationInFrames={Math.round(1.6 * fps)} layout="none">
+            <Audio src={asset(s.file)} volume={s.volume ?? 0.16} trimBefore={f(s.trimBeforeMs ?? 0)} />
           </Sequence>
-        );
-      })}
+        ))}
 
-      {/* lofi bed — the primary audio; clearly present (was too quiet before) */}
-      {music ? <Audio src={asset(music)} volume={0.32} loop /> : null}
-
-      {/* subtle transition SFX (kept quiet so the music leads) */}
-      {(sfx ?? []).map((s, i) => (
-        <Sequence key={`sfx${i}`} from={f(s.atMs)} durationInFrames={Math.round(1.6 * fps)} layout="none">
-          <Audio src={asset(s.file)} volume={s.volume ?? 0.18} trimBefore={f(s.trimBeforeMs ?? 0)} />
-        </Sequence>
-      ))}
-
-      <NickCaption words={captions} timeMs={(frame / fps) * 1000} />
-    </AbsoluteFill>
+        <Caption2 words={captions} timeMs={(frame / fps) * 1000} />
+      </AbsoluteFill>
+    </AccentProvider>
   );
 };

@@ -1,5 +1,5 @@
 import { claude } from "./claude.js";
-import { VOICE_RULES } from "./voice.js";
+import { voiceSection } from "./voice.js";
 import { CAPTION_STRATEGY, KEYWORDS, hashtagPalette } from "./growth.js";
 import { captionBlock } from "./learn.js";
 
@@ -7,7 +7,7 @@ import { captionBlock } from "./learn.js";
 // optimized for reach. First line = hook + real keyword; body weaves keywords; exactly 5
 // hashtags (1 broad + 2 mid + 2 niche). See growth.ts for the strategy + banks.
 export async function genPostCaption(topic: string, script: string): Promise<string> {
-  const prompt = `${VOICE_RULES}
+  const prompt = `${voiceSection("## rules")}
 
 You are writing the Instagram POST caption (the description under the reel, NOT the on-screen
 captions) for a reel about "${topic}".

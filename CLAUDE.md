@@ -24,26 +24,23 @@ Telegram Bot API server, whisper, cron all installed). Move the repo to the runn
    back with **[Post] / [Redo] / [Edit]** buttons.
 5. **[Post]** → Supabase upload → Instagram Graph API publish. Default = approve-before-post.
 
-## Design system (LOCKED — Nick Saraev style)
-Reverse-engineered from his reels (frames in `references/`, now gitignored). The look is a
-**consistent flow with a per-video skin**:
-- **Flow:** talking head in a warm room + rapid HARD-CUT cutaways synced to the VO. Each
-  cutaway is a *specific, real* visual (product logo on black, real UI screen-recording in
-  a rounded frame, a Claude Code terminal framed on **terracotta** = his signature, a clean
-  UI mockup, a doc/screenshot with annotations, occasional stock B-roll with a title). Title
-  cards between beats, often one word highlighted (orange box). Captions = short lowercase
-  phrase, white heavy, on a dark/gray pill, centered low (NOT all-caps).
-- **Skin (varies per video):** title font is either elegant serif italic (Playfair) OR
-  heavy grotesk (General Sans). Backgrounds cream (dot grid) / white / black. Terracotta
-  `#C0532F` is the through-line accent.
+## Design system (BRAND V2 — replaced the old Nick/terracotta look, 2026-07-01)
+**Canonical docs: [`DESIGN.md`](./DESIGN.md) (look/motion/audio rules) + [`COMPONENTS.md`](./COMPONENTS.md)
+(the full scene catalog) + [`PIPELINE.md`](./PIPELINE.md) (the build plan). Read those, not this summary.**
+- Dark minimal, Linear/Notion/Vercel-grade: near-black base, glassy panels, hairline borders,
+  Geist type, glows, grain. ONE bright accent per video, randomized at render time
+  (blue/cyan/green/orange/red/pink/violet), threaded via AccentProvider (`studio/src/auto/theme.ts`).
+- Scene kit: `studio/src/auto/` — fx.tsx (backgrounds, DecryptText, AsciiImage, Caption2) +
+  v2-text / v2-data / v2-ui / v2-media (25 scene kinds). Catalog stills in `studio/catalog/`.
+- The old cream/terracotta kit (`nick/`, `reel_cursor/`) remains only as reference compositions.
 
 ### Component philosophy (IMPORTANT)
-**Generate NEW bespoke Remotion components for every video.** The user has Claude Max, so
-per-video hand-crafted visuals are the norm — not a fixed template. Reuse a prior component
-ONLY if it already exists AND genuinely matches (e.g. the terminal-on-terracotta window, the
-caption pill). Otherwise build fresh, keep pushing them more unique and fitting to the topic.
-Focus on **motion graphics**; a little stock B-roll is OK but shouldn't dominate. Real assets
-(logos, repo/site screenshots) should be fetched, not faked — use the Playwright MCP.
+Compose from the v2 catalog and **modify freely per video**; bespoke one-off components are
+encouraged for hero moments — put them in `studio/src/auto/generated/<videoId>/`, drive ALL
+motion from `useCurrentFrame` (never wall-clock/framer-motion/Math.random — use remotion's
+`random(seed)`), read colors from `useAccent()` + `T` tokens, wrap in `<Scene>` from fx.tsx,
+and verify with a rendered still before use. Real assets (logos via simple-icons, site
+screenshots via Playwright) — never faked.
 
 ## Studio (Remotion) — current state
 `studio/` is a Remotion 4 project (React 19). Run: `cd studio && npx remotion studio`.
@@ -67,11 +64,10 @@ context). Fix: put scene content inside its own `<AbsoluteFill>` layered above t
 keep a `transform` on it. See `reel_cursor/CursorReel.tsx` scenes.
 
 ## The voice (script writer) — the soul
-Unserious tech student who clearly knows the space. Dry, low-stakes, self-deprecating,
-throwaway jokes. Loose with facts for the bit (but on-screen NUMBERS must be real). Casual
-shrug endings, NO CTAs/hype/emoji-bait. ~4–6 short speakable lines, 20–40s. Structure:
-spicy/funny hook → the thing → a dry aside → shrug ending. Gold-standard few-shots + full
-voice prompt live in `bot/src/lib/voice.ts`.
+**Lives in [`VOICE.md`](./VOICE.md) at the repo root** — rules + gold few-shots + approved
+posts + auto-learned sections. The bot loads it verbatim for every script; sahil edits it
+directly and the learning pass (`bot/src/lib/learn.ts`) writes into its marked sections.
+Script back-and-forth resumes ONE claude session (Opus) per script, stored in bot state.
 
 ## Audio
 Handpicked library: SFX in `studio/public/sfx/`, music in `studio/public/music/`, described

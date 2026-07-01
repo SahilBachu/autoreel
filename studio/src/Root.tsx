@@ -2,6 +2,7 @@ import "./index.css";
 import "./fonts";
 import "./nick/fonts";
 import "./reel_cursor/fonts";
+import "./auto/fonts2";
 import { Composition, type CalculateMetadataFunction } from "remotion";
 import { Reel } from "./Reel";
 import { NickReel, NICK_TOTAL } from "./nick/NickReel";

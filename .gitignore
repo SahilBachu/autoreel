@@ -44,3 +44,6 @@ studio/props-*.json
 
 # learning system runtime data (per-runner)
 bot/data/
+
+# generated component catalog stills (regenerable)
+studio/catalog/

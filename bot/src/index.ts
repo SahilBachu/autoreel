@@ -104,8 +104,8 @@ bot.command("forget", (ctx) => {
 // random idea
 bot.command("idea", async (ctx) => {
   await ctx.reply("thinking of something…");
-  const { topic, script } = await generateIdea();
-  state.set(String(ctx.chat.id), { topic, script, stage: "script" });
+  const { topic, script, sessionId } = await generateIdea();
+  state.set(String(ctx.chat.id), { topic, script, stage: "script", scriptSessionId: sessionId });
   learnFromIdea(topic);
   await ctx.reply(`*${topic}*\n\n${script}\n\nsend the clip when it's right — or just tell me what to change.`, {
     parse_mode: "Markdown",
@@ -116,8 +116,8 @@ bot.command("idea", async (ctx) => {
 bot.hears(/^idea:\s*(.+)/is, async (ctx) => {
   const desc = ctx.match[1];
   await ctx.reply("writing that…");
-  const { topic, script } = await generateIdea(desc);
-  state.set(String(ctx.chat.id), { topic, script, stage: "script" });
+  const { topic, script, sessionId } = await generateIdea(desc);
+  state.set(String(ctx.chat.id), { topic, script, stage: "script", scriptSessionId: sessionId });
   learnFromIdea(topic);
   await ctx.reply(`*${topic}*\n\n${script}\n\nsend the clip when it's right — or just tell me what to change.`, {
     parse_mode: "Markdown",
@@ -202,10 +202,10 @@ bot.on("message:text", async (ctx) => {
     await ctx.reply("reworking it…");
     try {
       const before = p.script;
-      const script = await reviseScript(p.topic, before, ctx.message.text);
-      state.patch(chat, { script });
-      learnFromRevision(p.topic, before, script, ctx.message.text); // how they like scripts
-      await ctx.reply(`*${p.topic}*\n\n${script}\n\nsend the clip when it's right — or tell me another change.`, {
+      const r = await reviseScript(p.topic, before, ctx.message.text, p.scriptSessionId);
+      state.patch(chat, { script: r.script, scriptSessionId: r.sessionId ?? p.scriptSessionId });
+      learnFromRevision(p.topic, before, r.script, ctx.message.text); // how they like scripts
+      await ctx.reply(`*${p.topic}*\n\n${r.script}\n\nsend the clip when it's right — or tell me another change.`, {
         parse_mode: "Markdown",
       });
     } catch (e: any) {

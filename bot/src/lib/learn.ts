@@ -1,105 +1,113 @@
-import { readFileSync, writeFileSync, appendFileSync, mkdirSync, existsSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { REPO_ROOT } from "../config.js";
 import { claudeJson } from "./claude.js";
 
-// The learning loop. Every meaningful interaction (idea/revise/redo/edit/post) is logged, and
-// Claude periodically DISTILLS the log into a compact, actionable preference profile that gets
-// injected back into the script / director / caption prompts. Approved (posted) scripts are
-// kept as golden few-shots. Net effect: the more the creator uses it, the more it writes and
-// designs like THEM. All data lives on the runner under bot/data (gitignored).
+// The learning loop. Every interaction is logged; Claude periodically DISTILLS the log into
+// the human-editable brand files — VOICE.md (## learned / ## learned topics / ## learned
+// captions / ## approved & posted) and DESIGN.md (## learned). Sahil can edit or delete any
+// learned line by hand; prompts read the files, so edits take effect immediately.
 
 const DIR = resolve(REPO_ROOT, "bot/data");
 const LOG = resolve(DIR, "interactions.jsonl");
-const PREFS = resolve(DIR, "preferences.json");
-const GOLDEN = resolve(DIR, "golden.json");
-
-function ensure() {
-  if (!existsSync(DIR)) mkdirSync(DIR, { recursive: true });
-}
+const VOICE = resolve(REPO_ROOT, "VOICE.md");
+const DESIGN = resolve(REPO_ROOT, "DESIGN.md");
 
 export type Event = {
   ts: string;
   type: "idea" | "revise" | "redo" | "edit" | "post";
   topic?: string;
-  instruction?: string; // the creator's free-text (revise/edit)
-  before?: string; // prior script (revise)
-  after?: string; // resulting script (revise) or approved script (post)
+  instruction?: string;
+  before?: string;
+  after?: string;
 };
 
-export type Prefs = {
-  voice: string[]; // how they want scripts written/edited
-  visuals: string[]; // how they want the motion graphics / components
-  topics: string[]; // subjects/angles they like or avoid
-  captions: string[]; // caption preferences
-  updatedAt?: string;
-};
-
-const EMPTY: Prefs = { voice: [], visuals: [], topics: [], captions: [] };
-type Golden = { topic: string; script: string; ts: string };
-
-function readJson<T>(f: string, fallback: T): T {
+// ---- markdown section read/write ----
+function readDoc(file: string): string {
   try {
-    return JSON.parse(readFileSync(f, "utf8")) as T;
+    return readFileSync(file, "utf8");
   } catch {
-    return fallback;
+    return "";
   }
 }
 
+function sectionBounds(lines: string[], headingPrefix: string): { start: number; end: number } | null {
+  const start = lines.findIndex((l) => l.startsWith(headingPrefix));
+  if (start < 0) return null;
+  let end = lines.length;
+  for (let i = start + 1; i < lines.length; i++) {
+    if (lines[i].startsWith("## ")) { end = i; break; }
+  }
+  return { start, end };
+}
+
+function readSection(file: string, headingPrefix: string): string[] {
+  const lines = readDoc(file).split("\n");
+  const b = sectionBounds(lines, headingPrefix);
+  if (!b) return [];
+  return lines
+    .slice(b.start + 1, b.end)
+    .map((l) => l.replace(/^-\s*/, "").trim())
+    .filter(Boolean);
+}
+
+function writeSection(file: string, headingPrefix: string, bullets: string[]): void {
+  const doc = readDoc(file);
+  if (!doc) return;
+  const lines = doc.split("\n");
+  const b = sectionBounds(lines, headingPrefix);
+  if (!b) return;
+  const body = bullets.length ? bullets.map((x) => `- ${x}`) : [];
+  const next = [...lines.slice(0, b.start + 1), "", ...body, "", ...lines.slice(b.end)];
+  writeFileSync(file, next.join("\n").replace(/\n{3,}/g, "\n\n"));
+}
+
+// the four learned homes
+const H = {
+  voice: { file: VOICE, h: "## learned (" },
+  topics: { file: VOICE, h: "## learned topics" },
+  captions: { file: VOICE, h: "## learned captions" },
+  visuals: { file: DESIGN, h: "## learned (" },
+};
+
+// ---- interaction log ----
 export function logInteraction(e: Omit<Event, "ts">): void {
   try {
-    ensure();
+    if (!existsSync(DIR)) mkdirSync(DIR, { recursive: true });
     appendFileSync(LOG, JSON.stringify({ ts: new Date().toISOString(), ...e }) + "\n");
   } catch {
-    /* logging is best-effort */
+    /* best-effort */
   }
 }
 
 function readEvents(limit = 60): Event[] {
   try {
-    const lines = readFileSync(LOG, "utf8").trim().split("\n").filter(Boolean);
-    return lines.slice(-limit).map((l) => JSON.parse(l) as Event);
+    return readFileSync(LOG, "utf8").trim().split("\n").filter(Boolean).slice(-limit).map((l) => JSON.parse(l) as Event);
   } catch {
     return [];
   }
 }
 
-export function readPrefs(): Prefs {
-  return { ...EMPTY, ...readJson<Prefs>(PREFS, EMPTY) };
-}
-
-export function readGolden(): Golden[] {
-  return readJson<Golden[]>(GOLDEN, []);
-}
-
-export function goldenExamples(n = 3): string[] {
-  return readGolden()
-    .slice(-n)
-    .map((g) => g.script);
-}
-
-// ---- prompt injection blocks (empty string until something is learned) ----
-function block(title: string, items: string[]): string {
-  if (!items.length) return "";
-  return `\n${title}\n` + items.map((i) => `- ${i}`).join("\n") + "\n";
-}
-export function voiceBlock(): string {
-  return block("LEARNED SCRIPT PREFERENCES (this creator's own taste, from past edits — follow these):", readPrefs().voice);
-}
+// ---- prompt injection (for prompts that don't embed the whole doc) ----
 export function visualBlock(): string {
-  return block("LEARNED VISUAL PREFERENCES (how this creator likes the motion graphics — honor these):", readPrefs().visuals);
+  const items = readSection(H.visuals.file, H.visuals.h);
+  if (!items.length) return "";
+  return "\nLEARNED VISUAL PREFERENCES (from sahil's edits — honor these):\n" + items.map((i) => `- ${i}`).join("\n") + "\n";
 }
 export function topicBlock(): string {
-  return block("LEARNED TOPIC PREFERENCES (what this creator gravitates to / avoids):", readPrefs().topics);
+  const items = readSection(H.topics.file, H.topics.h);
+  if (!items.length) return "";
+  return "\nTOPICS THIS CREATOR GRAVITATES TO:\n" + items.map((i) => `- ${i}`).join("\n") + "\n";
 }
 export function captionBlock(): string {
-  return block("LEARNED CAPTION PREFERENCES:", readPrefs().captions);
+  const items = readSection(H.captions.file, H.captions.h);
+  if (!items.length) return "";
+  return "\nLEARNED CAPTION PREFERENCES:\n" + items.map((i) => `- ${i}`).join("\n") + "\n";
 }
 
 // ---- signal capture ----
 let sinceDistill = 0;
 function maybeDistill(): void {
-  // distill in the background every few edits so the profile stays fresh without cost per message
   if (++sinceDistill >= 3) {
     sinceDistill = 0;
     distill().catch(() => {});
@@ -122,18 +130,26 @@ export function learnFromRedo(topic: string): void {
 }
 export async function learnFromPost(topic: string, script: string): Promise<void> {
   logInteraction({ type: "post", topic, after: script });
+  // posted = approved: append to VOICE.md's approved-examples section (keep the last 8)
   try {
-    ensure();
-    const g = readGolden();
-    g.push({ topic, script, ts: new Date().toISOString() });
-    writeFileSync(GOLDEN, JSON.stringify(g.slice(-12), null, 2)); // keep the most recent 12
+    const doc = readDoc(VOICE);
+    const lines = doc.split("\n");
+    const b = sectionBounds(lines, "## approved & posted");
+    if (b) {
+      const section = lines.slice(b.start + 1, b.end).join("\n");
+      const blocks = section.split(/\n(?=Example \()/).filter((s) => s.trim());
+      blocks.push(`Example (${topic}):\n${script.trim()}\n`);
+      const kept = blocks.slice(-8).join("\n").trim();
+      const next = [...lines.slice(0, b.start + 1), "", kept, "", ...lines.slice(b.end)];
+      writeFileSync(VOICE, next.join("\n").replace(/\n{3,}/g, "\n\n"));
+    }
   } catch {
     /* best-effort */
   }
-  await distill(); // a post is the strongest signal — always learn from it
+  await distill();
 }
 
-// ---- the distillation (meta-learning) ----
+// ---- the distillation ----
 function oneline(s?: string): string {
   return (s || "").replace(/\s+/g, " ").trim().slice(0, 320);
 }
@@ -142,80 +158,63 @@ function fmtEvent(e: Event): string {
     case "revise":
       return `[revise] topic="${e.topic}" asked="${e.instruction}"\n  BEFORE: ${oneline(e.before)}\n  AFTER:  ${oneline(e.after)}`;
     case "edit":
-      return `[motion-graphics edit] topic="${e.topic}" asked="${e.instruction}"`;
+      return `[video edit] topic="${e.topic}" asked="${e.instruction}"`;
     case "redo":
       return `[rejected/redo] topic="${e.topic}"`;
     case "post":
       return `[APPROVED & POSTED] topic="${e.topic}" script: ${oneline(e.after)}`;
-    case "idea":
-      return `[idea requested] topic="${e.topic}"`;
     default:
-      return JSON.stringify(e);
+      return `[idea requested] topic="${e.topic}"`;
   }
 }
 
-export async function distill(): Promise<Prefs> {
+export async function distill(): Promise<void> {
   const events = readEvents(60);
-  if (!events.length) return readPrefs();
-  const current = readPrefs();
+  if (!events.length) return;
+  const current = {
+    voice: readSection(H.voice.file, H.voice.h),
+    visuals: readSection(H.visuals.file, H.visuals.h),
+    topics: readSection(H.topics.file, H.topics.h),
+    captions: readSection(H.captions.file, H.captions.h),
+  };
   const prompt = `You maintain a compact PREFERENCE PROFILE for ONE Instagram tech-reel creator,
-learned from how they edit AI-generated scripts, request motion-graphic changes, choose topics,
-and which reels they approve (post) vs reject (redo).
+learned from how they edit scripts, request video changes, pick topics, and what they post.
 
 CURRENT PROFILE (JSON):
 ${JSON.stringify(current, null, 2)}
 
-RECENT INTERACTIONS (oldest first, newest last):
+RECENT INTERACTIONS (oldest first):
 ${events.map(fmtEvent).join("\n")}
 
-Update the profile to capture DURABLE, SPECIFIC, ACTIONABLE patterns a scriptwriter and art
-director could directly follow. Rules:
-- Every bullet must be concrete and usable. Good: "Open with the punchline, cut slow setups",
-  "Prefer heavy grotesk titles over serif", "Keep scripts to ~4 lines", "Avoid crypto topics".
-  Bad (drop these): "be engaging", "good pacing", vague adjectives.
-- Learn from REPEATED signals; don't over-fit a single one-off edit.
-- Signal meaning: 'revise' BEFORE→AFTER + the ask = how they want SCRIPTS (voice). 'edit' = how
-  they want the MOTION GRAPHICS (visuals). 'redo' = they rejected that generation (weak negative).
-  'post' = they APPROVED it (strong positive — do more of what those scripts do).
-- Merge with the current profile; DROP anything contradicted by newer signals; keep it tight.
-- Max 8 bullets per category, ranked best/most-general first.
+Update the profile. Rules:
+- Every bullet concrete and actionable ("open with the punchline", "prefer bento over plain
+  lists", "avoid crypto topics"). Drop vague ones ("be engaging").
+- Learn from REPEATED signals; don't overfit one edit. 'revise' BEFORE→AFTER = script voice.
+  'video edit' = visuals. 'redo' = weak negative. 'post' = strong positive.
+- Merge with current; drop anything contradicted by newer signals. Max 8 bullets/category.
 Return ONLY JSON: {"voice":[...],"visuals":[...],"topics":[...],"captions":[...]}`;
   try {
-    const next = await claudeJson<Partial<Prefs>>(prompt);
-    const merged: Prefs = {
-      voice: next.voice ?? current.voice,
-      visuals: next.visuals ?? current.visuals,
-      topics: next.topics ?? current.topics,
-      captions: next.captions ?? current.captions,
-      updatedAt: new Date().toISOString(),
-    };
-    ensure();
-    writeFileSync(PREFS, JSON.stringify(merged, null, 2));
-    return merged;
+    const next = await claudeJson<Partial<Record<keyof typeof H, string[]>>>(prompt, { model: "opus" });
+    (Object.keys(H) as (keyof typeof H)[]).forEach((k) => {
+      if (Array.isArray(next[k])) writeSection(H[k].file, H[k].h, next[k]!);
+    });
   } catch {
-    return current;
+    /* keep current */
   }
 }
 
-// human-readable summary for the /prefs command
+// human-readable summary for /prefs
 export function prefsSummary(): string {
-  const p = readPrefs();
-  const sec = (t: string, a: string[]) => (a.length ? `*${t}*\n` + a.map((x) => `• ${x}`).join("\n") : `*${t}*\n_nothing yet_`);
-  const golden = readGolden().length;
+  const sec = (t: string, a: string[]) => (a.length ? `*${t}*\n` + a.map((x) => `- ${x}`).join("\n") : `*${t}*\n_nothing yet_`);
   return [
-    sec("Script / voice", p.voice),
-    sec("Visuals", p.visuals),
-    sec("Topics", p.topics),
-    sec("Captions", p.captions),
-    `_${golden} approved script(s) saved as style examples._${p.updatedAt ? `\n_updated ${p.updatedAt.slice(0, 16).replace("T", " ")}_` : ""}`,
+    sec("Script / voice", readSection(H.voice.file, H.voice.h)),
+    sec("Visuals", readSection(H.visuals.file, H.visuals.h)),
+    sec("Topics", readSection(H.topics.file, H.topics.h)),
+    sec("Captions", readSection(H.captions.file, H.captions.h)),
+    "_edit VOICE.md / DESIGN.md directly to change any of this._",
   ].join("\n\n");
 }
 
 export function forgetPrefs(): void {
-  try {
-    ensure();
-    writeFileSync(PREFS, JSON.stringify({ ...EMPTY, updatedAt: new Date().toISOString() }, null, 2));
-  } catch {
-    /* best-effort */
-  }
+  (Object.keys(H) as (keyof typeof H)[]).forEach((k) => writeSection(H[k].file, H[k].h, []));
 }

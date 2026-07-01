@@ -1,10 +1,13 @@
 import { spawn } from "node:child_process";
 
-// Headless Claude Code call. Draws from the Max subscription — keep prompts lean,
-// schedule-driven, no 24/7 loops (see brief §6).
-export function claude(prompt: string, opts: { json?: boolean } = {}): Promise<string> {
+// Headless Claude Code calls. Draws from the Max subscription — keep prompts lean.
+// Complex creative steps (script, director, discovery) run on Opus; cheap utility
+// calls (captions etc.) stay on the default model.
+
+type Opts = { model?: string; resume?: string; json?: boolean };
+
+function run(args: string[]): Promise<string> {
   return new Promise((res, rej) => {
-    const args = ["-p", prompt, "--output-format", opts.json ? "json" : "text"];
     // stdin: "ignore" -> the CLI won't stall 3s waiting for piped stdin (prompt is an arg).
     const p = spawn("claude", args, { shell: false, stdio: ["ignore", "pipe", "pipe"] });
     let out = "";
@@ -12,20 +15,44 @@ export function claude(prompt: string, opts: { json?: boolean } = {}): Promise<s
     p.stdout.on("data", (d) => (out += d));
     p.stderr.on("data", (d) => (err += d));
     p.on("error", rej);
-    p.on("close", (code) =>
-      code === 0 ? res(out.trim()) : rej(new Error(`claude exited ${code}: ${err}`)),
-    );
+    p.on("close", (code) => (code === 0 ? res(out.trim()) : rej(new Error(`claude exited ${code}: ${err.slice(-400)}`))));
   });
 }
 
+function baseArgs(prompt: string, opts: Opts): string[] {
+  const args = ["-p", prompt];
+  if (opts.model) args.push("--model", opts.model);
+  if (opts.resume) args.push("--resume", opts.resume);
+  return args;
+}
+
+export async function claude(prompt: string, opts: Opts = {}): Promise<string> {
+  return run([...baseArgs(prompt, opts), "--output-format", "text"]);
+}
+
+// Start (or continue) a conversation and get the session id back, so revisions can
+// RESUME the same session instead of starting cold each time.
+export async function claudeSession(
+  prompt: string,
+  opts: Opts = {},
+): Promise<{ text: string; sessionId?: string }> {
+  const raw = await run([...baseArgs(prompt, opts), "--output-format", "json"]);
+  try {
+    const j = JSON.parse(raw);
+    return { text: (j.result ?? "").trim(), sessionId: j.session_id };
+  } catch {
+    return { text: raw.trim() };
+  }
+}
+
 // Convenience: ask for JSON and parse it (director/scene-plan/component generation).
-export async function claudeJson<T>(prompt: string): Promise<T> {
-  const raw = await claude(prompt + "\n\nReturn ONLY valid JSON — no markdown fences, no prose.", { json: false });
+export async function claudeJson<T>(prompt: string, opts: Opts = {}): Promise<T> {
+  const raw = await claude(prompt + "\n\nReturn ONLY valid JSON — no markdown fences, no prose.", opts);
   return JSON.parse(extractJson(raw)) as T;
 }
 
 // Pull the first balanced JSON value out of a model response — tolerant of ```json fences,
-// leading/trailing prose, etc. (the old naive slice broke on any trailing characters).
+// leading/trailing prose, etc. (a naive slice broke on any trailing characters).
 function extractJson(raw: string): string {
   const s = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
   const candidates = [s.indexOf("["), s.indexOf("{")].filter((n) => n >= 0);

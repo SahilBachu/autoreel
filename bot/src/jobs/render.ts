@@ -102,12 +102,12 @@ export async function renderReel(opts: {
   const scenes: any[] = [];
   let shotN = 0;
   for (const c of planned as any[]) {
-    if (c.kind === "screenshot" || c.kind === "phone") {
+    if ((c.kind === "browser" || c.kind === "screenshot" || c.kind === "phone" || c.kind === "ascii") && c.url && !c.src && !c.brand) {
       const rel = `generated/shot-${id}-${shotN++}.png`;
-      const ok = c.url ? await screenshot(c.url, resolve(studio, "public", rel)) : false;
+      const ok = await screenshot(c.url, resolve(studio, "public", rel));
       if (ok) scenes.push({ ...c, src: rel });
       else if (c.kind === "phone") scenes.push(c); // phone renders a placeholder screen
-      // a screenshot scene whose fetch failed is dropped (head stays on screen)
+      // browser/ascii scenes whose fetch failed are dropped (head stays on screen)
     } else {
       scenes.push(c);
     }
@@ -119,9 +119,11 @@ export async function renderReel(opts: {
   const trimBeforeMs = whoosh ? await leadSilenceMs(studio, whoosh) : 0;
   const sfx = whoosh ? spacedStarts(scenes, 5000, 3).map((atMs) => ({ file: whoosh, atMs, trimBeforeMs, volume: 0.16 })) : [];
 
-  // 4. props + render
+  // 4. props + render — one bright accent per video, picked at random (brand v2)
+  const ACCENTS = ["blue", "cyan", "green", "orange", "red", "pink", "violet"];
+  const accent = ACCENTS[Math.floor(Math.random() * ACCENTS.length)];
   const propsPath = resolve(studio, "out", `${id}.props.json`);
-  await writeFile(propsPath, JSON.stringify({ videoSrc: clipRel, captions, scenes, music, sfx, voiceBoost: 2.8 }));
+  await writeFile(propsPath, JSON.stringify({ videoSrc: clipRel, captions, scenes, accent, music, sfx, voiceBoost: 2.8 }));
   const mp4 = resolve(studio, "out", `${id}.mp4`);
   await run("npx", ["remotion", "render", "AutoReel", mp4, `--props=${propsPath}`], studio);
   return mp4;
