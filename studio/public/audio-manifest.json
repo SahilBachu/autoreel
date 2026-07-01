@@ -1,0 +1,20 @@
+{
+  "_readme": [
+    "Handpicked audio library. Drop files in public/sfx and public/music, then add an",
+    "entry here describing each one. The render/director step reads this so Claude can",
+    "place the RIGHT sound at the RIGHT moment (SFX on cuts/emphasis, music as a bed",
+    "ducked under the voice). 'tags' + 'use' guide the choice; 'file' is relative to public/."
+  ],
+  "sfx": [
+    { "file": "sfx/whoosh.mp3",   "tags": ["transition", "smooth"], "use": "scene hard-cut / cutaway in" },
+    { "file": "sfx/click.mp3",    "tags": ["ui", "tick", "subtle"], "use": "word emphasis / small UI tick" },
+    { "file": "sfx/pop.mp3",      "tags": ["appear", "light"],      "use": "an element or card popping in" },
+    { "file": "sfx/riser.mp3",    "tags": ["build", "tension"],     "use": "build into a reveal / stat" },
+    { "file": "sfx/keyboard.mp3", "tags": ["typing", "code"],       "use": "terminal / code typing moments" },
+    { "file": "sfx/thud.mp3",     "tags": ["impact", "stop"],       "use": "punchline / hard stop" }
+  ],
+  "music": [
+    { "file": "music/bed-chill.mp3", "tags": ["calm", "lofi", "warm"],   "use": "default bed for dry/relaxed scripts" },
+    { "file": "music/bed-drive.mp3", "tags": ["driving", "energetic"],   "use": "hype-adjacent / faster reels" }
+  ]
+}
