@@ -70,6 +70,12 @@ Commands / messages to handle:
 
 Keep per-chat state in `state.ts` (which reel is pending, its files, edit mode).
 
+**Gotcha — clip file location:** with the self-hosted Bot API server, `getFile().file_path`
+is a path INSIDE the Docker container's volume (`/var/lib/telegram-bot-api/...`). To let the
+render job read it, either (a) mount that volume to a host dir in the `docker run` (add
+`-v /home/<you>/tg-files:/var/lib/telegram-bot-api`) and translate the path, or (b) fetch the
+file over HTTP from `${apiRoot}/file/bot<token>/<file_path>`. Pick one and note it here.
+
 ## Render pipeline details (this is where quality lives)
 1. **Transcribe** the user's clip with faster-whisper, WORD level. `whisper.ts` spawns
    `scripts/whisper_transcribe.py <audio.wav>` and parses `Word[] = {text,startMs,endMs}`.
