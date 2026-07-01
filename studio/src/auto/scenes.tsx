@@ -201,29 +201,6 @@ export const Terminal: React.FC<{ title?: string; lines: string[]; bg?: Bg }> = 
   );
 };
 
-// ── product name drop (huge type + reveal wipe), optional screenshot/logo ─────
-export const LogoDrop: React.FC<{ name: string; tagline?: string; src?: string; bg?: Bg }> = ({ name, tagline, src, bg = "dark" }) => {
-  const f = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const e = spr(f, fps, 0, { damping: 20 });
-  const wipe = interpolate(e, [0, 1], [100, 0]);
-  const onDark = bg === "dark" || bg === "warm";
-  const size = Math.max(78, Math.min(168, Math.round(1500 / Math.max(name.length, 7))));
-  return (
-    <SceneBg bg={bg}>
-      <div style={{ textAlign: "center" }}>
-        {src ? <Img src={asset(src)} style={{ width: 180, height: 180, borderRadius: 40, objectFit: "cover", marginBottom: 40, boxShadow: "0 30px 80px rgba(0,0,0,0.5)", transform: `scale(${e})` }} /> : null}
-        <div style={{ overflow: "hidden", display: "inline-block" }}>
-          <div style={{ fontFamily: SF.display, fontWeight: 700, fontSize: size, letterSpacing: "-0.03em", color: onDark ? S.white : S.ink, whiteSpace: "nowrap", clipPath: `inset(0 ${wipe}% 0 0)` }}>
-            {name}
-          </div>
-        </div>
-        {tagline ? <div style={{ fontFamily: SF.serif, fontStyle: "italic", fontSize: 58, color: onDark ? S.whiteDim : S.inkSoft, marginTop: 20, opacity: interpolate(f, [12, 26], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) }}>{tagline}</div> : null}
-      </div>
-    </SceneBg>
-  );
-};
-
 // ── sequential bullet points with terracotta ticks ───────────────────────────
 export const Points: React.FC<{ title?: string; items: string[]; bg?: Bg }> = ({ title, items, bg = "cream" }) => {
   const f = useCurrentFrame();

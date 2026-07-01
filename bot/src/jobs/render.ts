@@ -78,11 +78,12 @@ export async function renderReel(opts: {
   await mkdir(resolve(studio, "public/clips"), { recursive: true });
   await mkdir(resolve(studio, "out"), { recursive: true });
 
-  // 1. transcribe (timing) from the original clip's audio, then align to the script (spelling)
+  // 1. transcribe the clip's actual audio -> captions come STRAIGHT from what was spoken, so
+  // they always line up with the audio (aligning a possibly-adlibbed script drifted out of sync).
   const wav = resolve(studio, "public/clips", `${id}.wav`);
   await run("npx", ["remotion", "ffmpeg", "-i", opts.clipPath, "-ar", "16000", "-ac", "1", "-y", wav], studio);
   const words = await transcribe(wav);
-  const captions = alignCaptions(opts.script, words);
+  const captions = alignCaptions(opts.script, words, { syncFromAudio: true });
 
   // Normalize the clip to EXACTLY 1080x1920 (center cover-crop) up front. Whatever it was
   // recorded at — odd resolutions from weird apps, square, landscape — it now fills the 9:16
@@ -101,14 +102,12 @@ export async function renderReel(opts: {
   const scenes: any[] = [];
   let shotN = 0;
   for (const c of planned as any[]) {
-    if (c.kind === "screenshot") {
+    if (c.kind === "screenshot" || c.kind === "phone") {
       const rel = `generated/shot-${id}-${shotN++}.png`;
       const ok = c.url ? await screenshot(c.url, resolve(studio, "public", rel)) : false;
-      if (ok) scenes.push({ ...c, src: rel }); // else drop — head stays on screen
-    } else if (c.kind === "logo" && c.url) {
-      const rel = `generated/shot-${id}-${shotN++}.png`;
-      const ok = await screenshot(c.url, resolve(studio, "public", rel));
-      scenes.push(ok ? { ...c, src: rel } : c); // logo still renders without the shot
+      if (ok) scenes.push({ ...c, src: rel });
+      else if (c.kind === "phone") scenes.push(c); // phone renders a placeholder screen
+      // a screenshot scene whose fetch failed is dropped (head stays on screen)
     } else {
       scenes.push(c);
     }

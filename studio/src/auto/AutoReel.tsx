@@ -11,19 +11,8 @@ import {
 import type { Word } from "../types";
 import { NickCaption } from "../nick/Caption";
 import { C } from "../nick/tokens";
-import {
-  SceneBg,
-  Headline,
-  Stat,
-  Compare,
-  Terminal,
-  LogoDrop,
-  Points,
-  Quote,
-  Callout,
-  Screenshot,
-  type Bg,
-} from "./scenes";
+import { Headline, Stat, Compare, Terminal, Points, Quote, Callout, Screenshot, type Bg } from "./scenes";
+import { LogoDrop, LogoWall, Versus, LineChart, BarChart, Donut, StatGrid, TweetCard, PhoneMock, FeatureGrid } from "./pack";
 
 // Bespoke, animated, PARAMETRIC scene vocabulary. The director (bot/lib/scenePlan.ts) emits
 // these filled with the reel's ACTUAL content and covers ~70% of the timeline. See scenes.tsx.
@@ -32,11 +21,20 @@ export type Scene =
   | { kind: "stat"; startMs: number; endMs: number; value: string; sub?: string; kicker?: string; bg?: Bg }
   | { kind: "compare"; startMs: number; endMs: number; title?: string; unit?: string; rows: { label: string; value: number; note?: string; highlight?: boolean }[]; bg?: Bg }
   | { kind: "terminal"; startMs: number; endMs: number; title?: string; lines: string[]; bg?: Bg }
-  | { kind: "logo"; startMs: number; endMs: number; name: string; tagline?: string; src?: string; bg?: Bg }
+  | { kind: "logo"; startMs: number; endMs: number; name: string; tagline?: string; src?: string; url?: string; bg?: Bg }
   | { kind: "points"; startMs: number; endMs: number; title?: string; items: string[]; bg?: Bg }
   | { kind: "quote"; startMs: number; endMs: number; pre: string; boxed: string; post?: string; bg?: Bg }
   | { kind: "callout"; startMs: number; endMs: number; text: string; bg?: Bg }
-  | { kind: "screenshot"; startMs: number; endMs: number; src: string; url?: string; label?: string };
+  | { kind: "screenshot"; startMs: number; endMs: number; src: string; url?: string; label?: string; bg?: Bg }
+  | { kind: "logowall"; startMs: number; endMs: number; title?: string; brands: string[]; bg?: Bg }
+  | { kind: "versus"; startMs: number; endMs: number; a: string; b: string; aNote?: string; bNote?: string; bg?: Bg }
+  | { kind: "linechart"; startMs: number; endMs: number; title?: string; values: number[]; caption?: string; bg?: Bg }
+  | { kind: "barchart"; startMs: number; endMs: number; title?: string; unit?: string; rows: { label: string; value: number; highlight?: boolean }[]; bg?: Bg }
+  | { kind: "donut"; startMs: number; endMs: number; percent: number; label?: string; kicker?: string; bg?: Bg }
+  | { kind: "statgrid"; startMs: number; endMs: number; items: { value: string; label: string }[]; bg?: Bg }
+  | { kind: "tweet"; startMs: number; endMs: number; name: string; handle: string; text: string; brand?: string; bg?: Bg }
+  | { kind: "phone"; startMs: number; endMs: number; src?: string; url?: string; label?: string; bg?: Bg }
+  | { kind: "features"; startMs: number; endMs: number; title?: string; items: { label: string; brand?: string }[]; bg?: Bg };
 
 export type AutoReelData = {
   videoSrc: string;
@@ -69,6 +67,26 @@ const SceneBody: React.FC<{ s: Scene }> = ({ s }) => {
       return <Callout text={s.text} bg={s.bg} />;
     case "screenshot":
       return <Screenshot src={s.src} label={s.label} />;
+    case "logo":
+      return <LogoDrop name={s.name} tagline={s.tagline} src={s.src} bg={s.bg} />;
+    case "logowall":
+      return <LogoWall title={s.title} brands={s.brands} bg={s.bg} />;
+    case "versus":
+      return <Versus a={s.a} b={s.b} aNote={s.aNote} bNote={s.bNote} bg={s.bg} />;
+    case "linechart":
+      return <LineChart title={s.title} values={s.values} caption={s.caption} bg={s.bg} />;
+    case "barchart":
+      return <BarChart title={s.title} unit={s.unit} rows={s.rows} bg={s.bg} />;
+    case "donut":
+      return <Donut percent={s.percent} label={s.label} kicker={s.kicker} bg={s.bg} />;
+    case "statgrid":
+      return <StatGrid items={s.items} bg={s.bg} />;
+    case "tweet":
+      return <TweetCard name={s.name} handle={s.handle} text={s.text} brand={s.brand} bg={s.bg} />;
+    case "phone":
+      return <PhoneMock src={s.src} label={s.label} bg={s.bg} />;
+    case "features":
+      return <FeatureGrid title={s.title} items={s.items} bg={s.bg} />;
     default:
       return null;
   }

@@ -2,58 +2,62 @@ import { claudeJson } from "./claude.js";
 import { visualBlock } from "./learn.js";
 import type { Word } from "./whisper.js";
 
-// Mirrors studio/src/auto/AutoReel.tsx Scene type. Every scene is PARAMETRIC — the director
-// fills it with the reel's ACTUAL content (real numbers/names). Nothing hardcoded to a topic.
+// Mirrors studio/src/auto/AutoReel.tsx Scene type. Every scene is PARAMETRIC and filled with
+// the reel's REAL content. The visual-heavy kinds (logo/logowall/versus/charts/tweet/phone/
+// screenshot) should carry most of the reel — plain text is the fallback, not the default.
 export type Bg = "paper" | "cream" | "dark" | "warm";
-export type Scene =
-  | { kind: "headline"; startMs: number; endMs: number; text: string; emphasis?: string; bg?: Bg }
-  | { kind: "stat"; startMs: number; endMs: number; value: string; sub?: string; kicker?: string; bg?: Bg }
-  | { kind: "compare"; startMs: number; endMs: number; title?: string; unit?: string; rows: { label: string; value: number; note?: string; highlight?: boolean }[]; bg?: Bg }
-  | { kind: "terminal"; startMs: number; endMs: number; title?: string; lines: string[]; bg?: Bg }
-  | { kind: "logo"; startMs: number; endMs: number; name: string; tagline?: string; url?: string; src?: string; bg?: Bg }
-  | { kind: "points"; startMs: number; endMs: number; title?: string; items: string[]; bg?: Bg }
-  | { kind: "quote"; startMs: number; endMs: number; pre: string; boxed: string; post?: string; bg?: Bg }
-  | { kind: "callout"; startMs: number; endMs: number; text: string; bg?: Bg }
-  | { kind: "screenshot"; startMs: number; endMs: number; url: string; src?: string; label?: string };
+export type Scene = any; // union enforced on the studio side; kept loose here for flexibility
 
-// The art director: given the word-timestamped transcript, design a DENSE sequence of
-// full-screen motion-graphic scenes (~70% of the timeline) that reinforce each beat, timed to
-// the words, filled with the real content, with visual variety. Claude decides; safe fallback.
+// The art director. Designs a DENSE (~70%) sequence of full-screen scenes timed to the words,
+// leaning HARD on real assets (brand logos, screenshots, charts) over text. Safe fallback.
 export async function planCutaways(args: { topic: string; words: Word[]; editNote?: string }): Promise<Scene[]> {
   const { topic, words, editNote } = args;
   if (!words.length) return [];
   const totalMs = words[words.length - 1].endMs;
   const transcript = words.map((w) => `[${w.startMs}] ${w.text}`).join(" ");
 
-  const prompt = `You are the ART DIRECTOR for a short vertical (1080x1920) tech reel in a
-premium, motion-graphics-heavy style (think Nick Saraev x MKBHD). TOPIC: "${topic}".
-The reel is ${totalMs} ms long. Word-timestamped TRANSCRIPT (ms in brackets):
-${transcript}
+  const prompt = `You are the ART DIRECTOR for a premium vertical (1080x1920) tech reel — the bar
+is a top Instagram tech creator (real logos, screenshots, charts, slick motion), NOT lyric-video
+text cards. TOPIC: "${topic}". The reel is ${totalMs} ms long.
+Word-timestamped TRANSCRIPT (ms in brackets): ${transcript}
 
-Design a DENSE sequence of full-screen SCENES that cut over the talking head. Requirements:
-- COVER ~70% of the 0–${totalMs}ms timeline. The talking head should only show ~30% of the
-  time, in short 1.2–2.2s gaps between scenes. Do NOT leave long stretches with no scene.
-- Each scene 1.8–3.5s, timed so startMs/endMs land on word boundaries from the transcript.
-  Scenes must NOT overlap. Order them by startMs.
-- Fill every scene with the REAL content of THIS reel — actual product names, and only REAL
-  numbers (a price, %, ×-faster, token count) that are true / stated in the script. If you
-  don't have a real number, DON'T use stat/compare — use headline/quote/callout/points/etc.
-- VARY the scene kind AND the background across the reel (never the same bg twice in a row).
-  Backgrounds: "paper" (cream dot-grid), "cream", "dark", "warm" (terracotta). Terracotta is
-  the signature accent.
+Design a DENSE sequence of full-screen SCENES that cut over the talking head.
 
-Scene kinds (pick the best fit per beat, use a good mix):
-- {"kind":"headline","text":"3-6 word hook","emphasis":"ONE word to box in terracotta","bg":"paper"}  (opener / big idea)
-- {"kind":"stat","value":"90%","sub":"as good as Opus","kicker":"ON BENCHMARKS","bg":"dark"}  (value can be "90%","3×","$3","128k" — a giant counting number)
-- {"kind":"compare","title":"price / M tokens","unit":"$","rows":[{"label":"Opus","value":15},{"label":"Sonnet 5","value":3,"highlight":true}],"bg":"paper"}  (2-3 real rows, highlight the hero)
-- {"kind":"terminal","title":"zsh","lines":["command here","output line"],"bg":"warm"}  (a real command / code — types itself out; line 0 is the command)
-- {"kind":"logo","name":"Sonnet 5","tagline":"by Anthropic","bg":"dark"}  (a product/name drop)
-- {"kind":"points","title":"what changed","items":["faster","cheaper","better at code"],"bg":"cream"}  (2-4 short bullets)
-- {"kind":"quote","pre":"my Opus sub is now","boxed":"emotional support","bg":"paper"}  (dry aside, one word boxed)
-- {"kind":"callout","text":"anyway. moving on.","bg":"warm"}  (a punchy full-screen line)
-- {"kind":"screenshot","url":"https://REAL-url.com","label":"cursor.com","bg":"dark"}  (show the ACTUAL product site/repo — use the real official URL; at most 1-2 per reel)
+HARD RULES:
+- Cover ~70% of the 0–${totalMs}ms timeline. Talking head shows only ~30%, in short 1.2–2.2s
+  gaps between scenes. Each scene 1.8–3.6s, startMs/endMs on word boundaries, NO overlaps, in order.
+- LEAN ON REAL ASSETS. At least HALF the scenes must be visual (logo, logowall, versus,
+  screenshot, phone, linechart, barchart, donut, statgrid, tweet). Use plain-text kinds
+  (headline/quote/callout/points) for at most ~40% of scenes.
+- Whenever a real PRODUCT/COMPANY is named (Anthropic, OpenAI, Claude, Cursor, GitHub, Gemini,
+  Google, Meta, Llama, Perplexity, Ollama, etc.), show its LOGO (logo/logowall/versus) or a
+  SCREENSHOT of its site — don't just write the name.
+- On-screen NUMBERS must be REAL (stated in the script or true). If you don't have a real number,
+  don't use stat/donut/charts for it.
+- Vary the background across scenes (never same bg twice in a row): "paper", "cream", "dark",
+  "warm" (terracotta). Open on a strong logo or headline hook.
+- Do NOT include captions — captions are added automatically from the audio.
 
-Open on a strong "headline" or "logo" for the hook. Keep all text SHORT and punchy.
+SCENE KINDS (use a rich mix, favor the visual ones):
+- {"kind":"logo","name":"Sonnet 5","tagline":"by Anthropic","bg":"dark"}  (real brand logo + name)
+- {"kind":"logowall","title":"everyone's adding it","brands":["Cursor","GitHub","Perplexity","Vercel"],"bg":"dark"}  (grid of REAL logos)
+- {"kind":"versus","a":"Sonnet 5","b":"Opus","aNote":"$3","bNote":"$15","bg":"paper"}  (two real logos head-to-head)
+- {"kind":"screenshot","url":"https://claude.ai","label":"claude.ai","bg":"dark"}  (REAL screenshot of the site — always give a real URL)
+- {"kind":"phone","url":"https://claude.ai","label":"the app","bg":"warm"}  (site/app screenshot in a phone frame)
+- {"kind":"linechart","title":"benchmark over time","values":[40,55,72,90],"caption":"straight up","bg":"dark"}  (animated trend)
+- {"kind":"barchart","title":"SWE-bench %","unit":"%","rows":[{"label":"Opus","value":72},{"label":"Sonnet 5","value":78,"highlight":true}],"bg":"paper"}
+- {"kind":"donut","percent":90,"label":"as good as Opus","kicker":"benchmarks","bg":"dark"}  (a single % ring)
+- {"kind":"statgrid","items":[{"value":"3×","label":"faster"},{"value":"$3","label":"per M tokens"},{"value":"200k","label":"context"}],"bg":"dark"}  (2-3 real stats)
+- {"kind":"stat","value":"90%","sub":"as good as Opus","kicker":"ON BENCHMARKS","bg":"dark"}  (one giant counting number)
+- {"kind":"compare","title":"price / M tokens","unit":"$","rows":[{"label":"Opus","value":15},{"label":"Sonnet 5","value":3,"highlight":true}],"bg":"paper"}
+- {"kind":"terminal","title":"zsh","lines":["claude -p \\"ship it\\"","done in 4s"],"bg":"warm"}  (types itself out)
+- {"kind":"tweet","name":"a dev","handle":"handle","text":"a real-sounding hot take about it","brand":"Anthropic","bg":"dark"}  (X post card)
+- {"kind":"features","title":"what's new","items":[{"label":"long-context code","brand":"Anthropic"},{"label":"agentic tasks"}],"bg":"cream"}  (2-4 feature cards)
+- {"kind":"headline","text":"3-6 word hook","emphasis":"ONE word","bg":"paper"}
+- {"kind":"quote","pre":"my Opus sub is now","boxed":"emotional support","bg":"paper"}
+- {"kind":"callout","text":"anyway. moving on.","bg":"warm"}
+- {"kind":"points","title":"the gist","items":["faster","cheaper"],"bg":"cream"}
+
 ${editNote ? `IMPORTANT change requested: ${editNote}` : ""}
 ${visualBlock()}
 Return ONLY a JSON array of scene objects.`;
@@ -63,30 +67,24 @@ Return ONLY a JSON array of scene objects.`;
     const plan = await claudeJson<Scene[]>(prompt);
     if (Array.isArray(plan)) scenes = plan;
   } catch {
-    /* fall through to fallback */
+    /* fall through */
   }
   scenes = sanitize(scenes, totalMs);
-  if (!scenes.length) {
-    // minimal but real fallback: a hook headline + a dry callout
-    scenes = [
-      { kind: "headline", startMs: 200, endMs: 2600, text: topic.split(" ").slice(0, 6).join(" "), bg: "paper" },
-    ];
-  }
+  if (!scenes.length) scenes = [{ kind: "headline", startMs: 200, endMs: 2600, text: topic.split(" ").slice(0, 6).join(" "), bg: "paper" }];
   return scenes;
 }
 
-// keep scenes in-bounds, ordered, non-overlapping, sanely sized
 function sanitize(scenes: Scene[], totalMs: number): Scene[] {
   const ok = scenes
-    .filter((s) => s && typeof (s as any).startMs === "number" && typeof (s as any).endMs === "number" && (s as any).endMs > (s as any).startMs)
+    .filter((s) => s && typeof s.startMs === "number" && typeof s.endMs === "number" && s.endMs > s.startMs)
     .map((s) => ({ ...s, startMs: Math.max(0, Math.round(s.startMs)), endMs: Math.min(totalMs, Math.round(s.endMs)) }))
     .filter((s) => s.endMs - s.startMs >= 800)
     .sort((a, b) => a.startMs - b.startMs);
   const out: Scene[] = [];
   let lastEnd = -1;
   for (const s of ok) {
-    if (s.startMs < lastEnd) s.startMs = lastEnd; // push past previous
-    if (s.endMs - s.startMs < 800) continue; // dropped by the shove
+    if (s.startMs < lastEnd) s.startMs = lastEnd;
+    if (s.endMs - s.startMs < 800) continue;
     out.push(s);
     lastEnd = s.endMs;
   }

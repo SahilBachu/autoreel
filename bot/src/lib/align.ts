@@ -6,7 +6,10 @@ const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9]/g, "");
 // Whisper is great for *when* a word is said but sloppy on spelling ("Cloud" vs "Claude");
 // the script is the source of truth for text. We LCS-match the two token streams, give each
 // script token its matched whisper token's timing, and interpolate timing for the rest.
-export function alignCaptions(script: string, words: Word[]): Word[] {
+export function alignCaptions(script: string, words: Word[], opts: { syncFromAudio?: boolean } = {}): Word[] {
+  // syncFromAudio: caption text = exactly what whisper heard, at whisper's timing. Guarantees
+  // the captions match the audio even if the person ad-libbed away from the script.
+  if (opts.syncFromAudio && words.length) return words;
   const s = script.split(/\s+/).filter(Boolean); // display tokens (script)
   const w = words;
   if (!w.length) return s.map((text, i) => ({ text, startMs: i * 300, endMs: i * 300 + 260 }));

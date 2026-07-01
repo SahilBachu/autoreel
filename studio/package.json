@@ -16,6 +16,7 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "remotion": "4.0.484",
+    "simple-icons": "^16.24.1",
     "tailwindcss": "4.0.0",
     "three": "^0.185.0"
   },
