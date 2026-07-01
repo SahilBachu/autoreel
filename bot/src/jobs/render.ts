@@ -16,6 +16,21 @@ function run(cmd: string, args: string[], cwd: string): Promise<void> {
   });
 }
 
+// how much silence a sound file has at the very start (ms) — so SFX fire on the beat,
+// not into dead air. Uses ffmpeg silencedetect.
+function leadSilenceMs(studio: string, relFile: string): Promise<number> {
+  return new Promise((res) => {
+    const p = spawn("npx", ["remotion", "ffmpeg", "-i", resolve(studio, "public", relFile), "-af", "silencedetect=n=-35dB:d=0.1", "-f", "null", "-"], { cwd: studio, shell: process.platform === "win32" });
+    let out = "";
+    p.stderr.on("data", (d) => (out += d));
+    p.on("close", () => {
+      const m = out.match(/silence_start: 0[\s\S]*?silence_end: ([\d.]+)/);
+      res(m ? Math.round(parseFloat(m[1]) * 1000) : 0);
+    });
+    p.on("error", () => res(0));
+  });
+}
+
 // pick a music bed + an SFX file from the handpicked audio library (public/audio-manifest.json)
 async function pickAudio(studio: string) {
   try {
@@ -52,9 +67,10 @@ export async function renderReel(opts: {
   // 2. director plans cutaways (timed to the words)
   const cutaways = await planCutaways({ topic: opts.topic, words: captions, editNote: opts.editNote });
 
-  // 3. audio: whoosh on each cutaway start + a music bed
+  // 3. audio: whoosh on each cutaway start (skipping its lead silence) + a music bed
   const { music, whoosh } = await pickAudio(studio);
-  const sfx = whoosh ? cutaways.map((c) => ({ file: whoosh, atMs: c.startMs })) : [];
+  const trimBeforeMs = whoosh ? await leadSilenceMs(studio, whoosh) : 0;
+  const sfx = whoosh ? cutaways.map((c) => ({ file: whoosh, atMs: c.startMs, trimBeforeMs, volume: 0.9 })) : [];
 
   // 4. props + render
   const propsPath = resolve(studio, "out", `${id}.props.json`);

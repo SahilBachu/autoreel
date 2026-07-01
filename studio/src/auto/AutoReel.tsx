@@ -30,7 +30,7 @@ export type AutoReelData = {
   captions: Word[];
   cutaways: Cutaway[];
   music?: string; // public/ path
-  sfx?: { file: string; atMs: number }[];
+  sfx?: { file: string; atMs: number; trimBeforeMs?: number; volume?: number }[];
   voiceBoost?: number; // multiply the clip's voice volume (soft audio -> louder)
 };
 
@@ -113,10 +113,10 @@ export const AutoReel: React.FC<AutoReelData> = ({ videoSrc, captions, cutaways,
       {/* music bed, ducked low */}
       {music ? <Audio src={asset(music)} volume={0.12} loop /> : null}
 
-      {/* one-shot SFX */}
+      {/* one-shot SFX — skip any leading silence in the file, play the full hit, louder */}
       {(sfx ?? []).map((s, i) => (
-        <Sequence key={`sfx${i}`} from={f(s.atMs)} durationInFrames={fps} layout="none">
-          <Audio src={asset(s.file)} volume={0.5} />
+        <Sequence key={`sfx${i}`} from={f(s.atMs)} durationInFrames={Math.round(2.6 * fps)} layout="none">
+          <Audio src={asset(s.file)} volume={s.volume ?? 0.9} trimBefore={f(s.trimBeforeMs ?? 0)} />
         </Sequence>
       ))}
 

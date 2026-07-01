@@ -6,6 +6,7 @@ import { state } from "./state.js";
 import { generateIdea } from "./jobs/idea.js";
 import { renderReel } from "./jobs/render.js";
 import { postReel } from "./jobs/post.js";
+import { genPostCaption } from "./lib/caption.js";
 
 // self-hosted Bot API server = big-file support
 const bot = new Bot(config.telegram.token, {
@@ -22,19 +23,16 @@ const approveKeyboard = new InlineKeyboard()
   .text("🔁 Redo", "redo")
   .text("✏️ Edit", "edit");
 
-async function makeAndSendReel(ctx: any, chat: string) {
+async function makeAndSendReel(ctx: any, chat: string, editNote?: string) {
   const p = state.get(chat);
   if (!p?.clipPath || !p.script) return ctx.reply("Send me a clip first (with a script).");
   await ctx.reply("🎬 rendering… this takes a bit.");
   try {
-    const mp4 = await renderReel({
-      clipPath: p.clipPath,
-      script: p.script,
-      topic: p.topic,
-      editNote: p.awaitingEdit ? undefined : undefined,
-    });
-    state.patch(chat, { mp4Path: mp4, awaitingEdit: false });
-    await ctx.replyWithVideo(new InputFile(mp4), { reply_markup: approveKeyboard });
+    const mp4 = await renderReel({ clipPath: p.clipPath, script: p.script, topic: p.topic, editNote });
+    const caption = await genPostCaption(p.topic, p.script);
+    state.patch(chat, { mp4Path: mp4, caption, awaitingEdit: false });
+    // show the generated IG caption under the reel; [Post] will publish with it
+    await ctx.replyWithVideo(new InputFile(mp4), { caption: `📝 caption:\n${caption}`, reply_markup: approveKeyboard });
   } catch (e: any) {
     await ctx.reply(`⚠️ render not ready: ${e.message}`);
   }
@@ -87,7 +85,7 @@ bot.callbackQuery("post", async (ctx) => {
   const p = state.get(String(ctx.chat!.id));
   if (!p?.mp4Path) return ctx.reply("Nothing to post yet.");
   try {
-    const link = await postReel(p.mp4Path, p.script.split("\n")[0]);
+    const link = await postReel(p.mp4Path, p.caption ?? p.script.split("\n")[0]);
     await ctx.reply(`🚀 posted: ${link}`);
     state.clear(String(ctx.chat!.id));
   } catch (e: any) {
@@ -111,15 +109,7 @@ bot.on("message:text", async (ctx) => {
   const chat = String(ctx.chat.id);
   const p = state.get(chat);
   if (!p?.awaitingEdit) return; // otherwise ignore free text
-  const editNote = ctx.message.text;
-  await ctx.reply("🔧 applying and re-rendering…");
-  try {
-    const mp4 = await renderReel({ clipPath: p.clipPath!, script: p.script, topic: p.topic, editNote });
-    state.patch(chat, { mp4Path: mp4, awaitingEdit: false });
-    await ctx.replyWithVideo(new InputFile(mp4), { reply_markup: approveKeyboard });
-  } catch (e: any) {
-    await ctx.reply(`⚠️ render not ready: ${e.message}`);
-  }
+  await makeAndSendReel(ctx, chat, ctx.message.text);
 });
 
 bot.catch((err) => console.error("bot error", err));

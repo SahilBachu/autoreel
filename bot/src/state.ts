@@ -4,6 +4,7 @@ export type Pending = {
   script: string;
   clipPath?: string;
   mp4Path?: string;
+  caption?: string; // the generated Instagram post caption
   awaitingEdit?: boolean;
 };
 
