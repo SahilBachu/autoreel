@@ -31,6 +31,14 @@ function leadSilenceMs(studio: string, relFile: string): Promise<number> {
   });
 }
 
+// pick up to n items, evenly spread across the list (so an SFX isn't spammed on every cut)
+function pickSpread<T>(arr: T[], n: number): T[] {
+  if (arr.length <= n) return arr;
+  const out: T[] = [];
+  for (let i = 0; i < n; i++) out.push(arr[Math.round((i * (arr.length - 1)) / (n - 1))]);
+  return out;
+}
+
 // pick a music bed + an SFX file from the handpicked audio library (public/audio-manifest.json)
 async function pickAudio(studio: string) {
   try {
@@ -70,7 +78,8 @@ export async function renderReel(opts: {
   // 3. audio: whoosh on each cutaway start (skipping its lead silence) + a music bed
   const { music, whoosh } = await pickAudio(studio);
   const trimBeforeMs = whoosh ? await leadSilenceMs(studio, whoosh) : 0;
-  const sfx = whoosh ? cutaways.map((c) => ({ file: whoosh, atMs: c.startMs, trimBeforeMs, volume: 0.9 })) : [];
+  // each sound effect max 2x per video, spread across the cutaways
+  const sfx = whoosh ? pickSpread(cutaways, 2).map((c) => ({ file: whoosh, atMs: c.startMs, trimBeforeMs, volume: 0.9 })) : [];
 
   // 4. props + render
   const propsPath = resolve(studio, "out", `${id}.props.json`);
