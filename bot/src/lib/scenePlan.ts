@@ -87,15 +87,17 @@ Return ONLY JSON: {"accent":"<color>","scenes":[...]}`;
 
   let accent: string | undefined;
   let scenes: Scene[] = [];
-  try {
-    const plan = await claudeJson<any>(prompt, { model: "opus" });
-    if (Array.isArray(plan)) scenes = plan; // tolerate old array shape
-    else if (plan && Array.isArray(plan.scenes)) {
-      scenes = plan.scenes;
-      accent = typeof plan.accent === "string" ? plan.accent : undefined;
+  for (let attempt = 1; attempt <= 2 && !scenes.length; attempt++) {
+    try {
+      const plan = await claudeJson<any>(prompt, { model: "opus" });
+      if (Array.isArray(plan)) scenes = plan; // tolerate old array shape
+      else if (plan && Array.isArray(plan.scenes)) {
+        scenes = plan.scenes;
+        accent = typeof plan.accent === "string" ? plan.accent : undefined;
+      }
+    } catch (e) {
+      console.error(`director attempt ${attempt} failed:`, (e as Error).message?.slice(0, 400));
     }
-  } catch {
-    /* fall through */
   }
   scenes = sanitize(scenes, totalMs);
   if (!scenes.length) scenes = [{ kind: "headline", startMs: 200, endMs: 2600, text: topic.split(" ").slice(0, 6).join(" ") }];

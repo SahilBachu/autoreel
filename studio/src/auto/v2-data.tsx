@@ -115,7 +115,11 @@ export const BarChart: React.FC<{ title?: string; unit?: string; rows: { label: 
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
   const max = Math.max(...rows.map((r) => r.value), 1);
-  const fmt = (v: number) => (unit === "$" ? `$${v.toFixed(Number.isInteger(v) ? 0 : 1)}` : `${v.toFixed(Number.isInteger(v) ? 0 : 1)}${unit || ""}`);
+  // decimals follow the TARGET value, so "$15" never flashes as "$15.0" mid-count
+  const fmt = (v: number, target: number) => {
+    const s = v.toFixed(Number.isInteger(target) ? 0 : 1);
+    return unit === "$" ? `$${s}` : `${s}${unit || ""}`;
+  };
   return (
     <Scene bg="plain">
       <div style={{ width: "100%", maxWidth: 880 }}>
@@ -128,7 +132,7 @@ export const BarChart: React.FC<{ title?: string; unit?: string; rows: { label: 
             return (
               <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: 1, maxWidth: 190 }}>
                 <div style={{ fontFamily: F2.sans, fontWeight: 700, fontSize: 44, letterSpacing: "-0.02em", color: r.hero ? a.hex : T.text, textShadow: r.hero ? `0 0 26px ${a.glow}` : "none", marginBottom: 14 }}>
-                  {fmt(shown)}
+                  {fmt(shown, r.value)}
                 </div>
                 <div
                   style={{
