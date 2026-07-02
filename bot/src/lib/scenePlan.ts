@@ -23,13 +23,20 @@ dark, minimal, Vercel/Linear-grade — glassy panels, hairline borders, ONE brig
 text cards. TOPIC: "${topic}". Reel length: ${totalMs} ms.
 Word-timestamped TRANSCRIPT (ms in brackets): ${transcript}
 
-Design a DENSE sequence of full-screen SCENES cutting over the talking head.
+Design the scene track that cuts over the talking head. The FACE is the anchor — let it breathe.
 
 HARD RULES:
-- Cover ~70% of 0–${totalMs}ms. Talking head shows only in short 1.2–2.2s gaps. Each scene
-  1.8–3.6s, startMs/endMs on word boundaries, NO overlaps, ordered by startMs.
-- LEAN ON RICH VISUALS: at least half the scenes from the visual/data/ui groups below —
-  text-only kinds (headline/decrypt/callout/quote) capped at ~40%.
+- Use ~5-7 FULL-SCREEN motion-graphic scenes (the data / ui / media groups) covering ~50-60%
+  of 0–${totalMs}ms. NOT one per line — the face + captions carry the rest.
+- TEXT kinds (headline/decrypt/callout/quote) render as OVERLAYS ON THE FACE (transparent —
+  the face shows through). Use them SPARINGLY: the opening hook + maybe ONE sprinkled. Never
+  two text scenes near each other — prefer bare face + captions over another text card.
+- OPEN on a text-overlay hook (headline or decrypt) — the reel starts on the FACE with the
+  title on top, never a full-screen card.
+- PACING (critical): between full-screen scenes, either cut STRAIGHT to the next (make them
+  contiguous: one scene's endMs == the next's startMs) OR leave a real 1.5-2.5s FACE beat.
+  NEVER a sub-second sliver of bare face between two scenes — it reads as a flash.
+- Each full-screen scene 2.0–3.6s. startMs/endMs on word boundaries, NO overlaps, ordered.
 - When a real PRODUCT/COMPANY is named (Anthropic, OpenAI, Claude, Cursor, GitHub, Gemini,
   Google, Meta, Perplexity, Vercel, Notion, Figma...), SHOW it: logo / logowall / versus /
   browser / ascii — not just its name in text.
@@ -38,7 +45,6 @@ HARD RULES:
 - browser/phone URLs must be real MARKETING/DOCS/GITHUB pages (https://anthropic.com,
   https://cursor.com, https://github.com/org/repo). NEVER app/login pages (claude.ai,
   chatgpt.com) — they hit bot-walls and get dropped.
-- Open on a strong hook (headline, decrypt, logo or notifications). Keep ALL text short.
 - Captions are added automatically — never include them.
 
 SCENE KINDS
@@ -117,6 +123,13 @@ function sanitize(scenes: Scene[], totalMs: number): Scene[] {
     if (s.endMs - s.startMs < 800) continue;
     out.push(s);
     lastEnd = s.endMs;
+  }
+  // kill sub-beat face flashes: a tiny gap between two scenes -> close it so the cut goes
+  // straight scene->scene. Gaps >= MIN_FACE_BEAT stay as real "face breathes" moments.
+  const MIN_FACE_BEAT = 1400;
+  for (let i = 0; i < out.length - 1; i++) {
+    const gap = out[i + 1].startMs - out[i].endMs;
+    if (gap > 0 && gap < MIN_FACE_BEAT) out[i].endMs = out[i + 1].startMs;
   }
   return out;
 }

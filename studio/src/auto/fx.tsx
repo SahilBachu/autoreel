@@ -115,10 +115,16 @@ export const Bg: React.FC<{ variant?: BgVariant }> = ({ variant = "plain" }) => 
   );
 };
 
-// ── Scene — wrapper every v2 component sits in (content lifted above captions)
-export const Scene: React.FC<{ bg?: BgVariant; children: React.ReactNode }> = ({ bg = "plain", children }) => (
+// ── Scene — wrapper every v2 component sits in (content lifted above captions).
+// overlay=true: no opaque background — a soft scrim over the talking head so the FACE shows
+// through while text stays legible (used by the text scenes / the opening hook).
+export const Scene: React.FC<{ bg?: BgVariant; overlay?: boolean; children: React.ReactNode }> = ({ bg = "plain", overlay, children }) => (
   <AbsoluteFill>
-    <Bg variant={bg} />
+    {overlay ? (
+      <AbsoluteFill style={{ background: "radial-gradient(ellipse 108% 64% at 50% 42%, rgba(0,0,0,0.68), rgba(0,0,0,0.30) 58%, rgba(0,0,0,0.10) 100%)" }} />
+    ) : (
+      <Bg variant={bg} />
+    )}
     <AbsoluteFill style={{ justifyContent: "center", alignItems: "center", padding: "90px 84px 400px" }}>{children}</AbsoluteFill>
   </AbsoluteFill>
 );

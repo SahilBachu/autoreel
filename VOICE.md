@@ -53,6 +53,14 @@ it's basically a group project where nobody's the smart kid and they all bill ho
 anyway my bill looks like a phone number now.
 gonna go read the docs about spend limits. probably.
 
+Example ('GuardFall' — 1980s bash tricks defeat the safety guard in 10 of 11 open-source coding agents):
+so someone found this thing called GuardFall.
+turns out you can sneak past the safety layer in basically every open-source coding agent with bash tricks from the 80s.
+the guard reads what your command looks like, but bash runs what it actually means.
+10 out of 11 agents folded to a shell trick older than the people who built them.
+if we keep ignoring security with our agents it's gonna catch up to us one day.
+anyway back to claudemaxxing.
+
 ## never
 
 Never write like this: "Is there even a reason to pay for Opus anymore?!",
@@ -60,15 +68,18 @@ Never write like this: "Is there even a reason to pay for Opus anymore?!",
 
 ## learned (auto-updated from sahil's edits — safe to edit or delete lines)
 
-- Open casual and conversational ('has this thing where...'), then land a dry self-deprecating punchline at the end
-- Use relatable-analogy closers ('basically a group project where nobody's the smart kid')
-- Keep it all-lowercase, ~4 short speakable lines, no hype or CTAs
-- Build around a personal-failure anecdote ('woke up to like forty of them still grinding')
+- open casual and conversational ('has this thing where...', 'so someone found this thing called...'), pulling the listener into a specific real thing
+- land the closer on a relatable analogy or size-comparison ('a group project where nobody's the smart kid', 'a shell trick older than the people who')
+- keep it all-lowercase, ~4 short speakable lines, no hype, no CTAs, no emojis
+- explain the mechanism with a dry twist or contrast ('the guard reads what your command looks like, but bash runs what it actually means')
+- build around a concrete failure/gotcha, ideally with a personal-stakes beat ('woke up to like forty of them still grinding')
+- let the last line trail off mid-thought as the punchline rather than resolving neatly
 
 ## learned topics (what lands with sahil)
 
 - Claude Code / AI dev-tool quirks and failure modes
-- Things quietly going wrong overnight while you sleep (runaway agents, surprise API bills)
+- things quietly going wrong overnight while you sleep (runaway agents, surprise API bills)
+- security exploits and safety-bypass tricks in open-source coding agents (e.g. GuardFall)
 
 ## learned captions
 

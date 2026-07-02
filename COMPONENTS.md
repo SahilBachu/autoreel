@@ -11,6 +11,8 @@ belong in `studio/src/auto/generated/<videoId>/` and must (1) drive all motion f
 (2) read colors from `useAccent()` + `T` tokens, (3) wrap content in `<Scene>` from fx.tsx
 (keeps it clear of the caption pill), (4) pass a still-render check before use.
 
+Dont keep 2 pure text components back to back - the second one can be just my face's video with captions.
+
 ## text
 | kind | props | use when |
 |---|---|---|

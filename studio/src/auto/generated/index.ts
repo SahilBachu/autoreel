@@ -4,4 +4,8 @@ import type * as React from "react";
 // The studio agent (bot/src/lib/studio.ts) writes component files next to this and registers
 // them here. AutoReel resolves {"kind":"custom","name":X} via GENERATED[X]. Keep type-safe.
 
-export const GENERATED: Record<string, React.FC<any>> = {};
+import CommandAmbiguity from "./reel-1782959613704-CommandAmbiguity";
+
+export const GENERATED: Record<string, React.FC<any>> = {
+  CommandAmbiguity,
+};

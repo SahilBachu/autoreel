@@ -6,7 +6,6 @@ import {
   staticFile,
   useVideoConfig,
   useCurrentFrame,
-  interpolate,
 } from "remotion";
 import type { Word } from "../types";
 import { AccentProvider, resolveAccent, T } from "./theme";
@@ -40,13 +39,13 @@ const asset = (s: string) => (s.startsWith("http") ? s : staticFile(s));
 const SceneBody: React.FC<{ s: Scene }> = ({ s }) => {
   switch (s.kind) {
     case "headline":
-      return <Headline text={s.text} emphasis={s.emphasis} kicker={s.kicker} />;
+      return <Headline text={s.text} emphasis={s.emphasis} kicker={s.kicker} overlay={s.overlay} />;
     case "decrypt":
-      return <Decrypt text={s.text} sub={s.sub} kicker={s.kicker} />;
+      return <Decrypt text={s.text} sub={s.sub} kicker={s.kicker} overlay={s.overlay} />;
     case "callout":
-      return <Callout text={s.text} emphasis={s.emphasis} />;
+      return <Callout text={s.text} emphasis={s.emphasis} overlay={s.overlay} />;
     case "quote":
-      return <Quote pre={s.pre} boxed={s.boxed} post={s.post} />;
+      return <Quote pre={s.pre} boxed={s.boxed} post={s.post} overlay={s.overlay} />;
     case "stat":
       return <Stat value={s.value} label={s.label ?? s.sub} kicker={s.kicker} />;
     case "statrow":
@@ -106,10 +105,14 @@ const SceneBody: React.FC<{ s: Scene }> = ({ s }) => {
   }
 };
 
-// quick fade at the edges so a full-screen scene doesn't hard-flash in/out
-const Fade: React.FC<{ durF: number; children: React.ReactNode }> = ({ durF, children }) => {
+// fade only at a scene's OUTER edges (into/out of a bare-face beat). When a scene is
+// contiguous with a neighbour, that side hard-cuts — no crossfade dip that flashes the face.
+const Fade: React.FC<{ durF: number; fadeIn: boolean; fadeOut: boolean; children: React.ReactNode }> = ({ durF, fadeIn, fadeOut, children }) => {
   const f = useCurrentFrame();
-  const op = interpolate(f, [0, 4, durF - 4, durF], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const IN = 3, OUT = 3;
+  let op = 1;
+  if (fadeIn && f < IN) op = f / IN;
+  else if (fadeOut && f > durF - OUT) op = Math.max(0, (durF - f) / OUT);
   return <AbsoluteFill style={{ opacity: op }}>{children}</AbsoluteFill>;
 };
 
@@ -128,18 +131,25 @@ export const AutoReel: React.FC<AutoReelData> = ({ videoSrc, captions, scenes, a
           <AbsoluteFill style={{ background: `linear-gradient(170deg, ${T.bg2}, ${T.bg})` }} />
         )}
 
-        {/* full-screen motion-graphic scenes, timed to the words */}
-        {(scenes ?? []).map((s, i) => {
-          const from = f(s.startMs);
-          const dur = Math.max(1, f(s.endMs) - from);
-          return (
-            <Sequence key={i} from={from} durationInFrames={dur} layout="none">
-              <Fade durF={dur}>
-                <SceneBody s={s} />
-              </Fade>
-            </Sequence>
-          );
-        })}
+        {/* scenes over the talking head. contiguity = hard cut (no face flash); a gap = a face beat */}
+        {(() => {
+          const starts = new Set((scenes ?? []).map((s) => f(s.startMs)));
+          const ends = new Set((scenes ?? []).map((s) => f(s.endMs)));
+          return (scenes ?? []).map((s, i) => {
+            const from = f(s.startMs);
+            const to = f(s.endMs);
+            const dur = Math.max(1, to - from);
+            const fadeIn = !ends.has(from); // nothing ends here -> coming from a face beat
+            const fadeOut = !starts.has(to); // nothing starts here -> going to a face beat
+            return (
+              <Sequence key={i} from={from} durationInFrames={dur} layout="none">
+                <Fade durF={dur} fadeIn={fadeIn} fadeOut={fadeOut}>
+                  <SceneBody s={s} />
+                </Fade>
+              </Sequence>
+            );
+          });
+        })()}
 
         {/* lofi bed leads; SFX stay subtle */}
         {music ? <Audio src={asset(music)} volume={0.32} loop /> : null}
