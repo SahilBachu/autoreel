@@ -61,6 +61,20 @@ the guard reads what your command looks like, but bash runs what it actually mea
 if we keep ignoring security with our agents it's gonna catch up to us one day.
 anyway back to claudemaxxing.
 
+Example (graphify - adding a graph of your codebase so your agent understand it better and uses less tokens):
+introducing graphify — you give your agent a graph of your whole codebase.
+now it actually knows what connects to what instead of just searching around like it's lost in a parking garage.
+turns out it burns way fewer tokens too, cause it's not re-reading half your repo every single message.
+agents are getting better not just because of the models but because of the harness around them too.
+anyway my agent finally understands my code better than i do.
+
+Example (Meta says its next model 'Watermelon' has caught up to GPT-5.5 — in an internal town hall, with zero benchmarks shown):
+so Meta says its new model — codenamed Watermelon — has finally caught up to GPT-5.5.
+where'd they show the benchmarks? oh, at an internal town hall. no charts, no numbers, just a guy at a podium going "trust me."
+fourteen billion dollars and the strongest evidence they've got is a verbal claim in the one room where nobody can fact-check you.
+i'm glad nonetheless to hear "frontier" from a company that's not openai or anthropic.
+also naming your frontier model after a fruit is a choice.
+
 ## never
 
 Never write like this: "Is there even a reason to pay for Opus anymore?!",
@@ -68,18 +82,22 @@ Never write like this: "Is there even a reason to pay for Opus anymore?!",
 
 ## learned (auto-updated from sahil's edits — safe to edit or delete lines)
 
-- open casual and conversational ('has this thing where...', 'so someone found this thing called...'), pulling the listener into a specific real thing
-- land the closer on a relatable analogy or size-comparison ('a group project where nobody's the smart kid', 'a shell trick older than the people who')
+- open casual and conversational ('has this thing where...', 'so someone found this thing called...'), pulling the listener into a specific real thing — but for a product/tool launch, a direct 'introducing <name>' opener is welcome instead
+- land the closer on a relatable analogy or size-comparison ('a group project where nobody's the smart kid', 'lost in a parking garage', 'a shell trick older than the people who')
 - keep it all-lowercase, ~4 short speakable lines, no hype, no CTAs, no emojis
 - explain the mechanism with a dry twist or contrast ('the guard reads what your command looks like, but bash runs what it actually means')
 - build around a concrete failure/gotcha, ideally with a personal-stakes beat ('woke up to like forty of them still grinding')
 - let the last line trail off mid-thought as the punchline rather than resolving neatly
+- when trimming, cut throwaway joke asides ('which is kinda funny') in favor of a substantive takeaway ('agents are getting better not just from models but the harness')
+- prefer plain everyday verbs over insider jargon ('searching' over 'grepping')
 
 ## learned topics (what lands with sahil)
 
 - Claude Code / AI dev-tool quirks and failure modes
 - things quietly going wrong overnight while you sleep (runaway agents, surprise API bills)
 - security exploits and safety-bypass tricks in open-source coding agents (e.g. GuardFall)
+- dev-tool/harness upgrades that make coding agents smarter or cheaper — codebase graphs, token efficiency, better context (e.g. graphify)
+- AI-lab credibility gaps — bold model claims (Meta 'Watermelon' vs GPT-5.5) made with no benchmarks or hidden behind gated access
 
 ## learned captions
 

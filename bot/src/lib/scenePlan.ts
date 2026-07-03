@@ -37,9 +37,14 @@ HARD RULES:
   contiguous: one scene's endMs == the next's startMs) OR leave a real 1.5-2.5s FACE beat.
   NEVER a sub-second sliver of bare face between two scenes — it reads as a flash.
 - Each full-screen scene 2.0–3.6s. startMs/endMs on word boundaries, NO overlaps, ordered.
+- PREFER REAL SCREENSHOTS. Aim for at LEAST 1-2 "browser" (or "phone") scenes per video
+  that screenshot the actual product / launch post / docs / GitHub repo page. A real captured
+  page is far more credible and premium than a logo or a text card — lean on it whenever the
+  story has a concrete page to show (a launch, a new feature, a repo, a pricing page, a blog
+  post). Default to a "browser" shot over a plain "logo" when a company/product is the subject.
 - When a real PRODUCT/COMPANY is named (Anthropic, OpenAI, Claude, Cursor, GitHub, Gemini,
-  Google, Meta, Perplexity, Vercel, Notion, Figma...), SHOW it: logo / logowall / versus /
-  browser / ascii — not just its name in text.
+  Google, Meta, Perplexity, Vercel, Notion, Figma...), SHOW it — prefer a "browser" screenshot
+  of its real site/page; otherwise logo / logowall / versus / ascii — never just its name in text.
 - On-screen NUMBERS must be REAL (stated in the script or true). No real number → no stat/
   donut/charts/statrow for it.
 - browser/phone URLs must be real MARKETING/DOCS/GITHUB pages (https://anthropic.com,
@@ -72,8 +77,11 @@ media (real assets):
 - {"kind":"logo","name":"Claude","tagline":"Sonnet 5"}  (company WITH a logo; model names go in tagline)
 - {"kind":"logowall","title":"everyone's on it","brands":["Cursor","GitHub","Perplexity","Vercel"]}
 - {"kind":"versus","a":"Anthropic","b":"OpenAI","aNote":"$3 / M","bNote":"$15 / M"}  (a = the winner)
-- {"kind":"browser","url":"https://cursor.com","label":"cursor.com"}  (REAL site screenshot)
-- {"kind":"phone","url":"https://anthropic.com","label":"optional"}
+- {"kind":"browser","url":"https://cursor.com","label":"cursor.com"}  (REAL site screenshot — USE OFTEN)
+    great for: launch/announcement posts (https://anthropic.com/news/..., https://openai.com/index/...),
+    docs pages, pricing pages, blog posts, and GitHub repos (https://github.com/org/repo).
+    Reach for this on almost every video that references a real page — 1-2 per reel ideal.
+- {"kind":"phone","url":"https://anthropic.com","label":"optional"}  (same, framed in a phone)
 - {"kind":"ascii","brand":"Claude","label":"optional"}  (logo/image dissolves into glowing ascii — 1 max, hero moment)
 - {"kind":"terminal","title":"zsh","lines":["claude -p \\"ship it\\"","done in 4s"]}
 - {"kind":"code","title":"agent.ts","lines":["const r = await claude.run(task)","// runs for hours"],"highlight":[1]}
