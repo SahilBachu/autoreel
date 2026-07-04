@@ -55,10 +55,30 @@ Dont keep 2 pure text components back to back - the second one can be just my fa
 | code | title?, lines[], highlight?[] | code beats; accent-highlighted lines |
 | tweet | name, handle, text, brand? | a take as a dark X card |
 
+## app ui (shadcn-grade product surfaces — v2-apps.tsx)
+| kind | props | use when |
+|---|---|---|
+| command | query, results[{title,sub?,brand?}], hint? | ⌘K palette; query types, results filter in — "using the tool" beats |
+| prompt | text, app?, sub? | "the prompt that did this" — big input types itself, send button pulses |
+| search | query, suggestions?[], label? | search-bar beat; query types, suggestions drop in |
+| diff | title?, lines[{text,type:add\|del\|ctx}] | code before/after; adds green, removes struck red |
+| pricing | title?, tiers[{name,price,per?,features?[],hero?}] | cost/paywall beats; hero tier glows + "popular" chip (REAL prices) |
+| leaderboard | title?, rows[{label,value,brand?,hero?}] | rankings/benchmarks; hero row accent glow (REAL numbers) |
+| progress | label, percent, sub? | one big animated bar + counting % ("training run 87%") |
+| toggles | title?, items[{label,on?}] | settings switches flipping on — feature-flag/launch beats |
+| dashboard | title?, cards[{label,value,delta?,spark?[]}] | 2–4 KPI cards with sparklines; deltas green/red (REAL numbers) |
+| receipt | title?, items[{label,value}], total{label?,value} | deadpan itemized bill; total slams in accent (API-cost humor) |
+| inbox | items[{from,subject,preview?,time?,unread?,brand?}] | email-drop beats; unread dot glows |
+| poll | question?, options[{label,percent,hero?}] | community-verdict beats; bars fill, winner glows |
+| ticker | title?, rows[{symbol,label?,value,delta?}] | market/price-move beats; rows flash green/red |
+| kanban | title?, columns[{title,cards[]}] | agents-doing-work; last card of last column lands late with the glow |
+| waveform | label?, sub? | voice/audio-AI beats; accent bars breathe |
+| rating | name, rating, count?, brand?, tagline? | app-store verdict card; stars fill one by one |
+
 ## bespoke
 | kind | props | use when |
 |---|---|---|
-| custom | name (PascalCase), spec (what to build/animate), props{} | nothing above fits the beat — the component is CODE-GENERATED at render time (Opus writes it into generated/, typecheck-gated, auto-dropped on failure). Max 1/video. |
+| custom | name (PascalCase), spec (what to build/animate), props{} | nothing above fits the beat — the component is CODE-GENERATED at render time (Opus writes it into generated/, typecheck-gated, still-rendered + visually verified, auto-dropped on failure). Max 1/video. |
 
 The director also CHOOSES the video's accent (blue/cyan/green/orange/red/pink/violet) to fit
 the topic's vibe — returned as `accent` alongside `scenes`.

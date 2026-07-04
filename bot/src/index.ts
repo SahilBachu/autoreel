@@ -5,7 +5,7 @@ import { homedir } from "node:os";
 import { config, REPO_ROOT } from "./config.js";
 import { state } from "./state.js";
 import { generateIdea, reviseScript } from "./jobs/idea.js";
-import { buildDigest, formatDigest, loadDigest } from "./jobs/discover.js";
+import { buildDigest, formatDigest, loadDigest, markPicked } from "./jobs/discover.js";
 import { renderReel } from "./jobs/render.js";
 import { postReel } from "./jobs/post.js";
 import { genPostCaption } from "./lib/caption.js";
@@ -52,9 +52,11 @@ async function makeAndSendReel(ctx: any, chat: string, editNote?: string) {
   if (!p?.clipPath || !p.script) return ctx.reply("Send me a clip first (with a script).");
   await ctx.reply("rendering — this takes a bit.");
   try {
-    const mp4 = await renderReel({ clipPath: p.clipPath, script: p.script, topic: p.topic, editNote });
+    // a Redo passes no editNote but must keep honoring the last [Edit] instruction
+    const note = editNote ?? p.lastEditNote;
+    const { mp4, planSummary } = await renderReel({ clipPath: p.clipPath, script: p.script, topic: p.topic, editNote: note });
     const caption = await genPostCaption(p.topic, p.script);
-    state.patch(chat, { mp4Path: mp4, caption, awaitingEdit: false });
+    state.patch(chat, { mp4Path: mp4, caption, awaitingEdit: false, lastEditNote: note, lastPlan: planSummary });
     // show the generated IG caption under the reel; [Post] will publish with it.
     // width/height/supports_streaming are REQUIRED with the self-hosted local Bot API server:
     // without them Telegram picks a wrong-aspect player box and displays the reel stretched.
@@ -189,8 +191,9 @@ bot.callbackQuery("post", async (ctx) => {
 bot.callbackQuery("redo", async (ctx) => {
   await ctx.answerCallbackQuery();
   const chat = String(ctx.chat!.id);
-  learnFromRedo(state.get(chat)?.topic ?? ""); // they rejected that take
-  await makeAndSendReel(ctx, chat);
+  const p = state.get(chat);
+  learnFromRedo(p?.topic ?? "", p?.lastPlan); // they rejected that take — log WHICH plan
+  await makeAndSendReel(ctx, chat); // re-renders with the last edit note still applied
 });
 
 bot.callbackQuery("edit", async (ctx) => {
@@ -213,6 +216,7 @@ bot.on("message:text", async (ctx) => {
     if (card) {
       state.set(chat, { topic: card.topic, script: card.script, stage: "script", scriptSessionId: card.sessionId });
       learnFromIdea(card.topic);
+      markPicked(card.topic).catch(() => {}); // future research treats this story as done
       if (pick[2]) {
         await ctx.reply("picked — reworking it…");
         const r = await reviseScript(card.topic, card.script, pick[2], card.sessionId);

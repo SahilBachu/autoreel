@@ -4,18 +4,28 @@ import { spawn } from "node:child_process";
 // Complex creative steps (script, director, discovery) run on Opus; cheap utility
 // calls (captions etc.) stay on the default model.
 
-type Opts = { model?: string; resume?: string; json?: boolean; tools?: string[]; cwd?: string };
+type Opts = { model?: string; resume?: string; json?: boolean; tools?: string[]; cwd?: string; timeoutMs?: number };
 
-function run(args: string[], cwd?: string): Promise<string> {
+function run(args: string[], cwd?: string, timeoutMs?: number): Promise<string> {
   return new Promise((res, rej) => {
     // stdin: "ignore" -> the CLI won't stall 3s waiting for piped stdin (prompt is an arg).
     const p = spawn("claude", args, { shell: false, stdio: ["ignore", "pipe", "pipe"], cwd });
     let out = "";
     let err = "";
+    // a hung CLI call (auth prompt, network) would otherwise block a render forever
+    const timer = timeoutMs
+      ? setTimeout(() => {
+          p.kill("SIGKILL");
+          rej(new Error(`claude timed out after ${Math.round(timeoutMs / 1000)}s`));
+        }, timeoutMs)
+      : undefined;
     p.stdout.on("data", (d) => (out += d));
     p.stderr.on("data", (d) => (err += d));
     p.on("error", rej);
-    p.on("close", (code) => (code === 0 ? res(out.trim()) : rej(new Error(`claude exited ${code}: ${err.slice(-400)}`))));
+    p.on("close", (code) => {
+      if (timer) clearTimeout(timer);
+      code === 0 ? res(out.trim()) : rej(new Error(`claude exited ${code}: ${err.slice(-400)}`));
+    });
   });
 }
 
@@ -29,7 +39,7 @@ function baseArgs(prompt: string, opts: Opts): string[] {
 }
 
 export async function claude(prompt: string, opts: Opts = {}): Promise<string> {
-  return run([...baseArgs(prompt, opts), "--output-format", "text"], opts.cwd);
+  return run([...baseArgs(prompt, opts), "--output-format", "text"], opts.cwd, opts.timeoutMs);
 }
 
 // Start (or continue) a conversation and get the session id back, so revisions can
@@ -38,7 +48,7 @@ export async function claudeSession(
   prompt: string,
   opts: Opts = {},
 ): Promise<{ text: string; sessionId?: string }> {
-  const raw = await run([...baseArgs(prompt, opts), "--output-format", "json"], opts.cwd);
+  const raw = await run([...baseArgs(prompt, opts), "--output-format", "json"], opts.cwd, opts.timeoutMs);
   try {
     const j = JSON.parse(raw);
     return { text: (j.result ?? "").trim(), sessionId: j.session_id };

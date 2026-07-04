@@ -16,6 +16,8 @@ export type Pending = {
   scriptSessionId?: string; // claude session for the script back-and-forth (resumed on revisions)
   awaitingEdit?: boolean;
   posting?: boolean; // a publish is in flight — guards against double-taps on [Post]
+  lastEditNote?: string; // the last [Edit] instruction — a Redo must keep honoring it
+  lastPlan?: string; // compact summary of the last rendered plan (so a Redo logs WHAT was rejected)
 };
 
 const FILE = resolve(REPO_ROOT, ".bot-state.json");

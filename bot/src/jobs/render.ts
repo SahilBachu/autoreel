@@ -1,12 +1,15 @@
 import { spawn } from "node:child_process";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { createHash } from "node:crypto";
 import { config } from "../config.js";
-import { transcribe } from "../lib/whisper.js";
+import { transcribe, type Word } from "../lib/whisper.js";
 import { alignCaptions } from "../lib/align.js";
-import { planCutaways } from "../lib/scenePlan.js";
+import { planCutaways, type AudioLib } from "../lib/scenePlan.js";
 import { buildCustomScenes } from "../lib/studio.js";
 import { screenshot } from "../lib/shot.js";
+
+const exists = (p: string) => stat(p).then(() => true, () => false);
 
 function run(cmd: string, args: string[], cwd: string): Promise<void> {
   return new Promise((res, rej) => {
@@ -26,8 +29,10 @@ function leadSilenceMs(studio: string, relFile: string): Promise<number> {
     let out = "";
     p.stderr.on("data", (d) => (out += d));
     p.on("close", () => {
-      const m = out.match(/silence_start: 0[\s\S]*?silence_end: ([\d.]+)/);
-      res(m ? Math.round(parseFloat(m[1]) * 1000) : 0);
+      // only a silence run starting AT (near) ZERO counts as lead silence — a quiet patch
+      // at 0.5s must not be mistaken for it (the old prefix-match regex did exactly that)
+      const m = out.match(/silence_start:\s*(-?[\d.]+)[\s\S]*?silence_end:\s*([\d.]+)/);
+      res(m && parseFloat(m[1]) <= 0.05 ? Math.round(parseFloat(m[2]) * 1000) : 0);
     });
     p.on("error", () => res(0));
   });
@@ -45,24 +50,23 @@ function spacedStarts(scenes: { startMs: number }[], gapMs: number, n: number): 
   return out;
 }
 
-// Music bed = a RANDOM lofi track from public/music (any *.mp3 dropped in there is picked up
-// automatically — no manifest edit needed). SFX (the hard-cut whoosh) still comes from the manifest.
-async function pickAudio(studio: string) {
-  let music: string | undefined;
+// The handpicked audio library the DIRECTOR chooses from: manifest entries + any *.mp3
+// dropped into public/music (picked up automatically, no manifest edit needed).
+async function audioLib(studio: string): Promise<AudioLib> {
+  let man: any = {};
+  try {
+    man = JSON.parse(await readFile(resolve(studio, "public/audio-manifest.json"), "utf8"));
+  } catch {
+    /* no manifest — music dir only */
+  }
+  const music: AudioLib["music"] = [...(man.music ?? [])];
   try {
     const files = (await readdir(resolve(studio, "public/music"))).filter((f) => f.toLowerCase().endsWith(".mp3"));
-    if (files.length) music = `music/${files[Math.floor(Math.random() * files.length)]}`;
+    for (const f of files) if (!music.some((m) => m.file === `music/${f}`)) music.push({ file: `music/${f}` });
   } catch {
     /* no music dir yet */
   }
-  let whoosh: string | undefined;
-  try {
-    const man = JSON.parse(await readFile(resolve(studio, "public/audio-manifest.json"), "utf8"));
-    whoosh = (man.sfx?.find((s: any) => s.tags?.includes("transition")) ?? man.sfx?.[0])?.file as string | undefined;
-  } catch {
-    /* no manifest — skip sfx */
-  }
-  return { music, whoosh };
+  return { music, sfx: man.sfx ?? [] };
 }
 
 // clip -> whisper -> aligned captions (script spelling) -> director cutaways -> audio -> mp4
@@ -71,33 +75,48 @@ export async function renderReel(opts: {
   script: string;
   topic: string;
   editNote?: string;
-}): Promise<string> {
+}): Promise<{ mp4: string; planSummary: string }> {
   const studio = config.studioDir;
   const id = `reel-${Date.now()}`;
-  const clipRel = `clips/${id}.mp4`;
+
+  // Whisper + the ffmpeg normalize are the slow steps, and the CLIP doesn'T change on
+  // Redo/Edit — cache both keyed by the source clip path, so only the first render pays.
+  const key = createHash("sha1").update(opts.clipPath).digest("hex").slice(0, 10);
+  const clipRel = `clips/clip-${key}.mp4`;
+  const wav = resolve(studio, "public/clips", `clip-${key}.wav`);
+  const wordsPath = resolve(studio, "public/clips", `clip-${key}.words.json`);
 
   await mkdir(resolve(studio, "public/clips"), { recursive: true });
   await mkdir(resolve(studio, "out"), { recursive: true });
 
   // 1. transcribe the clip's actual audio -> captions come STRAIGHT from what was spoken, so
   // they always line up with the audio (aligning a possibly-adlibbed script drifted out of sync).
-  const wav = resolve(studio, "public/clips", `${id}.wav`);
-  await run("npx", ["remotion", "ffmpeg", "-i", opts.clipPath, "-ar", "16000", "-ac", "1", "-y", wav], studio);
-  const words = await transcribe(wav);
+  let words: Word[];
+  if (await exists(wordsPath)) {
+    words = JSON.parse(await readFile(wordsPath, "utf8"));
+  } else {
+    await run("npx", ["remotion", "ffmpeg", "-i", opts.clipPath, "-ar", "16000", "-ac", "1", "-y", wav], studio);
+    words = await transcribe(wav);
+    await writeFile(wordsPath, JSON.stringify(words));
+  }
   const captions = alignCaptions(opts.script, words, { syncFromAudio: true });
 
   // Normalize the clip to EXACTLY 1080x1920 (center cover-crop) up front. Whatever it was
   // recorded at — odd resolutions from weird apps, square, landscape — it now fills the 9:16
   // frame with correct proportions and can NEVER stretch the face (Remotion then shows it 1:1).
   // scale ...:increase makes both dims >= target while preserving aspect; crop trims the excess.
-  await run("npx", ["remotion", "ffmpeg", "-i", opts.clipPath,
-    "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
-    "-c:a", "aac", "-b:a", "128k", "-pix_fmt", "yuv420p", "-y", resolve(studio, "public", clipRel)], studio);
+  if (!(await exists(resolve(studio, "public", clipRel)))) {
+    await run("npx", ["remotion", "ffmpeg", "-i", opts.clipPath,
+      "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
+      "-c:a", "aac", "-b:a", "128k", "-pix_fmt", "yuv420p", "-y", resolve(studio, "public", clipRel)], studio);
+  }
 
   // 2. director designs a dense sequence of motion-graphic scenes (timed to the words),
-  // picks the video's accent, and may commission bespoke components (built + typechecked
-  // by lib/studio.ts; dropped safely on any failure)
-  const plan = await planCutaways({ topic: opts.topic, words: captions, editNote: opts.editNote });
+  // picks the video's accent + music bed (+ emphasis SFX), and may commission bespoke
+  // components (built + typechecked + visually verified by lib/studio.ts; dropped on failure)
+  const audio = await audioLib(studio);
+  const plan = await planCutaways({ topic: opts.topic, words: captions, editNote: opts.editNote, audio });
+  await writeFile(resolve(studio, "out", `${id}.plan.json`), JSON.stringify(plan, null, 2)).catch(() => {});
   const planned = await buildCustomScenes(plan.scenes, id);
 
   // 2b. resolve any real screenshots (Playwright) for "screenshot" scenes (and optional "logo"
@@ -117,11 +136,25 @@ export async function renderReel(opts: {
     }
   }
 
-  // 3. audio: lofi bed leads (volume set in the composition); add only a FEW very quiet
-  // transition whooshes on scene changes, spaced >=5s apart, so they never cluster/overpower.
-  const { music, whoosh } = await pickAudio(studio);
-  const trimBeforeMs = whoosh ? await leadSilenceMs(studio, whoosh) : 0;
-  const sfx = whoosh ? spacedStarts(scenes, 5000, 3).map((atMs) => ({ file: whoosh, atMs, trimBeforeMs, volume: 0.16 })) : [];
+  // 3. audio: the director picked the bed + emphasis moments from the manifest; mechanical
+  // transition whooshes on scene cuts stay as the base layer (quiet, spaced >=5s, max 3).
+  const music = plan.music
+    ?? (audio.music.length ? audio.music[Math.floor(Math.random() * audio.music.length)].file : undefined);
+  const whoosh = (audio.sfx.find((s) => s.tags?.includes("transition")) ?? audio.sfx[0])?.file;
+  const lead = new Map<string, number>();
+  const leadOf = async (f: string) => {
+    if (!lead.has(f)) lead.set(f, await leadSilenceMs(studio, f));
+    return lead.get(f)!;
+  };
+  const sfx: { file: string; atMs: number; trimBeforeMs: number; volume: number }[] = [];
+  if (whoosh) {
+    const t = await leadOf(whoosh);
+    for (const atMs of spacedStarts(scenes, 5000, 3)) sfx.push({ file: whoosh, atMs, trimBeforeMs: t, volume: 0.16 });
+  }
+  for (const e of plan.sfx ?? []) {
+    if (sfx.some((x) => Math.abs(x.atMs - e.atMs) < 800)) continue; // don't stack on a whoosh
+    sfx.push({ file: e.file, atMs: e.atMs, trimBeforeMs: await leadOf(e.file), volume: 0.2 });
+  }
 
   // 4. props + render — the director chooses the accent to fit the topic; random fallback
   const ACCENTS = ["blue", "cyan", "green", "orange", "red", "pink", "violet"];
@@ -130,5 +163,13 @@ export async function renderReel(opts: {
   await writeFile(propsPath, JSON.stringify({ videoSrc: clipRel, captions, scenes, accent, music, sfx, voiceBoost: 2.8 }));
   const mp4 = resolve(studio, "out", `${id}.mp4`);
   await run("npx", ["remotion", "render", "AutoReel", mp4, `--props=${propsPath}`], studio);
-  return mp4;
+
+  // compact description of what was rendered — stored in state so a Redo can log exactly
+  // which plan got rejected (the learning pass needs to see WHAT he didn't like)
+  const planSummary = [
+    scenes.map((s: any) => `${s.kind} ${(s.startMs / 1000).toFixed(1)}-${(s.endMs / 1000).toFixed(1)}s`).join(", "),
+    `accent=${accent}`,
+    music ? `music=${music}` : "",
+  ].filter(Boolean).join(" | ");
+  return { mp4, planSummary };
 }

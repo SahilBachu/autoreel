@@ -20,6 +20,7 @@ export type Event = {
   instruction?: string;
   before?: string;
   after?: string;
+  plan?: string; // compact scene-plan summary (redo: which plan got rejected)
 };
 
 // ---- markdown section read/write ----
@@ -125,8 +126,8 @@ export function learnFromEdit(topic: string, instruction: string): void {
   logInteraction({ type: "edit", topic, instruction });
   maybeDistill();
 }
-export function learnFromRedo(topic: string): void {
-  logInteraction({ type: "redo", topic });
+export function learnFromRedo(topic: string, plan?: string): void {
+  logInteraction({ type: "redo", topic, plan });
 }
 export async function learnFromPost(topic: string, script: string): Promise<void> {
   logInteraction({ type: "post", topic, after: script });
@@ -160,7 +161,7 @@ function fmtEvent(e: Event): string {
     case "edit":
       return `[video edit] topic="${e.topic}" asked="${e.instruction}"`;
     case "redo":
-      return `[rejected/redo] topic="${e.topic}"`;
+      return `[rejected/redo] topic="${e.topic}"${e.plan ? ` rejected plan: ${oneline(e.plan)}` : ""}`;
     case "post":
       return `[APPROVED & POSTED] topic="${e.topic}" script: ${oneline(e.after)}`;
     default:

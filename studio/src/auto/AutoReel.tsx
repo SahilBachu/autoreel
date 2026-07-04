@@ -1,3 +1,4 @@
+import React from "react";
 import {
   AbsoluteFill,
   Audio,
@@ -14,6 +15,10 @@ import { Callout, Decrypt, Headline, Quote } from "./v2-text";
 import { BarChart, Donut, LineChart, Stat, StatRow, Table } from "./v2-data";
 import { Bento, CalendarCard, Chat, Checklist, Kbd, Notifications, Timeline } from "./v2-ui";
 import { Browser, CodeBlock, LogoDrop, LogoWall, Phone, Terminal, TweetCard, Versus } from "./v2-media";
+import {
+  CommandK, Dashboard, DiffBlock, Inbox, Kanban, Leaderboard, Poll, Pricing,
+  ProgressCard, PromptCard, Rating, Receipt, SearchCard, Ticker, Toggles, Waveform,
+} from "./v2-apps";
 import { GENERATED } from "./generated/index";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -95,6 +100,38 @@ const SceneBody: React.FC<{ s: Scene }> = ({ s }) => {
           <AsciiImage src={s.src} brand={s.brand} label={s.label} />
         </SceneWrap>
       );
+    case "command":
+      return <CommandK query={s.query ?? ""} results={s.results} hint={s.hint} />;
+    case "diff":
+      return <DiffBlock title={s.title} lines={s.lines} />;
+    case "pricing":
+      return <Pricing title={s.title} tiers={s.tiers} />;
+    case "leaderboard":
+      return <Leaderboard title={s.title} rows={s.rows} />;
+    case "progress":
+      return <ProgressCard label={s.label} percent={s.percent} sub={s.sub} />;
+    case "toggles":
+      return <Toggles title={s.title} items={s.items} />;
+    case "dashboard":
+      return <Dashboard title={s.title} cards={s.cards} />;
+    case "search":
+      return <SearchCard query={s.query} suggestions={s.suggestions} label={s.label} />;
+    case "receipt":
+      return <Receipt title={s.title} items={s.items} total={s.total} />;
+    case "waveform":
+      return <Waveform label={s.label} sub={s.sub} />;
+    case "inbox":
+      return <Inbox items={s.items} />;
+    case "poll":
+      return <Poll question={s.question} options={s.options} />;
+    case "ticker":
+      return <Ticker title={s.title} rows={s.rows} />;
+    case "kanban":
+      return <Kanban title={s.title} columns={s.columns} />;
+    case "prompt":
+      return <PromptCard text={s.text} app={s.app} sub={s.sub} />;
+    case "rating":
+      return <Rating name={s.name} rating={s.rating} count={s.count} brand={s.brand} tagline={s.tagline} />;
     case "custom": {
       // bespoke per-video component, code-generated + typechecked at render time
       const C = s.name ? GENERATED[s.name] : undefined;
@@ -104,6 +141,21 @@ const SceneBody: React.FC<{ s: Scene }> = ({ s }) => {
       return null;
   }
 };
+
+// a scene that throws (bad director props, buggy generated component) must cost ONLY that
+// scene — it degrades to a bare face beat instead of failing the whole render.
+class SceneBoundary extends React.Component<{ kind: string; children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  componentDidCatch(e: Error) {
+    console.error(`scene "${this.props.kind}" crashed — dropped:`, e.message);
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
 
 // fade only at a scene's OUTER edges (into/out of a bare-face beat). When a scene is
 // contiguous with a neighbour, that side hard-cuts — no crossfade dip that flashes the face.
@@ -144,7 +196,9 @@ export const AutoReel: React.FC<AutoReelData> = ({ videoSrc, captions, scenes, a
             return (
               <Sequence key={i} from={from} durationInFrames={dur} layout="none">
                 <Fade durF={dur} fadeIn={fadeIn} fadeOut={fadeOut}>
-                  <SceneBody s={s} />
+                  <SceneBoundary kind={s.kind}>
+                    <SceneBody s={s} />
+                  </SceneBoundary>
                 </Fade>
               </Sequence>
             );
