@@ -47,6 +47,19 @@ const approveKeyboard = new InlineKeyboard()
   .text("Redo", "redo")
   .text("Edit", "edit");
 
+// Telegram's Markdown parser throws "can't parse entities" on any unmatched */_/`/[ in the
+// text — and a script or topic (model output, or pasted by hand) almost always has one. That
+// throw used to go uncaught in several handlers, so the reply (and the script it carried)
+// just vanished with no error shown to the user. Never let formatting eat content.
+async function safeReply(ctx: any, text: string, opts: any = {}) {
+  try {
+    return await ctx.reply(text, opts);
+  } catch (e) {
+    console.error("reply failed with parse_mode, retrying plain:", (e as Error).message);
+    return ctx.reply(text);
+  }
+}
+
 async function makeAndSendReel(ctx: any, chat: string, editNote?: string) {
   const p = state.get(chat);
   if (!p?.clipPath || !p.script) return ctx.reply("Send me a clip first (with a script).");
@@ -75,7 +88,8 @@ async function makeAndSendReel(ctx: any, chat: string, editNote?: string) {
 const HELP = [
   "*commands*",
   "/idea — random idea + script",
-  "`idea: <your idea>` — script for a specific idea",
+  "`idea: <your idea>` — writes a NEW script for a described idea (Claude writes it)",
+  "`script: <your script>` — use a script you already wrote, word for word, no rewrite",
   "/discover — research what AI world is talking about right now (3 cards + scripts)",
   "1 / 2 / 3 — pick from the morning digest (\"2 but shorter\" works too)",
   "`tomorrow: <idea>` — push onto the idea stack (newest first)",
@@ -88,16 +102,16 @@ const HELP = [
   "/help — this list",
 ].join("\n");
 
-bot.command(["start", "help"], (ctx) => ctx.reply(HELP, { parse_mode: "Markdown" }));
+bot.command(["start", "help"], (ctx) => safeReply(ctx, HELP, { parse_mode: "Markdown" }));
 
 // what the system has learned about the creator's taste
-bot.command("prefs", (ctx) => ctx.reply(prefsSummary(), { parse_mode: "Markdown" }));
+bot.command("prefs", (ctx) => safeReply(ctx, prefsSummary(), { parse_mode: "Markdown" }));
 
 // force a learning pass right now (normally happens automatically on posts/edits)
 bot.command("learn", async (ctx) => {
   await ctx.reply("studying your recent edits and posts…");
   await distill();
-  await ctx.reply(prefsSummary(), { parse_mode: "Markdown" });
+  await safeReply(ctx, prefsSummary(), { parse_mode: "Markdown" });
 });
 
 // wipe the learned profile (keeps approved-script examples)
@@ -120,24 +134,46 @@ bot.command("discover", async (ctx) => {
 // random idea
 bot.command("idea", async (ctx) => {
   await ctx.reply("thinking of something…");
-  const { topic, script, sessionId } = await generateIdea();
-  state.set(String(ctx.chat.id), { topic, script, stage: "script", scriptSessionId: sessionId });
-  learnFromIdea(topic);
-  await ctx.reply(`*${topic}*\n\n${script}\n\nsend the clip when it's right — or just tell me what to change.`, {
-    parse_mode: "Markdown",
-  });
+  try {
+    const { topic, script, sessionId } = await generateIdea();
+    state.set(String(ctx.chat.id), { topic, script, stage: "script", scriptSessionId: sessionId });
+    learnFromIdea(topic);
+    await safeReply(ctx, `*${topic}*\n\n${script}\n\nsend the clip when it's right — or just tell me what to change.`, {
+      parse_mode: "Markdown",
+    });
+  } catch (e: any) {
+    await ctx.reply(`couldn't come up with one: ${e.message}`);
+  }
 });
 
-// described idea:  "idea: claude code now runs in the browser"
+// described idea:  "idea: claude code now runs in the browser" — Claude WRITES a script for
+// this description. If you already have a finished script, use "script: <text>" instead —
+// this command asks Claude to write something new "about" whatever text follows.
 bot.hears(/^idea:\s*(.+)/is, async (ctx) => {
   const desc = ctx.match[1];
   await ctx.reply("writing that…");
-  const { topic, script, sessionId } = await generateIdea(desc);
-  state.set(String(ctx.chat.id), { topic, script, stage: "script", scriptSessionId: sessionId });
+  try {
+    const { topic, script, sessionId } = await generateIdea(desc);
+    state.set(String(ctx.chat.id), { topic, script, stage: "script", scriptSessionId: sessionId });
+    learnFromIdea(topic);
+    await safeReply(ctx, `*${topic}*\n\n${script}\n\nsend the clip when it's right — or just tell me what to change.`, {
+      parse_mode: "Markdown",
+    });
+  } catch (e: any) {
+    await ctx.reply(`couldn't write that: ${e.message}`);
+  }
+});
+
+// a script you ALREADY WROTE — used word for word, no rewrite, straight to the clip stage.
+// "idea:" instead asks Claude to write a new script "about" whatever follows it, which is
+// the wrong tool for handing over a finished script.
+bot.hears(/^script:\s*([\s\S]+)/i, async (ctx) => {
+  const chat = String(ctx.chat.id);
+  const script = ctx.match[1].trim();
+  const topic = script.split("\n")[0].slice(0, 60).replace(/[*_`[\]]/g, "").trim() || "untitled";
+  state.set(chat, { topic, script, stage: "script" });
   learnFromIdea(topic);
-  await ctx.reply(`*${topic}*\n\n${script}\n\nsend the clip when it's right — or just tell me what to change.`, {
-    parse_mode: "Markdown",
-  });
+  await safeReply(ctx, `locked it in as-is:\n\n${script}\n\nsend the clip when it's ready — or tell me what to change.`);
 });
 
 // push onto the idea STACK — topics.md, newest at the top; discovery/idea pulls from the top
@@ -217,13 +253,17 @@ bot.on("message:text", async (ctx) => {
       state.set(chat, { topic: card.topic, script: card.script, stage: "script", scriptSessionId: card.sessionId });
       learnFromIdea(card.topic);
       markPicked(card.topic).catch(() => {}); // future research treats this story as done
-      if (pick[2]) {
-        await ctx.reply("picked — reworking it…");
-        const r = await reviseScript(card.topic, card.script, pick[2], card.sessionId);
-        state.patch(chat, { script: r.script, scriptSessionId: r.sessionId ?? card.sessionId });
-        await ctx.reply(`*${card.topic}*\n\n${r.script}\n\nsend the clip when it's right — or tell me another change.`, { parse_mode: "Markdown" });
-      } else {
-        await ctx.reply(`*${card.topic}*\n\n${card.script}\n\nsend the clip when it's right — or tell me what to change.`, { parse_mode: "Markdown" });
+      try {
+        if (pick[2]) {
+          await ctx.reply("picked — reworking it…");
+          const r = await reviseScript(card.topic, card.script, pick[2], card.sessionId);
+          state.patch(chat, { script: r.script, scriptSessionId: r.sessionId ?? card.sessionId });
+          await safeReply(ctx, `*${card.topic}*\n\n${r.script}\n\nsend the clip when it's right — or tell me another change.`, { parse_mode: "Markdown" });
+        } else {
+          await safeReply(ctx, `*${card.topic}*\n\n${card.script}\n\nsend the clip when it's right — or tell me what to change.`, { parse_mode: "Markdown" });
+        }
+      } catch (e: any) {
+        await ctx.reply(`couldn't pull that one up: ${e.message}`);
       }
       return;
     }
@@ -245,7 +285,7 @@ bot.on("message:text", async (ctx) => {
       const r = await reviseScript(p.topic, before, ctx.message.text, p.scriptSessionId);
       state.patch(chat, { script: r.script, scriptSessionId: r.sessionId ?? p.scriptSessionId });
       learnFromRevision(p.topic, before, r.script, ctx.message.text); // how they like scripts
-      await ctx.reply(`*${p.topic}*\n\n${r.script}\n\nsend the clip when it's right — or tell me another change.`, {
+      await safeReply(ctx, `*${p.topic}*\n\n${r.script}\n\nsend the clip when it's right — or tell me another change.`, {
         parse_mode: "Markdown",
       });
     } catch (e: any) {
