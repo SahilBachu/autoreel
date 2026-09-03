@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
-    "digest": "tsx src/jobs/digest.ts"
+    "digest": "tsx src/jobs/digest.ts",
+    "refresh-ig-token": "tsx src/jobs/refresh-ig-token.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.5",
