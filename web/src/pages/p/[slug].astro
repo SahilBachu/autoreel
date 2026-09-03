@@ -1,0 +1,210 @@
+---
+import { marked } from "marked";
+import Base from "../../layouts/Base.astro";
+import { getPost, shortDate, readMinutes } from "../../lib/db";
+import { site } from "../../config";
+
+const { slug } = Astro.params;
+const post = slug ? await getPost(slug).catch(() => null) : null;
+
+if (!post || post.type !== "news") {
+  return new Response(null, { status: 404, headers: { Location: "/" } });
+}
+
+const html = await marked.parse(post.article ?? "", { gfm: true, breaks: false });
+const minutes = readMinutes(post.article);
+---
+
+<Base title={post.title} description={post.blurb ?? undefined} article>
+  <nav class="top">
+    <a href="/" class="back">
+      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M10 3.5L5.5 8 10 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>@{site.handle}</span>
+    </a>
+  </nav>
+
+  <article>
+    <header>
+      <div class="kicker">
+        <span>{shortDate(post.published_at)}</span>
+        <span class="sep">·</span>
+        <span>{minutes} min read</span>
+      </div>
+      <h1>{post.title}</h1>
+      {post.blurb && <p class="lede">{post.blurb}</p>}
+    </header>
+
+    <div class="body" set:html={html} />
+
+    <footer>
+      {post.ig_permalink ? (
+        <a class="cta" href={post.ig_permalink} rel="noopener">
+          <span>Watch the reel</span>
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M4.5 11.5l7-7M6 4.5h5.5V10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      ) : (
+        <a class="cta" href="/">
+          <span>More from @{site.handle}</span>
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M6 3.5L10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      )}
+    </footer>
+  </article>
+</Base>
+
+<style>
+  .top {
+    margin-bottom: 40px;
+  }
+  .back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--dim);
+    transition: color 160ms ease;
+  }
+  .back:hover {
+    color: var(--text);
+  }
+
+  header .kicker {
+    display: flex;
+    gap: 8px;
+  }
+  .sep {
+    opacity: 0.5;
+  }
+  h1 {
+    margin: 14px 0 0;
+    font-size: clamp(27px, 7.2vw, 36px);
+    font-weight: 600;
+    letter-spacing: -0.032em;
+    line-height: 1.12;
+    text-wrap: balance;
+  }
+  .lede {
+    margin: 16px 0 0;
+    font-size: 17px;
+    line-height: 1.5;
+    color: var(--dim);
+    text-wrap: pretty;
+  }
+
+  .body {
+    margin-top: 30px;
+    padding-top: 30px;
+    border-top: 1px solid var(--border);
+    font-size: 17px;
+    line-height: 1.72;
+    color: rgba(250, 250, 250, 0.88);
+  }
+  .body :global(p) {
+    margin: 0 0 1.35em;
+    text-wrap: pretty;
+  }
+  .body :global(p:last-child) {
+    margin-bottom: 0;
+  }
+  .body :global(h2),
+  .body :global(h3) {
+    font-weight: 600;
+    letter-spacing: -0.024em;
+    line-height: 1.25;
+    margin: 2em 0 0.6em;
+  }
+  .body :global(h2) {
+    font-size: 21px;
+  }
+  .body :global(h3) {
+    font-size: 18px;
+  }
+  .body :global(strong) {
+    font-weight: 600;
+    color: var(--text);
+  }
+  .body :global(a) {
+    color: var(--text);
+    text-decoration: underline;
+    text-decoration-color: var(--accent-dim);
+    text-underline-offset: 3px;
+    text-decoration-thickness: 1px;
+  }
+  .body :global(code) {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    padding: 0.1em 0.4em;
+    border-radius: 5px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+  }
+  .body :global(pre) {
+    font-family: var(--mono);
+    font-size: 13.5px;
+    line-height: 1.6;
+    padding: 14px 16px;
+    border-radius: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    overflow-x: auto;
+    margin: 0 0 1.35em;
+  }
+  .body :global(pre code) {
+    padding: 0;
+    border: 0;
+    background: none;
+    font-size: inherit;
+  }
+  .body :global(blockquote) {
+    margin: 0 0 1.35em;
+    padding-left: 16px;
+    border-left: 2px solid var(--accent-dim);
+    color: var(--dim);
+  }
+  .body :global(ul),
+  .body :global(ol) {
+    padding-left: 1.3em;
+    margin: 0 0 1.35em;
+  }
+  .body :global(li) {
+    margin-bottom: 0.4em;
+  }
+  .body :global(hr) {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 2em 0;
+  }
+  .body :global(img) {
+    max-width: 100%;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+
+  article footer {
+    margin-top: 40px;
+    padding-top: 22px;
+    border-top: 1px solid var(--border);
+  }
+  .cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 500;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: border-color 160ms ease, background 160ms ease;
+  }
+  .cta:hover {
+    border-color: var(--border-bright);
+    background: var(--surface2);
+  }
+  .cta svg {
+    color: var(--faint);
+  }
+</style>
