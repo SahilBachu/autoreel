@@ -81,9 +81,19 @@ export function logInteraction(e: Omit<Event, "ts">): void {
   }
 }
 
+// The voice was deliberately rewritten on this date: unserious/jokey -> human-and-professional,
+// mandatory lowercase "so" opener, CTA only on tool posts. Every interaction logged BEFORE it
+// taught the old register, so distilling them would quietly re-add the very lines that rewrite
+// removed ("land the closer on an analogy", "let the last line trail off"). Bump this date if
+// the voice is ever deliberately changed again.
+const VOICE_EPOCH = "2026-09-02";
+
 function readEvents(limit = 60): Event[] {
   try {
-    return readFileSync(LOG, "utf8").trim().split("\n").filter(Boolean).slice(-limit).map((l) => JSON.parse(l) as Event);
+    return readFileSync(LOG, "utf8").trim().split("\n").filter(Boolean)
+      .map((l) => JSON.parse(l) as Event)
+      .filter((e) => (e.ts ?? "") >= VOICE_EPOCH) // pre-rewrite signals teach the wrong voice
+      .slice(-limit);
   } catch {
     return [];
   }
@@ -181,6 +191,9 @@ export async function distill(): Promise<void> {
   const prompt = `You maintain a compact PREFERENCE PROFILE for ONE Instagram tech-reel creator,
 learned from how they edit scripts, request video changes, pick topics, and what they post.
 
+THE HAND-WRITTEN VOICE RULES (authoritative — these outrank anything you infer):
+${readSection(VOICE, "## rules").map((r) => `  ${r}`).join("\n")}
+
 CURRENT PROFILE (JSON):
 ${JSON.stringify(current, null, 2)}
 
@@ -193,6 +206,9 @@ Update the profile. Rules:
 - Learn from REPEATED signals; don't overfit one edit. 'revise' BEFORE→AFTER = script voice.
   'video edit' = visuals. 'redo' = weak negative. 'post' = strong positive.
 - Merge with current; drop anything contradicted by newer signals. Max 8 bullets/category.
+- NEVER emit a bullet that contradicts the hand-written voice rules above. Those are sahil's
+  deliberate choices, not something to be learned away. If an interaction seems to pull against
+  them, treat it as a one-off and drop it rather than writing a bullet that fights the rules.
 Return ONLY JSON: {"voice":[...],"visuals":[...],"topics":[...],"captions":[...]}`;
   try {
     const next = await claudeJson<Partial<Record<keyof typeof H, string[]>>>(prompt, { model: "opus" });

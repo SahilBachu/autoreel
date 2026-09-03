@@ -1,12 +1,16 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { REPO_ROOT } from "./config.js";
+import type { PostType } from "./lib/voice.js";
 
 // Per-chat working state for the current reel. Persisted to disk so a bot restart or WSL VM
 // reboot doesn't lose an in-flight reel (which used to cause "Nothing to post" after a restart).
 export type Pending = {
   topic: string;
   script: string;
+  postType?: PostType; // tool vs news — the caption's CTA rule branches on it
+  toolUrl?: string; // verified homepage for a tool post (the site + DM autoresponder use it)
+  unverifiedIdea?: string; // an idea: research couldn't verify — waiting on "anyway" before writing
   clipPath?: string;
   mp4Path?: string;
   caption?: string; // the generated Instagram post caption

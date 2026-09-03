@@ -1,3 +1,5 @@
+import type { PostType } from "./voice.js";
+
 // Instagram growth knowledge for the AI/ML/dev-tools niche — encoded from 2025–2026
 // research (Mosseri statements, Buffer/Later/Sprout/Social Media Today). This drives the
 // post-caption generator so reels are optimized for REACH without breaking the dry voice.
@@ -42,26 +44,40 @@ export const KEYWORDS = [
 ];
 
 // The caption strategy, distilled for the prompt. Growth WITHOUT selling out the voice.
-export const CAPTION_STRATEGY = `
+// Branches on post type: a TOOL post opens with the comment CTA (the DM autoresponder keys
+// off "TOOL" comments — that's the whole funnel), then runs the same SEO strategy. A NEWS
+// post keeps the no-CTA rule: sends are engineered, never asked for.
+export function captionStrategy(type: PostType): string {
+  const tool = type === "tool";
+  return `
 Instagram growth rules for this caption (2025–2026 algorithm — follow exactly):
-- FIRST LINE = the hook AND the primary keyword. It's the SEO title (indexed by IG + Google)
+${tool
+  ? `- LINE ONE, before anything else: the comment CTA — "comment TOOL if you want access" (keep
+  the word TOOL uppercase; the autoresponder listens for it). This is the ONE allowed CTA and
+  it goes first so it survives the "...more" fold.
+- LINE TWO = the hook AND the primary keyword.`
+  : `- FIRST LINE = the hook AND the primary keyword.`} It's the SEO title (indexed by IG + Google)
   and the scroll-stopper. Lead with the real model/tool/company name (e.g. "Sonnet 5",
-  "Claude Code", "Cursor"), wrapped in the funniest true line.
+  "Claude Code", "Cursor") in the most hooking true line you can write.
 - NAME REAL THINGS. Use exact proper nouns and category terms people actually search
   (Claude Code, Cursor, open-source LLM, AI coding agent, frontier model, agentic AI). Specific
   nouns ARE the SEO — no salesy language needed.
 - Weave 2–4 keywords across the body conversationally (a competing tool, the category, the
-  model). Never keyword-stuff — it must read as a normal dry take.
-- Include ONE deadpan factual "what it is" line (e.g. "new Claude model — faster, cheaper,
-  scary good at long-context code"). Doubles as context for search.
+  model). Never keyword-stuff — it must read like a normal human take.
+- Include ONE plain factual "what it is" line (e.g. "new Claude model — faster, cheaper,
+  properly good at long-context code"). Doubles as context for search.
 - ENGINEER THE SEND, don't ask for it. End on a relatable-pain line or a hot take that begs to
-  be DM'd to a coworker. Sends are the #1 reach lever. NO CTAs ("follow/like/comment/share"),
-  no hype, no "this changes everything", no emoji-bait. Stay 100% deadpan.
-- Keep it SHORT: 1–3 punchy lines + the factual line. Dry humor dies with length.
+  be DM'd to a coworker. Sends are the #1 reach lever. ${tool
+    ? `Apart from the line-one TOOL CTA, NO other CTAs ("follow/like/share")`
+    : `NO CTAs ("follow/like/comment/share")`},
+  no hype, no "this changes everything", no emoji-bait. Match VOICE.md's register: human and
+  plain-spoken first, funny only when it comes naturally from the material — never a bit.
+- Keep it SHORT: 1–3 punchy lines + the factual line. It dies with length.
 - Then a blank line, then EXACTLY 5 lowercase hashtags on one line: 1 broad + 2 mid + 2 niche,
   each genuinely relevant to THIS topic (pick from the provided bank; you may use a more
   specific real tag if the topic demands it). Never more than 5.
 `.trim();
+}
 
 // pick n random from an array (variety across posts without repeating the same tags every time)
 function sample<T>(arr: readonly T[], n: number): T[] {
