@@ -38,7 +38,12 @@ const KIND_FIELDS: Record<string, string[]> = {
   dashboard: ["cards"], search: ["query"], receipt: ["items"], waveform: [],
   inbox: ["items"], poll: ["options"], ticker: ["rows"], kanban: ["columns"],
   prompt: ["text"], rating: ["name", "rating"],
+  // tool-review arc (v2-tools.tsx): what it is → get it → watch it work → the catch → where
+  toolcard: ["name"], install: ["steps"], runlog: ["steps"], beforeafter: ["rows"],
+  catch: ["items"], getit: ["url"],
 };
+
+const MAX_CUSTOM = 3; // bespoke components per video — a ceiling, not a quota
 
 function missingFields(s: Scene): string[] {
   const req = KIND_FIELDS[s.kind] ?? [];
@@ -136,7 +141,7 @@ export function lintPlan(scenes: Scene[], totalMs: number): string[] {
     v.push(`full-screen scenes cover ${Math.round(coverage * 100)}% of the reel — target ~50-60%, the face must breathe`);
 
   const customs = sorted.filter((s) => s.kind === "custom");
-  if (customs.length > 1) v.push(`${customs.length} custom scenes — max 1 per video`);
+  if (customs.length > MAX_CUSTOM) v.push(`${customs.length} custom scenes — up to ${MAX_CUSTOM} per video, and only where a beat genuinely needs one`);
 
   return v;
 }
@@ -258,10 +263,19 @@ app ui (shadcn-grade product surfaces — great for "using the tool" beats):
 - {"kind":"kanban","title":"optional","columns":[{"title":"todo","cards":["auth"]},{"title":"doing","cards":["tests"]},{"title":"done","cards":["everything else","shipped by the agent"]}]}  (agents-doing-work beats; last card of last column lands late with the glow)
 - {"kind":"waveform","label":"optional kicker","sub":"optional"}  (voice/audio-AI beats — animated voice bars)
 - {"kind":"rating","name":"Claude Code","rating":4.9,"count":"12,404 ratings","brand":"Anthropic","tagline":"optional"}  (app-store verdict card)
+tool review (the arc of a TOOL video: what it is → how you get it → watching it work → the catch → where to find it):
+- {"kind":"toolcard","name":"Claude Code","tagline":"one-line what-it-is","brand":"Claude","by":"Anthropic","chips":["CLI","macOS · Linux","free tier"]}  (the spec sheet — logo pops, meta chips; first chip = accent. facts only)
+- {"kind":"install","title":"optional","steps":[{"title":"install it","cmd":"npm i -g @anthropic-ai/claude-code"},{"title":"open your repo","cmd":"cd my-app && claude"},{"title":"that's it","sub":"optional"}]}  (getting-started stepper; commands type, rings tick in sequence — REAL commands only, ≤4 steps)
+- {"kind":"runlog","title":"claude \\"fix the failing tests\\"","steps":[{"text":"reading the repo"},{"text":"patched auth.ts","detail":"optional"},{"text":"running tests","detail":"optional"}],"result":{"text":"tests green","sub":"optional"}}  (WATCH-IT-WORK beat: task log streams, spinners→ticks, result slams in accent; details = real facts)
+- {"kind":"beforeafter","title":"optional","rows":[{"before":"3 hours in Figma","after":"one prompt"},{"before":"a $200 Zapier plan","after":"a 40-line script"}]}  (WHAT-IT-REPLACES beat: old way struck through, new way springs in; ≤4 rows, real numbers only)
+- {"kind":"catch","kicker":"the catch","items":[{"text":"$20 a month","sub":"optional"},{"text":"Chrome only"}],"verdict":"still worth it"}  (the fine print — 1-3 caveats thud in, optional verdict chip)
+- {"kind":"getit","url":"github.com/anthropics/claude-code","name":"Claude Code","brand":"Claude","badges":["GitHub","npm","Homebrew"],"price":"free","note":"optional line under"}  (CLOSING card: URL types + glows, real distribution badges (GitHub/npm/Homebrew/PyPI/App Store/Chrome Web Store), price chip if real)
 bespoke (use sparingly — it will be CODE-GENERATED for this video, then verified):
 - {"kind":"custom","name":"PascalCaseName","spec":"one tight paragraph: exactly what to show and how it animates","props":{...any data it needs...}}
-  ONLY when no kind above fits the beat. Max 1 per video. Great for topic-specific visuals
-  (e.g. a token-price ticker, a model-router diagram, a fake app UI specific to the story).
+  ONLY when no kind above fits the beat. Up to ${MAX_CUSTOM} per video — a ceiling, NOT a quota: most
+  videos need zero, one is normal for a hero moment, three only when three beats genuinely
+  have no fit. Great for topic-specific visuals (e.g. a token-price ticker, a model-router
+  diagram, a fake app UI specific to the story).
 
 ALSO CHOOSE the video's ACCENT color to fit the topic's vibe:
 blue (trust/infra) · cyan (futuristic) · green (money/win) · orange (energy) · red (drama/ban)

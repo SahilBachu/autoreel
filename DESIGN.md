@@ -40,7 +40,8 @@ grain + vignette. Nothing decorative without a job.
 
 ## audio
 
-- Music: ONE lofi bed per video, picked at random from `studio/public/music/*.mp3`
+- Music: ONE lofi bed per video, chosen by the director to fit the script's mood from the
+  tagged options in `studio/public/audio-manifest.json` (all 7 beds are registered)
   (drop new mp3s in — auto-included). Bed volume 0.32 under a voice boosted 2.8x.
 - SFX from `studio/public/sfx/` (see `public/audio-manifest.json` for tags): at most 3 quiet
   whooshes (0.16) per video, ≥5s apart, on scene starts, never on the hook.
