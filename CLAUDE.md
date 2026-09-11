@@ -22,7 +22,32 @@ Telegram Bot API server, whisper, cron all installed). Move the repo to the runn
 4. System transcribes (faster-whisper, word-level) → builds the reel (their clip in the
    face slots + captions synced to audio + motion-graphic cutaways + SFX/music) → sends it
    back with **[Post] / [Redo] / [Edit]** buttons.
-5. **[Post]** → Supabase upload → Instagram Graph API publish. Default = approve-before-post.
+5. **[Post]** → Supabase upload → Instagram Graph API publish → a `reel_posts` row for the
+   site (tool: title+blurb+link; news: + a ~400-word article, echoed to Telegram). Default =
+   approve-before-post.
+6. The DM autoresponder (`bot/src/jobs/dm.ts`) polls tool reels for `TOOL` comments and DMs
+   the link (follow-gated, see below).
+
+## The funnel (added 2026-09) — tools first, a site in the bio, comment→DM
+- Every post is typed **`tool` | `news`** by the researcher (`discover.ts`). Tool posts carry a
+  fetched-and-verified `toolUrl`, end the script with `comment TOOL if you want access`, and
+  lead the caption with it. News posts have no CTA. The type flows: card → state → caption →
+  `reel_posts` → site → DM.
+- **`web/`** — the link-in-bio site (Astro on the Cloudflare adapter, server-rendered, reads
+  Supabase `reel_posts` with the public key). Tool blocks link out via `/go/<slug>` (counts
+  clicks — the number that eventually gets tools to pay for placement); news blocks open
+  `/p/<slug>`. Identity (handle, avatar) lives in `web/src/config.ts`. `cd web && npm run dev`.
+- **Supabase `reel_posts`** (prefixed — the project also hosts unrelated `fw_*` tables). Bot
+  writes with the service key (`bot/src/lib/posts.ts`), site reads with the anon key, RLS
+  select-only. `increment_clicks(slug)` is a security-definer RPC.
+- **DM autoresponder** (`jobs/dm.ts`): polls comments (the comments *webhook* needs Meta
+  Advanced Access; polling doesn't) → private reply → detects their reply via the
+  Conversations API → checks `is_user_follow_business` → sends the link. Meta only exposes
+  follow status AFTER someone messages you, so the gate can't be on the first DM. Flags:
+  `DM_AUTORESPONDER`, `DM_FOLLOW_GATE=strict|soft|off`. `/dm` in Telegram shows status;
+  it self-checks the token's scopes and shouts on Telegram if it can't run.
+- The IG token needs **four scopes** (see `.env.example`). `npm run refresh-ig-token` renews
+  a live one; an expired one must be regenerated in the App Dashboard.
 
 ## Design system (BRAND V2 — replaced the old Nick/terracotta look, 2026-07-01)
 **Canonical docs: [`DESIGN.md`](./DESIGN.md) (look/motion/audio rules) + [`COMPONENTS.md`](./COMPONENTS.md)
@@ -89,4 +114,5 @@ own ffmpeg — use `npx remotion ffmpeg …` (system ffmpeg not required on the 
 - Verify visually: render stills with `npx remotion still <Comp> out/x.png --frame=N
   --scale=0.5` and actually look at them before claiming something works.
 
-Next: build the ROBOT per [`BUILD.md`](./BUILD.md).
+Next: deploy the funnel (site to Cloudflare, `SITE_URL`, `DM_AUTORESPONDER=on` once the
+token has the messaging scopes) and read the click / DM numbers for a couple of weeks.

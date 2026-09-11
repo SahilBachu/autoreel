@@ -1,0 +1,48 @@
+---
+import "../styles/global.css";
+import { site } from "../config";
+
+interface Props {
+  title?: string;
+  description?: string;
+  /** narrower content column for long-form reading */
+  article?: boolean;
+}
+
+const { title, description, article = false } = Astro.props;
+const fullTitle = title ? `${title} · @${site.handle}` : `@${site.handle}`;
+const desc = description ?? site.tagline;
+---
+
+<!doctype html>
+<html lang="en" style={`--accent:${site.accent.hex};--accent-rgb:${site.accent.rgb}`}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#050507" />
+    <meta name="color-scheme" content="dark" />
+    <title>{fullTitle}</title>
+    {desc && <meta name="description" content={desc} />}
+    <meta property="og:title" content={fullTitle} />
+    {desc && <meta property="og:description" content={desc} />}
+    <meta property="og:type" content={article ? "article" : "website"} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="preload" href="/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/GeistMono-Variable.woff2" as="font" type="font/woff2" crossorigin />
+  </head>
+  <body>
+    <main class="wrap" data-article={article ? "" : undefined}>
+      <slot />
+    </main>
+  </body>
+</html>
+
+<style>
+  main {
+    padding-top: max(28px, env(safe-area-inset-top));
+    padding-bottom: max(56px, env(safe-area-inset-bottom));
+  }
+  main[data-article] {
+    --measure: 560px;
+  }
+</style>

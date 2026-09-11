@@ -19,6 +19,7 @@ import {
   CommandK, Dashboard, DiffBlock, Inbox, Kanban, Leaderboard, Poll, Pricing,
   ProgressCard, PromptCard, Rating, Receipt, SearchCard, Ticker, Toggles, Waveform,
 } from "./v2-apps";
+import { BeforeAfter, Catch, GetIt, Install, RunLog, ToolCard } from "./v2-tools";
 import { GENERATED } from "./generated/index";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -132,6 +133,19 @@ const SceneBody: React.FC<{ s: Scene }> = ({ s }) => {
       return <PromptCard text={s.text} app={s.app} sub={s.sub} />;
     case "rating":
       return <Rating name={s.name} rating={s.rating} count={s.count} brand={s.brand} tagline={s.tagline} />;
+    // tool-review arc (v2-tools.tsx)
+    case "toolcard":
+      return <ToolCard name={s.name} tagline={s.tagline} brand={s.brand} by={s.by} chips={s.chips} />;
+    case "install":
+      return <Install title={s.title} steps={s.steps} />;
+    case "runlog":
+      return <RunLog title={s.title} steps={s.steps} result={s.result} />;
+    case "beforeafter":
+      return <BeforeAfter title={s.title} beforeLabel={s.beforeLabel} afterLabel={s.afterLabel} rows={s.rows} />;
+    case "catch":
+      return <Catch kicker={s.kicker} items={s.items} verdict={s.verdict} />;
+    case "getit":
+      return <GetIt url={s.url} name={s.name} brand={s.brand} badges={s.badges} price={s.price} note={s.note} />;
     case "custom": {
       // bespoke per-video component, code-generated + typechecked at render time
       const C = s.name ? GENERATED[s.name] : undefined;

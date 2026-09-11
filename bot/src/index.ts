@@ -4,11 +4,15 @@ import { resolve } from "node:path";
 import { homedir } from "node:os";
 import { config, REPO_ROOT } from "./config.js";
 import { state } from "./state.js";
-import { generateIdea, reviseScript } from "./jobs/idea.js";
-import { buildDigest, formatDigest, loadDigest, markPicked } from "./jobs/discover.js";
+import { generateIdea, reviseScript, type Idea } from "./jobs/idea.js";
+import { buildDigest, formatDigest, foundContext, loadDigest, markPicked, type Found } from "./jobs/discover.js";
 import { renderReel } from "./jobs/render.js";
 import { postReel } from "./jobs/post.js";
+import { dmStatus, startDmLoop } from "./jobs/dm.js";
 import { genPostCaption } from "./lib/caption.js";
+import { writeSiteCopy } from "./lib/article.js";
+import { insertPost, postUrl, slugify } from "./lib/posts.js";
+import type { Pending } from "./state.js";
 import {
   learnFromIdea,
   learnFromRevision,
@@ -68,7 +72,7 @@ async function makeAndSendReel(ctx: any, chat: string, editNote?: string) {
     // a Redo passes no editNote but must keep honoring the last [Edit] instruction
     const note = editNote ?? p.lastEditNote;
     const { mp4, planSummary } = await renderReel({ clipPath: p.clipPath, script: p.script, topic: p.topic, editNote: note });
-    const caption = await genPostCaption(p.topic, p.script);
+    const caption = await genPostCaption(p.topic, p.script, p.postType); // tool posts lead with the comment CTA
     state.patch(chat, { mp4Path: mp4, caption, awaitingEdit: false, lastEditNote: note, lastPlan: planSummary });
     // show the generated IG caption under the reel; [Post] will publish with it.
     // width/height/supports_streaming are REQUIRED with the self-hosted local Bot API server:
@@ -87,8 +91,8 @@ async function makeAndSendReel(ctx: any, chat: string, editNote?: string) {
 
 const HELP = [
   "*commands*",
-  "/idea — random idea + script",
-  "`idea: <your idea>` — writes a NEW script for a described idea (Claude writes it)",
+  "/idea — one researched idea (tool or news) + script",
+  "`idea: <your idea>` — researches your idea, then writes a NEW script for it (asks first if it can't verify it)",
   "`script: <your script>` — use a script you already wrote, word for word, no rewrite",
   "/discover — research what AI world is talking about right now (3 cards + scripts)",
   "1 / 2 / 3 — pick from the morning digest (\"2 but shorter\" works too)",
@@ -99,6 +103,7 @@ const HELP = [
   "/prefs — what it has learned about your taste",
   "/learn — run a learning pass now",
   "/forget — reset learned preferences",
+  "/dm — comment→DM autoresponder status",
   "/help — this list",
 ].join("\n");
 
@@ -120,6 +125,9 @@ bot.command("forget", (ctx) => {
   ctx.reply("cleared the learned preferences. I'll relearn as you use it.");
 });
 
+// how the comment -> DM funnel is doing (and whether the token can even run it)
+bot.command("dm", (ctx) => ctx.reply(dmStatus()));
+
 // on-demand discovery (same machinery as the 3am digest)
 bot.command("discover", async (ctx) => {
   await ctx.reply("researching what the AI world is talking about — takes a few minutes…");
@@ -131,34 +139,56 @@ bot.command("discover", async (ctx) => {
   }
 });
 
-// random idea
+// a fresh script landed (idea / idea: / digest pick / "anyway") -> activate it + show it
+async function activateIdea(ctx: any, chat: string, idea: Idea) {
+  // a digest Card carries whyNow/links rather than a pre-built context string — same thing
+  const context = idea.context ?? ("whyNow" in idea ? foundContext(idea as unknown as Found) : undefined);
+  state.set(chat, {
+    topic: idea.topic,
+    script: idea.script,
+    stage: "script",
+    scriptSessionId: idea.sessionId,
+    postType: idea.type,
+    toolUrl: idea.toolUrl,
+    context,
+  });
+  learnFromIdea(idea.topic);
+  const head = idea.type === "tool" ? `*${idea.topic}*\n[tool] ${idea.toolUrl ?? "(no url)"}` : `*${idea.topic}*\n[news]`;
+  await safeReply(ctx, `${head}\n\n${idea.script}\n\nsend the clip when it's right — or just tell me what to change.`, {
+    parse_mode: "Markdown",
+  });
+}
+
+// research found nothing for what the user described: say so and ASK, don't make it up
+async function askUnverified(ctx: any, chat: string, desc: string, note?: string) {
+  state.set(chat, { topic: desc, script: "", stage: "script", unverifiedIdea: desc });
+  await ctx.reply(
+    `couldn't verify this — no sources found${note ? ` (${note})` : ""}.\nreply "anyway" and I'll write it from your description alone (nothing invented), or send a clearer idea:`,
+  );
+}
+
+// random idea — one real, researched card (same machinery as the morning digest)
 bot.command("idea", async (ctx) => {
-  await ctx.reply("thinking of something…");
+  await ctx.reply("researching something…");
   try {
-    const { topic, script, sessionId } = await generateIdea();
-    state.set(String(ctx.chat.id), { topic, script, stage: "script", scriptSessionId: sessionId });
-    learnFromIdea(topic);
-    await safeReply(ctx, `*${topic}*\n\n${script}\n\nsend the clip when it's right — or just tell me what to change.`, {
-      parse_mode: "Markdown",
-    });
+    await activateIdea(ctx, String(ctx.chat.id), await generateIdea());
   } catch (e: any) {
     await ctx.reply(`couldn't come up with one: ${e.message}`);
   }
 });
 
-// described idea:  "idea: claude code now runs in the browser" — Claude WRITES a script for
-// this description. If you already have a finished script, use "script: <text>" instead —
-// this command asks Claude to write something new "about" whatever text follows.
+// described idea:  "idea: claude code now runs in the browser" — the description is
+// RESEARCHED first (is it real, what is it, the URL), then Claude WRITES a script for it. If
+// nothing solid turns up it asks before writing. If you already have a finished script, use
+// "script: <text>" instead — this command asks Claude to write something new "about" it.
 bot.hears(/^idea:\s*(.+)/is, async (ctx) => {
   const desc = ctx.match[1];
-  await ctx.reply("writing that…");
+  const chat = String(ctx.chat.id);
+  await ctx.reply("checking that out, then writing…");
   try {
-    const { topic, script, sessionId } = await generateIdea(desc);
-    state.set(String(ctx.chat.id), { topic, script, stage: "script", scriptSessionId: sessionId });
-    learnFromIdea(topic);
-    await safeReply(ctx, `*${topic}*\n\n${script}\n\nsend the clip when it's right — or just tell me what to change.`, {
-      parse_mode: "Markdown",
-    });
+    const idea = await generateIdea(desc);
+    if (idea.unverified) return askUnverified(ctx, chat, desc, idea.note);
+    await activateIdea(ctx, chat, idea);
   } catch (e: any) {
     await ctx.reply(`couldn't write that: ${e.message}`);
   }
@@ -210,19 +240,54 @@ bot.callbackQuery("post", async (ctx) => {
     ctx.api.editMessageText(chat, msg.message_id, t, { parse_mode: "Markdown" }).catch(() => {});
 
   try {
-    const link = await postReel(p.mp4Path, p.caption ?? p.script.split("\n")[0], {
+    const { permalink, mediaId } = await postReel(p.mp4Path, p.caption ?? p.script.split("\n")[0], {
       onUploaded: () => set("*Posting…*\nuploaded — sending to Instagram"),
       onProcessing: () => set("*Posting…*\nuploaded, sent — Instagram is processing the reel (transcoding)…"),
       onPublishing: () => set("*Posting…*\nuploaded, sent, processed — publishing…"),
     });
-    await set(`*Posted:*\n${link}`);
+    await set(`*Posted:*\n${permalink}\n\nadding it to the site${p.postType === "news" ? " — writing the article" : ""}…`);
     learnFromPost(p.topic, p.script).catch(() => {}); // approved = strongest signal; learn in bg
-    state.clear(chat);
+    state.clear(chat); // the reel is done regardless of what the site does next
+
+    // the site row — a failure here must never read as a failed post
+    try {
+      const site = await publishToSite(p, mediaId, permalink);
+      await set(`*Posted:*\n${permalink}\n\n*On the site:*\n${site}`);
+    } catch (e: any) {
+      console.error("site publish failed:", e);
+      await set(`*Posted:*\n${permalink}\n\n_site: couldn't add it (${String(e.message).slice(0, 160)}) — the reel is live, the site row isn't._`);
+    }
   } catch (e: any) {
     state.patch(chat, { posting: false });
     await set(`*Post failed:* ${e.message}\nTap Post again to retry, or Redo.`);
   }
 });
+
+// One reel_posts row per published reel: title + blurb for its block on the site, an article
+// for news posts, and the ig_media_id the DM autoresponder polls. A tool post with no URL
+// can't be a tool post (the DB enforces it too) — it lands as news rather than as a broken
+// "comment TOOL" promise.
+async function publishToSite(p: Pending, mediaId: string, permalink: string): Promise<string> {
+  const type = p.postType === "tool" && p.toolUrl ? "tool" : "news";
+  const copy = await writeSiteCopy({ topic: p.topic, script: p.script, type, toolUrl: p.toolUrl, context: p.context });
+  const row = await insertPost({
+    slug: slugify(copy.title),
+    type,
+    title: copy.title,
+    blurb: copy.blurb,
+    tool_url: type === "tool" ? p.toolUrl : undefined,
+    article: copy.article,
+    script: p.script,
+    ig_media_id: mediaId,
+    ig_permalink: permalink,
+  });
+  const url = postUrl(row.slug, type);
+  if (type === "news" && copy.article) {
+    // echo the article so it's readable from the chat — and so a bad one gets noticed
+    await bot.api.sendMessage(config.telegram.chatId, `article for the site (${url}):\n\n${copy.title}\n\n${copy.article}`.slice(0, 4000)).catch(() => {});
+  }
+  return url;
+}
 
 bot.callbackQuery("redo", async (ctx) => {
   await ctx.answerCallbackQuery();
@@ -250,18 +315,20 @@ bot.on("message:text", async (ctx) => {
     const digest = await loadDigest();
     const card = digest?.cards.find((c) => c.n === Number(pick[1]));
     if (card) {
-      state.set(chat, { topic: card.topic, script: card.script, stage: "script", scriptSessionId: card.sessionId });
-      learnFromIdea(card.topic);
       markPicked(card.topic).catch(() => {}); // future research treats this story as done
       try {
+        // an unverified queued topic has no script — picking it = "write it from my description anyway"
+        let idea: Idea = card;
+        if (card.unverified) {
+          await ctx.reply("writing it from your description alone (nothing invented)…");
+          idea = await generateIdea(card.topic, { fromDescriptionOnly: true });
+        }
         if (pick[2]) {
           await ctx.reply("picked — reworking it…");
-          const r = await reviseScript(card.topic, card.script, pick[2], card.sessionId);
-          state.patch(chat, { script: r.script, scriptSessionId: r.sessionId ?? card.sessionId });
-          await safeReply(ctx, `*${card.topic}*\n\n${r.script}\n\nsend the clip when it's right — or tell me another change.`, { parse_mode: "Markdown" });
-        } else {
-          await safeReply(ctx, `*${card.topic}*\n\n${card.script}\n\nsend the clip when it's right — or tell me what to change.`, { parse_mode: "Markdown" });
+          const r = await reviseScript(idea.topic, idea.script, pick[2], idea.sessionId);
+          idea = { ...idea, script: r.script, sessionId: r.sessionId ?? idea.sessionId };
         }
+        await activateIdea(ctx, chat, idea);
       } catch (e: any) {
         await ctx.reply(`couldn't pull that one up: ${e.message}`);
       }
@@ -271,6 +338,20 @@ bot.on("message:text", async (ctx) => {
 
   const p = state.get(chat);
   if (!p) return;
+
+  // "anyway" after a couldn't-verify: write from the description, no research, no invention
+  if (p.unverifiedIdea) {
+    if (!/^\s*(anyway|yes|yeah|go|write it|do it)\b/i.test(ctx.message.text)) {
+      return ctx.reply(`still waiting on that one — reply "anyway" to write it from your description, or send a new idea:`);
+    }
+    await ctx.reply("writing it from your description alone…");
+    try {
+      await activateIdea(ctx, chat, await generateIdea(p.unverifiedIdea, { fromDescriptionOnly: true }));
+    } catch (e: any) {
+      await ctx.reply(`couldn't write that: ${e.message}`);
+    }
+    return;
+  }
 
   if (p.awaitingEdit) {
     learnFromEdit(p.topic, ctx.message.text); // how they like the motion graphics
@@ -298,3 +379,4 @@ bot.on("message:text", async (ctx) => {
 
 bot.catch((err) => console.error("bot error", err));
 bot.start({ onStart: (me) => console.log(`@${me.username} running`) });
+startDmLoop(); // no-op unless DM_AUTORESPONDER=on

@@ -17,6 +17,10 @@ studio/out/
 # remotion
 .remotion/
 
+# web (astro) — generated types + wrangler cache
+web/.astro/
+web/.wrangler/
+
 # python
 .venv/
 __pycache__/

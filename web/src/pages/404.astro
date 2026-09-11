@@ -1,0 +1,36 @@
+---
+import Base from "../layouts/Base.astro";
+import { site } from "../config";
+Astro.response.status = 404;
+---
+
+<Base title="Not found">
+  <div class="nf">
+    <span class="kicker">404</span>
+    <h1>That one's not here.</h1>
+    <a href="/">Back to @{site.handle}</a>
+  </div>
+</Base>
+
+<style>
+  .nf {
+    padding: 22vh 0 0;
+  }
+  h1 {
+    margin: 10px 0 18px;
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+  }
+  a {
+    font-size: 14px;
+    color: var(--dim);
+    text-decoration: underline;
+    text-decoration-color: var(--border-bright);
+    text-underline-offset: 3px;
+  }
+  a:hover {
+    color: var(--text);
+  }
+</style>

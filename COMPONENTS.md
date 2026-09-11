@@ -3,7 +3,7 @@
 Every scene the director can emit. All sit on the dark base with ONE bright accent per video
 (picked at render time — components read it from context, never hardcode colors). Source:
 `studio/src/auto/` — theme.ts (tokens) · fx.tsx (bg/effects/captions) · v2-text / v2-data /
-v2-ui / v2-media (the scenes). Catalog stills: `studio/catalog/<kind>.png`.
+v2-ui / v2-media / v2-apps / v2-tools (the scenes). Catalog stills: `studio/catalog/<kind>.png`.
 
 Modifying and extending is ENCOURAGED: tweak props freely per video; new one-off components
 belong in `studio/src/auto/generated/<videoId>/` and must (1) drive all motion from
@@ -75,10 +75,21 @@ Dont keep 2 pure text components back to back - the second one can be just my fa
 | waveform | label?, sub? | voice/audio-AI beats; accent bars breathe |
 | rating | name, rating, count?, brand?, tagline? | app-store verdict card; stars fill one by one |
 
+## tool review (the arc of a TOOL video — v2-tools.tsx)
+what it is → how you get it → watching it actually work → what it replaces / the catch → where to find it
+| kind | props | use when |
+|---|---|---|
+| toolcard | name, tagline?, brand?, by?, chips?[] | "what it is" — spec sheet at a glance: logo pops, name + one-liner, meta chips (platform / license / price; first chip = accent). Facts only |
+| install | title?, steps[{title,cmd?,sub?}] | "how you get it" — getting-started stepper; commands type themselves, rings tick in sequence (≤4 steps, REAL commands) |
+| runlog | title?, steps[{text,detail?}], result?{text,sub?} | "watching it work" — task log streams, spinners become ticks, result line slams in accent (details = real facts) |
+| beforeafter | title?, beforeLabel?, afterLabel?, rows[{before,after}] | "what it replaces" — old way struck through, new way springs in on the accent (≤4 rows, real numbers only) |
+| catch | kicker?, items[{text,sub?}], verdict? | "the catch" — 1–3 caveats thud in under a hazard stripe, optional verdict chip; stays on the accent (a caveat, not an error) |
+| getit | url, name?, brand?, badges?[], price?, note? | "where to find it" — closing card: URL types + glows, real distribution marks (GitHub / npm / Homebrew / PyPI / App Store / Chrome Web Store), price chip if real |
+
 ## bespoke
 | kind | props | use when |
 |---|---|---|
-| custom | name (PascalCase), spec (what to build/animate), props{} | nothing above fits the beat — the component is CODE-GENERATED at render time (Opus writes it into generated/, typecheck-gated, still-rendered + visually verified, auto-dropped on failure). Max 1/video. |
+| custom | name (PascalCase), spec (what to build/animate), props{} | nothing above fits the beat — the component is CODE-GENERATED at render time (Opus writes it into generated/, typecheck-gated, still-rendered + visually verified, auto-dropped on failure). Up to 3/video, only when a beat genuinely needs it — a ceiling, not a quota. |
 
 The director also CHOOSES the video's accent (blue/cyan/green/orange/red/pink/violet) to fit
 the topic's vibe — returned as `accent` alongside `scenes`.

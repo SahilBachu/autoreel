@@ -14,6 +14,12 @@
     { "file": "sfx/thud.mp3",     "tags": ["impact", "stop"],       "use": "punchline / hard stop" }
   ],
   "music": [
-    { "file": "music/rosewater.mp3", "tags": ["calm", "lofi", "warm"],   "use": "default bed for dry/relaxed scripts" }
+    { "file": "music/rosewater.mp3",   "tags": ["calm", "lofi", "warm"],                        "use": "default bed for dry/relaxed scripts" },
+    { "file": "music/lofi-drift.mp3",  "tags": ["lofi", "floaty", "airy", "low-energy"],         "use": "drifting, spacious pads — cold-open / futuristic / research-frontier scripts; stays out of the way" },
+    { "file": "music/lofi-dusk.mp3",   "tags": ["lofi", "moody", "dark", "cinematic"],           "use": "darker evening mood — drama, bans, layoffs, 'something changed' scripts; pairs with red/violet accents" },
+    { "file": "music/lofi-mellow.mp3", "tags": ["lofi", "soft", "neutral", "mid-tempo"],         "use": "safe neutral bed — explainers, tool walkthroughs, anything that shouldn't editorialize the mood" },
+    { "file": "music/lofi-rainy.mp3",  "tags": ["lofi", "rain", "cozy", "introspective", "slow"], "use": "rainy-window cozy — reflective / 'here's what I actually think' scripts; slowest of the set" },
+    { "file": "music/lofi-study.mp3",  "tags": ["lofi", "focus", "steady", "productive"],        "use": "study-beats focus loop — install / setup / how-to / 'watch it work' tool demos; steady pulse keeps typing beats moving" },
+    { "file": "music/lofi-warmth.mp3", "tags": ["lofi", "warm", "upbeat", "optimistic"],         "use": "warmest + most upbeat of the set — wins, launches, 'this is great' recommendations; pairs with green/orange accents" }
   ]
 }

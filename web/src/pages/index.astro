@@ -1,0 +1,57 @@
+---
+import Base from "../layouts/Base.astro";
+import Identity from "../components/Identity.astro";
+import PostBlock from "../components/PostBlock.astro";
+import { listPosts, type Post } from "../lib/db";
+import { site, instagramUrl } from "../config";
+
+let posts: Post[] = [];
+let failed = false;
+try {
+  posts = await listPosts();
+} catch (e) {
+  console.error("[feed] listPosts failed", e);
+  failed = true;
+}
+---
+
+<Base>
+  <Identity />
+
+  {failed && <p class="empty">Couldn't load posts just now. Try again in a moment.</p>}
+  {!failed && posts.length === 0 && <p class="empty">Nothing here yet.</p>}
+
+  <ol class="feed">
+    {posts.map((post) => (
+      <li><PostBlock post={post} /></li>
+    ))}
+  </ol>
+
+  <footer>
+    <a class="kicker" href={instagramUrl} rel="noopener">instagram.com/{site.handle}</a>
+  </footer>
+</Base>
+
+<style>
+  .feed {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+  }
+  .empty {
+    color: var(--faint);
+    font-size: 14px;
+    padding: 40px 0;
+    text-align: center;
+  }
+  footer {
+    margin-top: 44px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+  }
+  footer a:hover {
+    color: var(--dim);
+  }
+</style>

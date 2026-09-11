@@ -9,7 +9,8 @@ export type PostHooks = {
 };
 
 // Upload the mp4 to a public URL (Supabase, or tmpfiles fallback) then publish to Instagram.
-export async function postReel(mp4Path: string, caption: string, hooks: PostHooks = {}): Promise<string> {
+// Returns the permalink for the user and the media id for the site row / DM autoresponder.
+export async function postReel(mp4Path: string, caption: string, hooks: PostHooks = {}): Promise<{ permalink: string; mediaId: string }> {
   const { url: publicUrl, via } = await uploadPublic(mp4Path);
   console.log(`reel uploaded via ${via}: ${publicUrl}`);
   hooks.onUploaded?.();
