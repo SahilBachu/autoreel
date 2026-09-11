@@ -126,9 +126,25 @@ docker ps | grep telegram-bot-api    # if missing, see CLAUDE.md / step-0 docker
 
 # 2. run the bot
 cd bot && npm run dev
+
+# 3. (optional, local) the site — reads the same Supabase project
+cd web && npm i && npm run dev     # http://localhost:4321
 ```
 Test order (smallest first): `/idea` returns a script → send a short clip → get an mp4 with
-buttons → [Edit] a tweak → [Post] to IG. Verify each before moving on.
+buttons → [Edit] a tweak → [Post] to IG (also writes the site row). Verify each before moving on.
+
+### If Instagram says "Error validating access token"
+The 60-day token expired. `npm run refresh-ig-token` only works on a token that's still
+alive — an expired one has to be regenerated: Meta App Dashboard → your app → **Instagram**
+→ *API setup with Instagram login* → **Generate token** for your account, ticking all four
+scopes listed in `.env.example`. Paste it into `.env` as `IG_ACCESS_TOKEN`, restart the bot.
+Then put `npm run refresh-ig-token` on a ~45-day cron so it never expires again.
+
+### Turning on the comment→DM autoresponder
+Needs the token to carry `instagram_business_manage_comments` + `instagram_business_manage_messages`
+(regenerate as above if it doesn't). Then `DM_AUTORESPONDER=on` in `.env`, restart, and
+`/dm` in Telegram shows whether its self-check passed. Optional one-off check first:
+`npx tsx src/jobs/probe-ig-dm.ts` (read-only) from `bot/`.
 
 ## Definition of done
 - `/idea` (random) and `idea:<desc>` both return an on-voice script.

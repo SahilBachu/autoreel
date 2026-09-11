@@ -5,10 +5,14 @@ import { homedir } from "node:os";
 import { config, REPO_ROOT } from "./config.js";
 import { state } from "./state.js";
 import { generateIdea, reviseScript, type Idea } from "./jobs/idea.js";
-import { buildDigest, formatDigest, loadDigest, markPicked } from "./jobs/discover.js";
+import { buildDigest, formatDigest, foundContext, loadDigest, markPicked, type Found } from "./jobs/discover.js";
 import { renderReel } from "./jobs/render.js";
 import { postReel } from "./jobs/post.js";
+import { dmStatus, startDmLoop } from "./jobs/dm.js";
 import { genPostCaption } from "./lib/caption.js";
+import { writeSiteCopy } from "./lib/article.js";
+import { insertPost, postUrl, slugify } from "./lib/posts.js";
+import type { Pending } from "./state.js";
 import {
   learnFromIdea,
   learnFromRevision,
@@ -99,6 +103,7 @@ const HELP = [
   "/prefs — what it has learned about your taste",
   "/learn — run a learning pass now",
   "/forget — reset learned preferences",
+  "/dm — comment→DM autoresponder status",
   "/help — this list",
 ].join("\n");
 
@@ -120,6 +125,9 @@ bot.command("forget", (ctx) => {
   ctx.reply("cleared the learned preferences. I'll relearn as you use it.");
 });
 
+// how the comment -> DM funnel is doing (and whether the token can even run it)
+bot.command("dm", (ctx) => ctx.reply(dmStatus()));
+
 // on-demand discovery (same machinery as the 3am digest)
 bot.command("discover", async (ctx) => {
   await ctx.reply("researching what the AI world is talking about — takes a few minutes…");
@@ -133,6 +141,8 @@ bot.command("discover", async (ctx) => {
 
 // a fresh script landed (idea / idea: / digest pick / "anyway") -> activate it + show it
 async function activateIdea(ctx: any, chat: string, idea: Idea) {
+  // a digest Card carries whyNow/links rather than a pre-built context string — same thing
+  const context = idea.context ?? ("whyNow" in idea ? foundContext(idea as unknown as Found) : undefined);
   state.set(chat, {
     topic: idea.topic,
     script: idea.script,
@@ -140,6 +150,7 @@ async function activateIdea(ctx: any, chat: string, idea: Idea) {
     scriptSessionId: idea.sessionId,
     postType: idea.type,
     toolUrl: idea.toolUrl,
+    context,
   });
   learnFromIdea(idea.topic);
   const head = idea.type === "tool" ? `*${idea.topic}*\n[tool] ${idea.toolUrl ?? "(no url)"}` : `*${idea.topic}*\n[news]`;
@@ -229,19 +240,54 @@ bot.callbackQuery("post", async (ctx) => {
     ctx.api.editMessageText(chat, msg.message_id, t, { parse_mode: "Markdown" }).catch(() => {});
 
   try {
-    const link = await postReel(p.mp4Path, p.caption ?? p.script.split("\n")[0], {
+    const { permalink, mediaId } = await postReel(p.mp4Path, p.caption ?? p.script.split("\n")[0], {
       onUploaded: () => set("*Posting…*\nuploaded — sending to Instagram"),
       onProcessing: () => set("*Posting…*\nuploaded, sent — Instagram is processing the reel (transcoding)…"),
       onPublishing: () => set("*Posting…*\nuploaded, sent, processed — publishing…"),
     });
-    await set(`*Posted:*\n${link}`);
+    await set(`*Posted:*\n${permalink}\n\nadding it to the site${p.postType === "news" ? " — writing the article" : ""}…`);
     learnFromPost(p.topic, p.script).catch(() => {}); // approved = strongest signal; learn in bg
-    state.clear(chat);
+    state.clear(chat); // the reel is done regardless of what the site does next
+
+    // the site row — a failure here must never read as a failed post
+    try {
+      const site = await publishToSite(p, mediaId, permalink);
+      await set(`*Posted:*\n${permalink}\n\n*On the site:*\n${site}`);
+    } catch (e: any) {
+      console.error("site publish failed:", e);
+      await set(`*Posted:*\n${permalink}\n\n_site: couldn't add it (${String(e.message).slice(0, 160)}) — the reel is live, the site row isn't._`);
+    }
   } catch (e: any) {
     state.patch(chat, { posting: false });
     await set(`*Post failed:* ${e.message}\nTap Post again to retry, or Redo.`);
   }
 });
+
+// One reel_posts row per published reel: title + blurb for its block on the site, an article
+// for news posts, and the ig_media_id the DM autoresponder polls. A tool post with no URL
+// can't be a tool post (the DB enforces it too) — it lands as news rather than as a broken
+// "comment TOOL" promise.
+async function publishToSite(p: Pending, mediaId: string, permalink: string): Promise<string> {
+  const type = p.postType === "tool" && p.toolUrl ? "tool" : "news";
+  const copy = await writeSiteCopy({ topic: p.topic, script: p.script, type, toolUrl: p.toolUrl, context: p.context });
+  const row = await insertPost({
+    slug: slugify(copy.title),
+    type,
+    title: copy.title,
+    blurb: copy.blurb,
+    tool_url: type === "tool" ? p.toolUrl : undefined,
+    article: copy.article,
+    script: p.script,
+    ig_media_id: mediaId,
+    ig_permalink: permalink,
+  });
+  const url = postUrl(row.slug, type);
+  if (type === "news" && copy.article) {
+    // echo the article so it's readable from the chat — and so a bad one gets noticed
+    await bot.api.sendMessage(config.telegram.chatId, `article for the site (${url}):\n\n${copy.title}\n\n${copy.article}`.slice(0, 4000)).catch(() => {});
+  }
+  return url;
+}
 
 bot.callbackQuery("redo", async (ctx) => {
   await ctx.answerCallbackQuery();
@@ -333,3 +379,4 @@ bot.on("message:text", async (ctx) => {
 
 bot.catch((err) => console.error("bot error", err));
 bot.start({ onStart: (me) => console.log(`@${me.username} running`) });
+startDmLoop(); // no-op unless DM_AUTORESPONDER=on

@@ -32,4 +32,16 @@ export const config = {
     serviceKey: process.env.SUPABASE_SERVICE_KEY || "",
     bucket: process.env.SUPABASE_BUCKET || "reels",
   },
+  // the link-in-bio site (web/). Localhost until it's on Cloudflare — while it is, DM links
+  // go straight to the tool instead of through the site's click-counting /go/ redirect.
+  site: {
+    url: process.env.SITE_URL || "http://localhost:4321",
+  },
+  // comment -> DM autoresponder (jobs/dm.ts). Off until the token has the messaging scopes.
+  dm: {
+    enabled: /^(1|on|true|yes)$/i.test(process.env.DM_AUTORESPONDER || ""),
+    gate: (["strict", "soft", "off"].includes(process.env.DM_FOLLOW_GATE || "") ? process.env.DM_FOLLOW_GATE : "strict") as "strict" | "soft" | "off",
+    keyword: process.env.DM_KEYWORD || "TOOL",
+    pollMinutes: Number(process.env.DM_POLL_MINUTES) || 2,
+  },
 };

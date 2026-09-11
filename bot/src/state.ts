@@ -10,6 +10,7 @@ export type Pending = {
   script: string;
   postType?: PostType; // tool vs news — the caption's CTA rule branches on it
   toolUrl?: string; // verified homepage for a tool post (the site + DM autoresponder use it)
+  context?: string; // what research found (whyNow + links) — the article writer's ground truth
   unverifiedIdea?: string; // an idea: research couldn't verify — waiting on "anyway" before writing
   clipPath?: string;
   mp4Path?: string;

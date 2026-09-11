@@ -9,6 +9,7 @@ export type Idea = {
   sessionId?: string;
   type: PostType;
   toolUrl?: string;
+  context?: string; // what research found — carried to post time for the site's article
   // research found nothing for the user's description — no script was written; ask first
   unverified?: boolean;
   note?: string;
@@ -51,7 +52,14 @@ export async function generateIdea(
     }),
     { model: "opus", tools: WRITER_TOOLS, cwd: REPO_ROOT },
   );
-  return { topic: found.topic, script: text.trim(), sessionId, type: found.type, toolUrl: found.toolUrl };
+  return {
+    topic: found.topic,
+    script: text.trim(),
+    sessionId,
+    type: found.type,
+    toolUrl: found.toolUrl,
+    context: opts.fromDescriptionOnly ? undefined : foundContext(found),
+  };
 }
 
 // Revise by RESUMING the original session (remembers the whole back-and-forth).
