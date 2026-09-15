@@ -23,7 +23,7 @@ export const site = {
   avatar: "/avatar.jpg",
 
   /** Public URL of the site once deployed (used for canonical + og tags). */
-  url: "https://example.com",
+  url: "https://links.21stcenturysahil.workers.dev",
 
   /**
    * The ONE accent for the whole site. The videos randomise this per render;
