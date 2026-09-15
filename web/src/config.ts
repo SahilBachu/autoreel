@@ -7,20 +7,20 @@
 
 export const site = {
   /** Instagram handle, without the @. */
-  handle: "yourhandle",
+  handle: "21stcentury.sahil",
 
   /** Display name shown under the handle. Leave "" to hide. */
-  name: "Sahil",
+  name: "sahil",
 
   /** One quiet line under the name. Leave "" to hide. */
-  tagline: "One AI tool a day. Tap to open.",
+  tagline: "tools and AI news from my reels.",
 
   /**
    * Profile picture. Drop a square image at web/public/avatar.jpg (or .png)
    * and point this at it: "/avatar.jpg". The default is a generated SVG
    * placeholder so nothing renders as a broken image.
    */
-  avatar: "/avatar-placeholder.svg",
+  avatar: "/avatar.jpg",
 
   /** Public URL of the site once deployed (used for canonical + og tags). */
   url: "https://example.com",
