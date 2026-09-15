@@ -2,7 +2,7 @@
   // Cloudflare Workers (static assets + SSR). `main`, `assets` and
   // `compatibility_date` are filled in by @astrojs/cloudflare at build time.
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "autoreel-web",
+  "name": "links",
   "compatibility_flags": ["nodejs_compat"],
   // Ship the Worker as a single deploy: `npx wrangler deploy` after `npm run build`,
   // or connect the repo in the Cloudflare dashboard (root dir: web, build: npm run build).

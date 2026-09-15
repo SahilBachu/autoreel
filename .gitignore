@@ -51,3 +51,6 @@ bot/data/
 
 # generated component catalog stills (regenerable)
 studio/catalog/
+
+# Cloudflare API token + account id for deploys from the main machine
+.cloudflare.env

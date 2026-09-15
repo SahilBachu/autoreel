@@ -12,6 +12,9 @@ interface Props {
 const { title, description, article = false } = Astro.props;
 const fullTitle = title ? `${title} · @${site.handle}` : `@${site.handle}`;
 const desc = description ?? site.tagline;
+// Cloudflare Web Analytics — cookieless, no consent banner needed. Only rendered once the
+// site's beacon token is set, so localhost doesn't count itself.
+const beacon = import.meta.env.PUBLIC_CF_BEACON_TOKEN;
 ---
 
 <!doctype html>
@@ -29,6 +32,9 @@ const desc = description ?? site.tagline;
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="preload" href="/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="preload" href="/fonts/GeistMono-Variable.woff2" as="font" type="font/woff2" crossorigin />
+    {beacon && (
+      <script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon={JSON.stringify({ token: beacon })} is:inline></script>
+    )}
   </head>
   <body>
     <main class="wrap" data-article={article ? "" : undefined}>
