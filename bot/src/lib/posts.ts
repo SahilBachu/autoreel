@@ -76,6 +76,26 @@ export async function recentToolPosts(days = 7): Promise<ReelPost[]> {
   return (await r.json()) as ReelPost[];
 }
 
+/** Every published row (any type) from the last N days — the deleted-reel sweep checks these. */
+export async function postsWithMedia(days = 60): Promise<ReelPost[]> {
+  const { url, headers } = rest();
+  const u = new URL(url);
+  u.searchParams.set("select", "slug,type,title,ig_media_id,published_at");
+  u.searchParams.set("ig_media_id", "not.is.null");
+  u.searchParams.set("published_at", `gte.${new Date(Date.now() - days * 864e5).toISOString()}`);
+  const r = await fetch(u, { headers, signal: AbortSignal.timeout(20_000) });
+  if (!r.ok) throw new Error(`reel_posts read failed: ${r.status} ${(await r.text()).slice(0, 200)}`);
+  return (await r.json()) as ReelPost[];
+}
+
+export async function deletePostBySlug(slug: string): Promise<void> {
+  const { url, headers } = rest();
+  const u = new URL(url);
+  u.searchParams.set("slug", `eq.${slug}`);
+  const r = await fetch(u, { method: "DELETE", headers, signal: AbortSignal.timeout(20_000) });
+  if (!r.ok) throw new Error(`reel_posts delete failed: ${r.status} ${(await r.text()).slice(0, 200)}`);
+}
+
 /** The link we hand out for a tool post. Through the site's /go/ redirect when the site is
  *  public (so the click gets counted — that number is what eventually gets tools to pay for
  *  placement); straight to the tool while the site is still on localhost. */

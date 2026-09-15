@@ -22,7 +22,7 @@ export type Idea = {
 // The script call opens a SESSION (Opus, with web tools) so revisions resume with context.
 export async function generateIdea(
   description?: string,
-  opts: { fromDescriptionOnly?: boolean } = {},
+  opts: { fromDescriptionOnly?: boolean; forceType?: PostType } = {},
 ): Promise<Idea> {
   let found: Found;
   if (!description?.trim()) {
@@ -35,10 +35,10 @@ export async function generateIdea(
   } else if (opts.fromDescriptionOnly) {
     // the user said "write it anyway" — description is the only source, and the writer is
     // told exactly that
-    found = { topic: description.trim(), type: "news", whyNow: "", links: [] };
+    found = { topic: description.trim(), type: "news", whyNow: "", links: [] }; // no verified URL = can't be a tool
   } else {
-    const v = await verifyTopic(description);
-    if (!v.found) return { topic: description.trim(), script: "", type: "news", unverified: true, note: v.note };
+    const v = await verifyTopic(description, opts.forceType);
+    if (!v.found) return { topic: description.trim(), script: "", type: opts.forceType ?? "news", unverified: true, note: v.note };
     found = v.card;
   }
 

@@ -93,6 +93,7 @@ const HELP = [
   "*commands*",
   "/idea — one researched idea (tool or news) + script",
   "`idea: <your idea>` — researches your idea, then writes a NEW script for it (asks first if it can't verify it)",
+  "`news: <story>` / `tool: <tool>` — same, but forces the post type",
   "`script: <your script>` — use a script you already wrote, word for word, no rewrite",
   "/discover — research what AI world is talking about right now (3 cards + scripts)",
   "1 / 2 / 3 — pick from the morning digest (\"2 but shorter\" works too)",
@@ -183,11 +184,14 @@ bot.command("idea", async (ctx) => {
 // nothing solid turns up it asks before writing. If you already have a finished script, use
 // "script: <text>" instead — this command asks Claude to write something new "about" it.
 bot.hears(/^idea:\s*(.+)/is, (ctx) => runIdea(ctx, String(ctx.chat.id), ctx.match[1]));
+// same, but you decide the post type instead of the researcher
+bot.hears(/^news:\s*(.+)/is, (ctx) => runIdea(ctx, String(ctx.chat.id), ctx.match[1], "news"));
+bot.hears(/^tool:\s*(.+)/is, (ctx) => runIdea(ctx, String(ctx.chat.id), ctx.match[1], "tool"));
 
-async function runIdea(ctx: any, chat: string, desc: string) {
-  await ctx.reply("checking that out, then writing…");
+async function runIdea(ctx: any, chat: string, desc: string, forceType?: "tool" | "news") {
+  await ctx.reply(`checking that out, then writing${forceType ? ` a ${forceType} post` : ""}…`);
   try {
-    const idea = await generateIdea(desc);
+    const idea = await generateIdea(desc, { forceType });
     if (idea.unverified) return askUnverified(ctx, chat, desc, idea.note);
     await activateIdea(ctx, chat, idea);
   } catch (e: any) {
@@ -402,11 +406,11 @@ setInterval(async () => {
     const chat = config.telegram.chatId;
     const ctx = chatCtx(chat);
     console.log(`trigger: ${text.slice(0, 80)}`);
-    const m = text.match(/^idea:\s*([\s\S]+)/i);
-    if (m) await runIdea(ctx, chat, m[1].trim());
+    const m = text.match(/^(idea|news|tool):\s*([\s\S]+)/i);
+    if (m) await runIdea(ctx, chat, m[2].trim(), m[1].toLowerCase() === "idea" ? undefined : (m[1].toLowerCase() as "tool" | "news"));
     else if (/^\/?idea$/i.test(text)) {
       await ctx.reply("researching something…");
       await generateIdea().then((i) => activateIdea(ctx, chat, i)).catch((e) => ctx.reply(`couldn't come up with one: ${e.message}`));
-    } else console.error(`trigger: ignored "${text.slice(0, 60)}" (only "idea: …" or "idea")`);
+    } else console.error(`trigger: ignored "${text.slice(0, 60)}" (only "idea:/news:/tool: …" or "idea")`);
   }
 }, 5000);

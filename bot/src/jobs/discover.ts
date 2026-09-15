@@ -138,12 +138,16 @@ function pickLenses(n = 3): string[] {
 // user-idea check so a tool URL is held to the same standard wherever it comes from.
 const VERIFY_RULES = `For EVERY story: verify it's real via a source you actually fetched/searched — never from memory.
 Set "type":
-- "tool" = something a viewer can go use today (an app, repo, model, CLI, extension). A tool
-  card MUST include "toolUrl": the tool's real homepage (or its GitHub repo if that IS the
-  home). You must WebFetch that exact URL and see the tool's own page load before returning
-  it — a website and a DM autoresponder send people there, so a guessed/dead/redirected URL
-  is worse than no card. Prefer the canonical home (docs/landing) over a tweet or a blog post.
-- "news" = a release, result, story or argument. No toolUrl.`;
+- "tool" = a PRODUCT a viewer installs or signs up for and uses themselves: an app, a website,
+  a GitHub repo, a CLI, an extension, an agent add-on, an MCP server. A tool card MUST include
+  "toolUrl": the tool's real homepage (or its GitHub repo if that IS the home). You must
+  WebFetch that exact URL and see the tool's own page load before returning it — a website and
+  a DM autoresponder send people there, so a guessed/dead/redirected URL is worse than no card.
+  Prefer the canonical home (docs/landing) over a tweet, a blog post or a model hub page.
+- "news" = something that HAPPENED: a model release (open weights or not — a new model from a
+  lab is NEWS, not a tool), a lab announcement, a benchmark, a paper, funding, drama, policy,
+  an outage. No toolUrl.
+When in doubt between the two, it's news.`;
 
 export async function research(k: number, history: PitchEv[]): Promise<Found[]> {
   const picked = new Set(history.filter((h) => h.ev === "picked").map((h) => h.topic));
@@ -182,8 +186,36 @@ Return ONLY the JSON array, exactly ${k} items.`;
     tools: WRITER_TOOLS,
     cwd: REPO_ROOT,
   });
-  // a "tool" with no URL is a broken promise downstream — demote it rather than ship it
-  return (Array.isArray(found) ? found : []).map(normalizeFound);
+  // a "tool" with no URL — or a URL that doesn't load — is a broken promise downstream
+  return Promise.all((Array.isArray(found) ? found : []).map((f) => checkToolUrl(normalizeFound(f))));
+}
+
+// The prompt TELLS the researcher to fetch the tool URL; this makes sure. A dead link would
+// otherwise go on the site and into every DM. Demotes to news rather than shipping it.
+export async function urlLoads(url: string): Promise<boolean> {
+  const tryOnce = async (method: "HEAD" | "GET") => {
+    const r = await fetch(url, {
+      method,
+      redirect: "follow",
+      signal: AbortSignal.timeout(12_000),
+      headers: { "user-agent": "Mozilla/5.0 (compatible; autoreel-linkcheck)" },
+    });
+    return r.status;
+  };
+  try {
+    let status = await tryOnce("HEAD");
+    if (status === 405 || status === 403 || status >= 500) status = await tryOnce("GET"); // some hosts refuse HEAD
+    return status < 400;
+  } catch {
+    return false;
+  }
+}
+
+async function checkToolUrl(f: Found): Promise<Found> {
+  if (f.type !== "tool" || !f.toolUrl) return f;
+  if (await urlLoads(f.toolUrl)) return f;
+  console.error(`discovery: "${f.topic}" toolUrl ${f.toolUrl} doesn't load — demoting to news`);
+  return { ...f, type: "news", toolUrl: undefined };
 }
 
 function normalizeFound(f: Found): Found {
@@ -199,7 +231,10 @@ function normalizeFound(f: Found): Found {
 // discovered one — focused on that topic instead of hunting. The important part is the
 // honest "no" path: if nothing solid turns up we say so instead of writing a script that
 // fills the gap with invented facts.
-export async function verifyTopic(description: string): Promise<{ found: true; card: Found } | { found: false; note: string }> {
+export async function verifyTopic(
+  description: string,
+  forceType?: PostType,
+): Promise<{ found: true; card: Found } | { found: false; note: string }> {
   const prompt = `Today is ${new Date().toDateString()}. Sahil wants to make a reel about this, in his words:
 "${description}"
 
@@ -211,7 +246,8 @@ You have real tools:
 Research it: what is this actually, is it real and current, what are people saying, what's
 the concrete detail (price, what it does, who made it, the number). Search under a few
 phrasings — he may have the name slightly wrong.
-${VERIFY_RULES}
+${VERIFY_RULES}${forceType ? `
+HE HAS DECIDED THIS IS A "${forceType}" POST. Set "type":"${forceType}"${forceType === "tool" ? " and find the tool's real, working homepage" : " and no toolUrl"}.` : ""}
 BE HONEST. If you cannot find solid sources for what he's describing — it doesn't exist, it's
 a rumour, the name matches nothing, or you only find vague mentions — return
 {"found":false,"note":"one line: what you searched and what you did/didn't find"}.
@@ -228,7 +264,12 @@ Return ONLY the JSON object.`;
   });
   if (!r || r.found !== true || !r.topic) return { found: false, note: (r as { note?: string })?.note?.trim() || "no sources found" };
   const { found: _f, ...rest } = r;
-  return { found: true, card: normalizeFound(rest) };
+  if (forceType) rest.type = forceType;
+  const card = await checkToolUrl(normalizeFound(rest));
+  if (forceType === "tool" && card.type !== "tool") {
+    return { found: false, note: `found it, but couldn't get a working homepage for it${rest.toolUrl ? ` (${rest.toolUrl} doesn't load)` : ""}` };
+  }
+  return { found: true, card };
 }
 
 // research context handed to the writer — the ground truth it must not stray from

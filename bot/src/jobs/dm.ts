@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { config, REPO_ROOT } from "../config.js";
-import { conversationWith, followsUs, listComments, listConversations, me, sendMessage, sendPrivateReply, type IgError } from "../lib/ig.js";
-import { publicLinkFor, recentToolPosts } from "../lib/posts.js";
+import { conversationWith, followsUs, igGet, listComments, listConversations, me, sendMessage, sendPrivateReply, type IgError } from "../lib/ig.js";
+import { deletePostBySlug, postsWithMedia, publicLinkFor, recentToolPosts } from "../lib/posts.js";
 import { sendToChat } from "./discover.js";
 
 // The comment -> DM funnel. Someone comments "TOOL" on a tool reel; they get the link in
@@ -25,7 +25,7 @@ type DmState = {
   handled: Record<string, string>; // commentId -> when we replied (never reply twice)
   pending: Record<string, Pending>; // igsid -> waiting on their reply
   check?: { at: string; ok: boolean; note?: string };
-  stats: { dm1: number; dm2: number; nudges: number; lastTick?: string; lastError?: string };
+  stats: { dm1: number; dm2: number; nudges: number; lastTick?: string; lastError?: string; lastSweep?: string };
 };
 
 const FILE = resolve(REPO_ROOT, "bot/data/dm-state.json");
@@ -109,6 +109,10 @@ export async function dmTick(): Promise<void> {
   if (!ours.ids.size) await loadOurs();
 
   try {
+    if (!s.stats.lastSweep || now - new Date(s.stats.lastSweep).getTime() > 30 * 60_000) {
+      await sweepDeletedReels();
+      s.stats.lastSweep = new Date().toISOString();
+    }
     await pollComments(s, now);
     await pollReplies(s, now);
     s.stats.lastTick = new Date().toISOString();
@@ -121,6 +125,32 @@ export async function dmTick(): Promise<void> {
   for (const [id, ts] of Object.entries(s.handled)) if (now - new Date(ts).getTime() > 14 * DAY) delete s.handled[id];
   for (const [id, p] of Object.entries(s.pending)) if (now - new Date(p.dm1At).getTime() > 7 * DAY) delete s.pending[id];
   save(s);
+}
+
+// A reel deleted on Instagram shouldn't linger on the site (or keep getting polled). Meta
+// answers a lookup on deleted media with code 100 "does not exist". Anything else — a timeout,
+// a rate limit — is left alone: never delete a row on a maybe.
+async function sweepDeletedReels() {
+  const gone: { slug: string; title: string }[] = [];
+  for (const p of await postsWithMedia(60)) {
+    try {
+      await igGet(p.ig_media_id!, { fields: "id" });
+    } catch (e: any) {
+      const err = e as IgError;
+      if (err.code === 100 && err.subcode === 33) gone.push({ slug: p.slug, title: p.title });
+    }
+  }
+  // subcode 33 also covers "missing permissions" — a token problem would make EVERY reel look
+  // deleted. More than two at once is far likelier to be that, so ask instead of wiping the site.
+  if (gone.length > 2) {
+    await sendToChat(`⚠️ ${gone.length} reels look deleted on Instagram (${gone.map((g) => g.title).join(", ")}). That's more likely a token problem than real deletions, so I left the site alone.`).catch(() => {});
+    return;
+  }
+  for (const g of gone) {
+    await deletePostBySlug(g.slug);
+    console.log(`sweep: reel for "${g.slug}" is gone from Instagram — removed from the site`);
+    await sendToChat(`removed "${g.title}" from the site — the reel was deleted on Instagram.`).catch(() => {});
+  }
 }
 
 async function pollComments(s: DmState, now: number) {
