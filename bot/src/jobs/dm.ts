@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { config, REPO_ROOT } from "../config.js";
-import { conversationWith, followsUs, listComments, me, sendMessage, sendPrivateReply, type IgError } from "../lib/ig.js";
+import { conversationWith, followsUs, listComments, listConversations, me, sendMessage, sendPrivateReply, type IgError } from "../lib/ig.js";
 import { publicLinkFor, recentToolPosts } from "../lib/posts.js";
 import { sendToChat } from "./discover.js";
 
@@ -82,10 +82,7 @@ async function selfCheck(): Promise<{ ok: boolean; note?: string }> {
     const posts = await recentToolPosts(30);
     const withMedia = posts.find((p) => p.ig_media_id);
     if (withMedia) await listComments(withMedia.ig_media_id!); // instagram_business_manage_comments
-    // instagram_business_manage_messages — the conversations list needs it even when empty
-    await conversationWith([...ours.ids][0]).catch((e: IgError) => {
-      if (e.status === 400 || e.status === 403 || /permission|scope|OAuth/i.test(e.message)) throw e;
-    });
+    await listConversations(); // instagram_business_manage_messages — needed even when the inbox is empty
     return { ok: true };
   } catch (e: any) {
     return { ok: false, note: String(e.message).slice(0, 300) };

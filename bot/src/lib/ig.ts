@@ -160,6 +160,13 @@ export async function conversationWith(igsid: string): Promise<IgMessage[]> {
   }));
 }
 
+/** One page of our inbox — only used to prove the token carries the messaging scope. (Asking
+ *  for a conversation with our OWN id is rejected as "invalid user ID", so that can't be the
+ *  probe.) */
+export async function listConversations(): Promise<void> {
+  await igGet("me/conversations", { platform: "instagram", fields: "id", limit: "1" });
+}
+
 /** Does this person follow us? Only answerable AFTER they've messaged us — before that Meta
  *  returns "User consent is required" (code 100 / subcode 2534006-ish). Caller handles it. */
 export async function followsUs(igsid: string): Promise<boolean> {
