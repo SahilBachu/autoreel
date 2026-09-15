@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { config, REPO_ROOT } from "../config.js";
-import { conversationWith, followsUs, igGet, listComments, listConversations, me, sendMessage, sendPrivateReply, type IgError } from "../lib/ig.js";
+import { conversationWith, followsUs, igGet, listComments, listConversations, me, replyToComment, sendMessage, sendPrivateReply, type IgError, type QuickReply } from "../lib/ig.js";
 import { deletePostBySlug, postsWithMedia, publicLinkFor, recentToolPosts } from "../lib/posts.js";
 import { sendToChat } from "./discover.js";
 
@@ -20,7 +20,7 @@ import { sendToChat } from "./discover.js";
 // It's a flag on purpose: the gate costs conversion (non-followers get DMs in Requests).
 // Run a week each way and read the numbers before deciding.
 
-type Pending = { igsid: string; slug: string; commentId: string; title: string; link: string; dm1At: string; lastOursAt: string; nudged?: boolean };
+type Pending = { igsid: string; slug: string; commentId: string; title: string; link: string; dm1At: string; lastOursAt: string; nudges?: number };
 type DmState = {
   handled: Record<string, string>; // commentId -> when we replied (never reply twice)
   pending: Record<string, Pending>; // igsid -> waiting on their reply
@@ -47,14 +47,18 @@ function save(s: DmState) {
   }
 }
 
-// the copy — his voice, lowercase, no emoji, nothing that reads like a bot
+// the copy — sahil's wording. The parenthetical is the fallback for anyone whose app doesn't
+// show the button: typing anything does exactly what tapping does.
+const FOLLOWED: QuickReply[] = [{ title: "I've followed", payload: "FOLLOWED" }];
 const copy = {
-  askFollow: (title: string) =>
-    `hey — saw your TOOL comment on the ${title} reel. follow me and reply anything here and i'll send you the link.`,
+  askFollow: () => `hi! please make sure you're following and i'll send you the tool. (reply with anything after following to get the link)`,
   link: (title: string, link: string) => `here you go — ${title}: ${link}`,
-  intro: (title: string, link: string) => `hey — saw your TOOL comment. here's ${title}: ${link}`,
-  nudge: () => `looks like you're not following yet — follow me and reply again and i'll send it right over.`,
+  intro: (title: string, link: string) => `hi! here's ${title}: ${link}`,
+  nudge: () => `looks like you're not following yet — follow, then tap the button (or reply with anything) and i'll send it right over.`,
+  // public, under their comment. Rotated so a dozen identical replies don't read as spam to Instagram.
+  commentReplies: ["Sent, check your DMs", "sent! check your DMs", "just sent it — check your DMs", "Sent 👀 check your DMs"],
 };
+const MAX_NUDGES = 2; // strict gate: stop after this many "not following yet"s
 
 function keywordRe(): RegExp {
   const k = (config.dm.keyword || "TOOL").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -170,12 +174,15 @@ async function pollComments(s: DmState, now: number) {
       if (!re.test(c.text)) continue;
 
       const gate = config.dm.gate;
-      const text = gate === "off" ? copy.intro(post.title, link) : copy.askFollow(post.title);
       try {
-        const { igsid } = await sendPrivateReply(c.id, text);
+        const { igsid, buttons } =
+          gate === "off" ? await sendPrivateReply(c.id, copy.intro(post.title, link)) : await sendPrivateReply(c.id, copy.askFollow(), FOLLOWED);
         s.handled[c.id] = new Date().toISOString();
         s.stats.dm1++;
-        console.log(`dm#1 -> @${c.username ?? "?"} for ${post.slug} (${gate})`);
+        console.log(`dm#1 -> @${c.username ?? "?"} for ${post.slug} (${gate}${gate !== "off" ? `, button ${buttons ? "on" : "rejected"}` : ""})`);
+        // the public "sent, check your DMs" — best effort, never blocks the DM
+        const pub = copy.commentReplies[s.stats.dm1 % copy.commentReplies.length];
+        await replyToComment(c.id, pub).catch((e: any) => console.error(`comment reply failed on ${c.id}:`, e.message));
         if (gate !== "off" && igsid) {
           s.pending[igsid] = { igsid, slug: post.slug, commentId: c.id, title: post.title, link, dm1At: s.handled[c.id], lastOursAt: s.handled[c.id] };
         }
@@ -216,15 +223,15 @@ async function pollReplies(s: DmState, now: number) {
 
     if (follows) {
       await sendLink();
-    } else if (!p.nudged) {
-      await sendMessage(p.igsid, copy.nudge());
-      p.nudged = true;
+    } else if ((p.nudges ?? 0) < MAX_NUDGES) {
+      await sendMessage(p.igsid, copy.nudge(), FOLLOWED);
+      p.nudges = (p.nudges ?? 0) + 1;
       p.lastOursAt = new Date().toISOString();
       s.stats.nudges++;
     } else if (config.dm.gate === "soft") {
-      await sendLink(); // asked once, they came back — good enough
+      await sendLink(); // asked, they came back — good enough
     } else {
-      delete s.pending[p.igsid]; // strict: asked twice, go quiet
+      delete s.pending[p.igsid]; // strict: asked enough times, go quiet
     }
   }
 }

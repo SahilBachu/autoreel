@@ -120,19 +120,50 @@ export async function listComments(mediaId: string): Promise<IgComment[]> {
   }));
 }
 
+export type QuickReply = { title: string; payload: string };
+const toQuickReplies = (q?: QuickReply[]) =>
+  q?.length ? { quick_replies: q.slice(0, 13).map((r) => ({ content_type: "text", title: r.title.slice(0, 20), payload: r.payload })) } : {};
+
 /** The ONE private reply Meta allows per comment (7-day window). Returns the commenter's
- *  Instagram-scoped id, which is what every later call about that person keys on. */
-export async function sendPrivateReply(commentId: string, text: string): Promise<{ igsid?: string }> {
-  const j = await igPostJson(`me/messages`, {
-    recipient: { comment_id: commentId },
-    message: { text: clampMessage(text) },
-  });
-  return { igsid: j.recipient_id ? String(j.recipient_id) : undefined };
+ *  Instagram-scoped id, which is what every later call about that person keys on. Quick-reply
+ *  buttons are attempted; if Meta rejects them on a private reply we resend as plain text
+ *  (a rejected call doesn't use up the one reply). */
+export async function sendPrivateReply(commentId: string, text: string, quick?: QuickReply[]): Promise<{ igsid?: string; buttons: boolean }> {
+  const send = (withButtons: boolean) =>
+    igPostJson(`me/messages`, {
+      recipient: { comment_id: commentId },
+      message: { text: clampMessage(text), ...(withButtons ? toQuickReplies(quick) : {}) },
+    });
+  let j: any;
+  let buttons = !!quick?.length;
+  try {
+    j = await send(buttons);
+  } catch (e: any) {
+    if (!buttons || (e as IgError).subcode === 2534025) throw e; // already replied / invalid comment — not a buttons problem
+    console.error("private reply with quick replies rejected, retrying as plain text:", e.message);
+    buttons = false;
+    j = await send(false);
+  }
+  return { igsid: j.recipient_id ? String(j.recipient_id) : undefined, buttons };
 }
 
 /** A follow-up DM — only legal within 24h of the person's last message to us. */
-export async function sendMessage(igsid: string, text: string): Promise<void> {
-  await igPostJson(`me/messages`, { recipient: { id: igsid }, message: { text: clampMessage(text) } });
+export async function sendMessage(igsid: string, text: string, quick?: QuickReply[]): Promise<void> {
+  await igPostJson(`me/messages`, { recipient: { id: igsid }, message: { text: clampMessage(text), ...toQuickReplies(quick) } });
+}
+
+/** A PUBLIC reply under a comment ("sent, check your DMs"). instagram_business_manage_comments. */
+export async function replyToComment(commentId: string, text: string): Promise<void> {
+  const u = new URL(`${base}/${commentId}/replies`);
+  u.searchParams.set("access_token", token());
+  const r = await fetch(u, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ message: text }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  const j = await r.json();
+  if (!r.ok) throw igError(`IG POST ${commentId}/replies`, r.status, j);
 }
 
 export type IgMessage = { id: string; fromId?: string; createdTime: string; text?: string };
