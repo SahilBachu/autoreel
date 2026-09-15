@@ -155,7 +155,8 @@ async function activateIdea(ctx: any, chat: string, idea: Idea) {
     context,
   });
   learnFromIdea(idea.topic);
-  const head = idea.type === "tool" ? `*${idea.topic}*\n[tool] ${idea.toolUrl ?? "(no url)"}` : `*${idea.topic}*\n[news]`;
+  const src = (idea as { source?: string }).source;
+  const head = (idea.type === "tool" ? `*${idea.topic}*\n[tool] ${idea.toolUrl ?? "(no url)"}` : `*${idea.topic}*\n[news]`) + (src ? `\nseen: ${src}` : "");
   await safeReply(ctx, `${head}\n\n${idea.script}\n\nsend the clip when it's right — or just tell me what to change.`, {
     parse_mode: "Markdown",
   });

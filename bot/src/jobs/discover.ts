@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { claudeJson, claudeSession } from "../lib/claude.js";
 import { scriptPrompt, type PostType } from "../lib/voice.js";
 import { topicBlock } from "../lib/learn.js";
+import { discoveryConfig, signalPack } from "../lib/signals.js";
 import { REPO_ROOT, config } from "../config.js";
 
 // STATION 0 — grounded topic discovery. The tomorrow: stack (topics.md) outranks research;
@@ -22,6 +23,7 @@ export type Found = {
   angle?: string;
   type: PostType;
   toolUrl?: string; // tool cards only — the homepage the researcher actually fetched
+  source?: string; // where it's moving: "r/LocalLLaMA #2 today · Nate Herk video (177k views)"
 };
 
 export type Card = Found & {
@@ -113,33 +115,13 @@ function similarTopics(a: string, b: string): boolean {
   return hit / Math.min(A.size, B.size) >= 0.6;
 }
 
-// rotating hunting grounds so every morning doesn't hunt the same way. Weighted toward
-// TOOLS (7) with news (3) as the minority — that's the page's new shape.
-const LENSES = [
-  "[tool] GitHub trending: a repo suddenly blowing up (stars jumping this week) that a dev could clone and use today",
-  "[tool] Product Hunt: an AI tool launched in the last few days that people are actually upvoting and trying",
-  "[tool] Show HN: a tool someone built and posted, with real discussion in the comments",
-  "[tool] Hugging Face trending: a model/space people are downloading and running, not just talking about",
-  "[tool] a tool circulating on X right now — people posting demos, 'this is insane', screenshots (use the last30days X lane)",
-  "[tool] a niche tool that solves one real dev annoyance (a CLI, an extension, an agent add-on) most people haven't heard of",
-  "[tool] a free/open-source alternative to a paid AI tool that just got good enough to switch to",
-  "[news] a model release or big AI lab announcement from the last 48h",
-  "[news] the big AI story everyone is arguing about right now — money, drama, policy, an outage",
-  "[news] benchmarks: a model quietly topping (or bombing) a leaderboard, or a paper with a wild claim",
-];
-function pickLenses(n = 3): string[] {
-  const pool = [...LENSES];
-  const out: string[] = [];
-  for (let i = 0; i < n && pool.length; i++) out.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
-  return out;
-}
-
 // What "verified" means for each card type. Shared by the morning research and the
 // user-idea check so a tool URL is held to the same standard wherever it comes from.
 const VERIFY_RULES = `For EVERY story: verify it's real via a source you actually fetched/searched — never from memory.
 Set "type":
-- "tool" = a PRODUCT a viewer installs or signs up for and uses themselves: an app, a website,
-  a GitHub repo, a CLI, an extension, an agent add-on, an MCP server. A tool card MUST include
+- "tool" = a THING a viewer can go get and use themselves from one link: an app, a website, a
+  GitHub repo, a CLI, an extension, a Claude/agent skill, an MCP server, a workflow or template
+  someone published. A tool card MUST include
   "toolUrl": the tool's real homepage (or its GitHub repo if that IS the home). You must
   WebFetch that exact URL and see the tool's own page load before returning it — a website and
   a DM autoresponder send people there, so a guessed/dead/redirected URL is worse than no card.
@@ -157,28 +139,38 @@ export async function research(k: number, history: PitchEv[]): Promise<Found[]> 
 them. Only revisit one if something genuinely NEW happened since, and the whyNow must lead
 with what's new:\n${seen.map((p) => `- ${p.topic}${picked.has(p.topic) ? " (he already made a reel on this — story is DONE)" : ""}`).join("\n")}\n`
     : "";
-  const prompt = `Today is ${new Date().toDateString()}. Research what the AI/dev world is talking
-about RIGHT NOW (last 24-48 hours).
+  const cfg = discoveryConfig();
+  const signals = await signalPack();
+  const prompt = `Today is ${new Date().toDateString()}. Find what the AI builder community is ACTIVELY talking
+about right now, for a creator whose page covers AI things people can use (tools, skills, repos,
+workflows) plus the AI news that community is arguing about.
 
-You have real tools:
-- The last30days skill at .claude/skills/last30days (read its SKILL.md; run its scripts with
-  Bash — python3 + node are installed, X cookies are configured in ~/.config/last30days/.env).
-- WebSearch / WebFetch for verification.
+WHAT COUNTS (his words, follow them):
+${cfg.counts}
 
-Find the ${k} most reel-worthy stories for a tech creator whose page is about AI TOOLS people
-can actually go use (apps, repos, models, CLIs, agent add-ons), with AI news/breakthroughs as
-the strong minority. Prioritize: tools people are actually posting demos of, trying and
-arguing about; launches; things that solve a real dev annoyance.${topicBlock()}
-TODAY'S HUNTING GROUNDS (aim roughly one story per lens — the [tool]/[news] tag is the card
-type — this is how the picks stay fresh):
-${pickLenses(Math.max(3, k)).map((l) => `- ${l}`).join("\n")}
+SKIP:
+${cfg.skip}
+
+HERE IS WHAT'S MOVING RIGHT NOW — pulled minutes ago from the creators he follows, the subreddits,
+new GitHub repos and Hacker News. START HERE. The best picks usually show up in this list, or are
+the specific thing a creator video / top post is about (open it and find out what that is):
+${signals}
+
+You also have real tools to dig further and verify:
+- The last30days skill at .claude/skills/last30days (read its SKILL.md; Bash can run its scripts —
+  Reddit, X, YouTube, Hacker News, GitHub and more). Use it to check a candidate is really being
+  talked about, and what people are saying.
+- WebSearch / WebFetch.${topicBlock()}
 ${avoidBlock}
-FRESHNESS RULE: at most ONE story may be the current mega-headline everyone is covering; the
-rest must be things a daily AI-news reader hasn't already seen five times.
+Pick ${k} — mostly things people can use (tools, skills, repos, workflows), at most one news story,
+and never two about the same thing. At most ONE may be a mega-headline everyone is covering.
+Each pick needs a concrete signal; put it in "source" (where you saw it + the number, e.g.
+"r/LocalLLaMA #1 today + Jack Roberts short, 1.5k views").
 ${VERIFY_RULES}
 Return:
 [{"topic":"short specific title","type":"tool"|"news","toolUrl":"https://... (tool only)",
   "whyNow":"1-2 sentences, what it is/what happened + why people care",
+  "source":"where it's moving + the signal",
   "links":["2-3 REAL urls you saw"],"angle":"the hook for this creator — the one line that makes a viewer stop"}]
 Return ONLY the JSON array, exactly ${k} items.`;
   const found = await claudeJson<Found[]>(prompt, {
@@ -361,6 +353,7 @@ export function formatDigest(d: Digest): string {
       [
         `${c.n}) [${c.type ?? "news"}] ${c.topic}`, // pre-typing digests on disk have no type
         c.type === "tool" ? `tool: ${c.toolUrl ?? "(no url — check before posting)"}` : "",
+        c.source ? `seen: ${c.source}` : "",
         `why now: ${c.whyNow}`,
         c.links.length ? c.links.slice(0, 3).join("\n") : "",
         ``,

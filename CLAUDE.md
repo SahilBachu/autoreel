@@ -29,7 +29,12 @@ Telegram Bot API server, whisper, cron all installed). Move the repo to the runn
    the link (follow-gated, see below).
 
 ## The funnel (added 2026-09) — tools first, a site in the bio, comment→DM
-- Every post is typed **`tool` | `news`** by the researcher (`discover.ts`). Tool posts carry a
+- **Discovery is signal-first.** [`DISCOVERY.md`](./DISCOVERY.md) lists the watchlist creators
+  (YouTube feeds), subreddits (RSS), GitHub/HN thresholds and "what counts / skip" — edited by
+  hand, read every run. `bot/src/lib/signals.ts` pulls that into a signal pack the researcher
+  starts from; every card carries a `source` ("where it's moving"). Tool URLs are fetched in code.
+- Every post is typed **`tool` | `news`** by the researcher (`discover.ts`); `news:` / `tool:`
+  in Telegram force it. Models/releases are news. Tool posts carry a
   fetched-and-verified `toolUrl`, end the script with `comment TOOL if you want access`, and
   lead the caption with it. News posts have no CTA. The type flows: card → state → caption →
   `reel_posts` → site → DM.

@@ -10,6 +10,7 @@ export type Idea = {
   type: PostType;
   toolUrl?: string;
   context?: string; // what research found — carried to post time for the site's article
+  source?: string; // where discovery saw it moving
   // research found nothing for the user's description — no script was written; ask first
   unverified?: boolean;
   note?: string;
@@ -59,6 +60,7 @@ export async function generateIdea(
     type: found.type,
     toolUrl: found.toolUrl,
     context: opts.fromDescriptionOnly ? undefined : foundContext(found),
+    source: found.source,
   };
 }
 
