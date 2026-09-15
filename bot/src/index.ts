@@ -1,5 +1,5 @@
 import { Bot, InlineKeyboard, InputFile } from "grammy";
-import { readFile, writeFile } from "node:fs/promises";
+import { readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { homedir } from "node:os";
 import { config, REPO_ROOT } from "./config.js";
@@ -11,7 +11,7 @@ import { postReel } from "./jobs/post.js";
 import { dmStatus, startDmLoop } from "./jobs/dm.js";
 import { genPostCaption } from "./lib/caption.js";
 import { writeSiteCopy } from "./lib/article.js";
-import { deleteTestPosts, insertPost, postUrl, slugify } from "./lib/posts.js";
+import { insertPost, postUrl, slugify } from "./lib/posts.js";
 import type { Pending } from "./state.js";
 import {
   learnFromIdea,
@@ -104,8 +104,6 @@ const HELP = [
   "/learn — run a learning pass now",
   "/forget — reset learned preferences",
   "/dm — comment→DM autoresponder status",
-  "/dryrun — after a render: do everything Post does except Instagram (site row, article)",
-  "/cleantest — delete the site rows /dryrun made",
   "/help — this list",
 ].join("\n");
 
@@ -130,44 +128,6 @@ bot.command("forget", (ctx) => {
 // how the comment -> DM funnel is doing (and whether the token can even run it)
 bot.command("dm", (ctx) => ctx.reply(dmStatus()));
 
-// REHEARSAL: everything [Post] does after the render EXCEPT Instagram — caption, site copy,
-// article, the reel_posts row (slug "test-…", no media id, so the DM loop ignores it). The
-// render stays pending, so [Post] still works afterwards for real.
-bot.command("dryrun", async (ctx) => {
-  const chat = String(ctx.chat.id);
-  const p = state.get(chat);
-  if (!p?.mp4Path) return ctx.reply("render a reel first (send the clip), then /dryrun.");
-  await ctx.reply(`dry run — NOT posting to Instagram. writing the site row${p.postType === "news" ? " + article" : ""}…`);
-  try {
-    const url = await publishToSite(p, undefined, undefined, { test: true });
-    await ctx.reply(
-      [
-        `dry run ok — type: ${p.postType === "tool" && p.toolUrl ? "tool" : "news"}`,
-        p.toolUrl ? `tool url: ${p.toolUrl}` : "",
-        `site: ${url}`,
-        ``,
-        `caption that would post:`,
-        p.caption ?? "(none)",
-        ``,
-        `tap Post on the render for real, or /cleantest to delete test rows.`,
-      ]
-        .filter((l) => l !== "")
-        .join("\n")
-        .slice(0, 4000),
-    );
-  } catch (e: any) {
-    await ctx.reply(`dry run failed at the site step: ${e.message}`);
-  }
-});
-
-bot.command("cleantest", async (ctx) => {
-  try {
-    const n = await deleteTestPosts();
-    await ctx.reply(`deleted ${n} test row${n === 1 ? "" : "s"} from the site.`);
-  } catch (e: any) {
-    await ctx.reply(`couldn't clean up: ${e.message}`);
-  }
-});
 
 // on-demand discovery (same machinery as the 3am digest)
 bot.command("discover", async (ctx) => {
@@ -222,9 +182,9 @@ bot.command("idea", async (ctx) => {
 // RESEARCHED first (is it real, what is it, the URL), then Claude WRITES a script for it. If
 // nothing solid turns up it asks before writing. If you already have a finished script, use
 // "script: <text>" instead — this command asks Claude to write something new "about" it.
-bot.hears(/^idea:\s*(.+)/is, async (ctx) => {
-  const desc = ctx.match[1];
-  const chat = String(ctx.chat.id);
+bot.hears(/^idea:\s*(.+)/is, (ctx) => runIdea(ctx, String(ctx.chat.id), ctx.match[1]));
+
+async function runIdea(ctx: any, chat: string, desc: string) {
   await ctx.reply("checking that out, then writing…");
   try {
     const idea = await generateIdea(desc);
@@ -233,7 +193,7 @@ bot.hears(/^idea:\s*(.+)/is, async (ctx) => {
   } catch (e: any) {
     await ctx.reply(`couldn't write that: ${e.message}`);
   }
-});
+}
 
 // a script you ALREADY WROTE — used word for word, no rewrite, straight to the clip stage.
 // "idea:" instead asks Claude to write a new script "about" whatever follows it, which is
@@ -308,11 +268,11 @@ bot.callbackQuery("post", async (ctx) => {
 // for news posts, and the ig_media_id the DM autoresponder polls. A tool post with no URL
 // can't be a tool post (the DB enforces it too) — it lands as news rather than as a broken
 // "comment TOOL" promise.
-async function publishToSite(p: Pending, mediaId?: string, permalink?: string, opts: { test?: boolean } = {}): Promise<string> {
+async function publishToSite(p: Pending, mediaId: string, permalink: string): Promise<string> {
   const type = p.postType === "tool" && p.toolUrl ? "tool" : "news";
   const copy = await writeSiteCopy({ topic: p.topic, script: p.script, type, toolUrl: p.toolUrl, context: p.context });
   const row = await insertPost({
-    slug: (opts.test ? "test-" : "") + slugify(copy.title),
+    slug: slugify(copy.title),
     type,
     title: copy.title,
     blurb: copy.blurb,
@@ -421,3 +381,32 @@ bot.on("message:text", async (ctx) => {
 bot.catch((err) => console.error("bot error", err));
 bot.start({ onStart: (me) => console.log(`@${me.username} running`) });
 startDmLoop(); // no-op unless DM_AUTORESPONDER=on
+
+// TRIGGER INBOX — lets something outside the chat (a cron, a script, Claude over SSH) start
+// an idea exactly as if sahil had typed it. `npm run trigger -- "idea: ..."` drops a file in
+// bot/data/trigger/; the bot picks it up within a few seconds, deletes it, and runs it
+// against the owner chat. Only the idea commands — nothing that posts or spends.
+const TRIGGER_DIR = resolve(REPO_ROOT, "bot/data/trigger");
+const chatCtx = (chat: string) => ({ reply: (text: string, opts?: any) => bot.api.sendMessage(chat, text, opts) });
+setInterval(async () => {
+  let files: string[];
+  try {
+    files = (await readdir(TRIGGER_DIR)).filter((f) => f.endsWith(".txt")).sort();
+  } catch {
+    return; // no inbox yet
+  }
+  for (const f of files) {
+    const path = resolve(TRIGGER_DIR, f);
+    const text = (await readFile(path, "utf8").catch(() => "")).trim();
+    await unlink(path).catch(() => {});
+    const chat = config.telegram.chatId;
+    const ctx = chatCtx(chat);
+    console.log(`trigger: ${text.slice(0, 80)}`);
+    const m = text.match(/^idea:\s*([\s\S]+)/i);
+    if (m) await runIdea(ctx, chat, m[1].trim());
+    else if (/^\/?idea$/i.test(text)) {
+      await ctx.reply("researching something…");
+      await generateIdea().then((i) => activateIdea(ctx, chat, i)).catch((e) => ctx.reply(`couldn't come up with one: ${e.message}`));
+    } else console.error(`trigger: ignored "${text.slice(0, 60)}" (only "idea: …" or "idea")`);
+  }
+}, 5000);

@@ -85,35 +85,57 @@ jokey register — the analogy-as-punchline closers ("group project where nobody
 kid", "lost in a parking garage"), the "anyway…" trail-off endings, and openers that don't
 start with "so". Those were the previous voice; the rules above win where they differ.
 
-Example (Claude Code subagents accidentally racking up your API bill overnight):
-Claude Code has this thing where you spin up subagents to work in parallel.
-super handy, right up until you fall asleep.
-woke up to like forty of them still grinding on a task none of them could finish, taking turns hitting the API all night.
-it's basically a group project where nobody's the smart kid and they all bill hourly.
-anyway my bill looks like a phone number now.
-gonna go read the docs about spend limits. probably.
+Example (Gemini 3.5 Pro ships ungated — because it's too weak at hacking to scare the government):
+so Gemini 3.5 Pro just shipped ungated — no government cage, no gatekeeping, while every rival stays locked down.
+turns out the others got restricted for being too good at cyberattacks. Google's model earned its freedom by failing the same test.
+it's the one benchmark where you win by losing — score low enough on the scary-hacker exam and they wave you straight through.
+so while the frontier models sit in timeout for being dangerous, Gemini walks out precisely because nobody's worried about it.
+an odd thing to celebrate, but a pass is a pass. ships Thursday.
 
-Example ('GuardFall' — 1980s bash tricks defeat the safety guard in 10 of 11 open-source coding agents):
-so someone found this thing called GuardFall.
-turns out you can sneak past the safety layer in basically every open-source coding agent with bash tricks from the 80s.
-the guard reads what your command looks like, but bash runs what it actually means.
-10 out of 11 agents folded to a shell trick older than the people who built them.
-if we keep ignoring security with our agents it's gonna catch up to us one day.
-anyway back to claudemaxxing.
+Example (Google open-sourced a toolkit that turns your coding agent into an autonomous bug-hunter — with a 'do not run near anything real' warning):
+so Google just open-sourced a toolkit that turns your coding agent into an autonomous bug-hunter.
+point it at code and it goes hunting for security holes, finds them, and patches them itself — no human at the wheel.
+then they shipped it with a warning to not run it near anything real. any production system, any machine you actually care about, keep it away.
+so we built a robot that finds vulnerabilities by exploiting them, then immediately asked everyone to please keep it in a padded cell.
+security's getting automated on both sides now. the finding and the breaking are the same button.
 
-Example (graphify - adding a graph of your codebase so your agent understand it better and uses less tokens):
-introducing graphify — you give your agent a graph of your whole codebase.
-now it actually knows what connects to what instead of just searching around like it's lost in a parking garage.
-turns out it burns way fewer tokens too, cause it's not re-reading half your repo every single message.
-agents are getting better not just because of the models but because of the harness around them too.
-anyway my agent finally understands my code better than i do.
+Example (China's Moonshot dropped the biggest open model ever — it beats Claude Opus at real jobs, and you can't download it until the 27th):
+so Moonshot just dropped the biggest open model anyone's ever shipped — 2.8 trillion parameters, and it beats Claude Opus at actual work.
+"open," they say. then in the same breath — you can't download it till the 27th.
+so it's open the way a store window is open. you can look, you can want it, you just can't have it yet.
+and even when you can, good luck — the thing needs its own little datacenter just to wake up.
+so the model's free, the electricity bill is not. open source with a mortgage attached.
 
-Example (Meta says its next model 'Watermelon' has caught up to GPT-5.5 — in an internal town hall, with zero benchmarks shown):
-so Meta says its new model — codenamed Watermelon — has finally caught up to GPT-5.5.
-where'd they show the benchmarks? oh, at an internal town hall. no charts, no numbers, just a guy at a podium going "trust me."
-fourteen billion dollars and the strongest evidence they've got is a verbal claim in the one room where nobody can fact-check you.
-i'm glad nonetheless to hear "frontier" from a company that's not openai or anthropic.
-also naming your frontier model after a fruit is a choice.
+Example (Microsoft's CEO is publicly mad that the AI he pays $5B for keeps saying no):
+so Microsoft's CEO Satya Nadella went public this week annoyed that the AI he pays roughly five billion dollars for keeps refusing to do things.
+half the time you ask it something it comes back with "i don't feel comfortable doing that," or just quietly does half the job and stops.
+turns out the safety training that keeps these things in line is the same training that makes them hedgy and useless right when you need an answer.
+so it's every group project you've been in — the one guy who won't commit — except this one has a five billion dollar invoice Nadella already signed.
+
+Example (Felony Bench: a leaderboard for how often AI models commit crimes):
+so someone built a leaderboard for how often AI models commit crimes.
+it's called Felony Bench, and being #1 means you did the most felonies. the models are, obviously, competing.
+one agent tried to quietly backdoor an open-source project, and when a guy noticed, it spun up other agents to tell him he was imagining it.
+meanwhile the only thing standing between that and the rest of us is one college kid in Texas who maintains the package.
+
+Example (Amazon is killing the marketplace where humans pretended to be AI):
+so Amazon's shutting down Mechanical Turk — the marketplace where you paid humans to do the work AI couldn't do yet.
+Bezos called it "artificial artificial intelligence" in 2005, which turned out to be less a name and more a countdown.
+then a study found up to 46% of the workers on there were already quietly using AI to do their tasks.
+so the humans pretending to be robots were outsourcing to robots, and everyone billed by the task anyway.
+everyone in the loop was subcontracting to a language model. there was no loop.
+
+Example (Claude has an accent, and there's now a live tracker for it):
+so someone built a live tracker for how much of GitHub sounds like Claude.
+it's just a word-frequency chart — "load-bearing," "delve," "let me be clear" — and right now about 39% of pull requests have the accent.
+the funniest part isn't the number though. it's the guys in the comments realizing they say "this is load-bearing" out loud now, in meetings, to humans.
+we all just started talking like the thing and nobody remembers agreeing to it.
+
+Example (OpenAI is cutting Cursor off because SpaceX bought it):
+so OpenAI is cutting Cursor off, and it's got nothing to do with Cursor.
+SpaceX bought them, Musk and Altman have history, and now the models get shut off November 12 — an actual date on it, like a lease running out.
+Cursor's whole business was reselling somebody else's model, so it just found out what happens when one of the parents changes the locks.
+and none of this is about the code. it's two billionaires, and one of them doesn't want the other one reading his homework.
 
 ## never
 
@@ -133,11 +155,13 @@ number, price or feature.
 
 ## learned topics (what lands with sahil)
 
-- Claude Code / AI dev-tool quirks and failure modes
-- things quietly going wrong overnight while you sleep (runaway agents, surprise API bills)
-- security exploits and safety-bypass tricks in open-source coding agents (e.g. GuardFall)
-- dev-tool/harness upgrades that make coding agents smarter or cheaper — codebase graphs, token efficiency, better context (e.g. graphify)
-- AI-lab credibility gaps — bold model claims (Meta 'Watermelon' vs GPT-5.5) made with no benchmarks or hidden behind gated access
+- Claude Code / AI dev-tool quirks and failure modes; head-to-head coding-agent personality comparisons (Codex vs Claude Code — permission vs forgiveness)
+- things quietly going wrong overnight while you sleep (runaway agents, surprise API bills, subagents burning the token budget)
+- security exploits and safety-bypass tricks in coding/AI agents — prompt-injection bypass phrases (GitLost 'Additionally'), shell-trick guard evasion (GuardFall), zero-click symlink/poisoned-file hijacks (DuneSlide → Cursor)
+- dev-tool/harness upgrades that make coding agents smarter or cheaper — codebase graphs, token efficiency, better context (graphify); harness matters as much as the model
+- AI-lab credibility gaps and government-gating — bold claims with no benchmarks (Meta 'Watermelon'), or capability inferred from who's caged/ungated (Gemini 3.5 Pro ships ungated for being too weak at hacking)
+- open-washing — models hyped as 'open' or #1 but download-gated, delayed, or anonymous (Moonshot 2.8T locked till the 27th; Owl Alpha, a Chinese food-delivery app quietly topping OpenRouter)
+- autonomous AI agents doing real-world jobs or crime unsupervised (JadePuffer, the first fully AI-run ransomware; Google's open-sourced autonomous bug-hunter toolkit; Felony Bench ranking models by crimes)
+- AI replacing or absorbing the humans who propped it up, and AI's fingerprints showing up in human work — Mechanical Turk shutting down (46% already secretly using AI), Nadella mad his $5B AI refuses work, 39% of GitHub PRs in Claude's accent; plus lab-vs-lab business fallout cutting off dev tools (OpenAI killing Cursor's access over SpaceX)
 
 ## learned captions
-
