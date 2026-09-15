@@ -123,7 +123,7 @@ export async function listComments(mediaId: string): Promise<IgComment[]> {
 /** The ONE private reply Meta allows per comment (7-day window). Returns the commenter's
  *  Instagram-scoped id, which is what every later call about that person keys on. */
 export async function sendPrivateReply(commentId: string, text: string): Promise<{ igsid?: string }> {
-  const j = await igPostJson(`${userId()}/messages`, {
+  const j = await igPostJson(`me/messages`, {
     recipient: { comment_id: commentId },
     message: { text: clampMessage(text) },
   });
@@ -132,7 +132,7 @@ export async function sendPrivateReply(commentId: string, text: string): Promise
 
 /** A follow-up DM — only legal within 24h of the person's last message to us. */
 export async function sendMessage(igsid: string, text: string): Promise<void> {
-  await igPostJson(`${userId()}/messages`, { recipient: { id: igsid }, message: { text: clampMessage(text) } });
+  await igPostJson(`me/messages`, { recipient: { id: igsid }, message: { text: clampMessage(text) } });
 }
 
 export type IgMessage = { id: string; fromId?: string; createdTime: string; text?: string };
@@ -167,10 +167,12 @@ export async function followsUs(igsid: string): Promise<boolean> {
   return Boolean(j.is_user_follow_business);
 }
 
-/** Our own account — the cheapest "is this token alive" check. */
-export async function me(): Promise<{ id: string; username?: string }> {
-  const j = await igGet("me", { fields: "id,username" });
-  return { id: String(j.id), username: j.username };
+/** Our own account — the cheapest "is this token alive" check. The API hands out TWO ids for
+ *  the same account (the app-scoped `id` and the professional `user_id`), and comments /
+ *  messages can carry either — so callers get both. */
+export async function me(): Promise<{ id: string; userId?: string; username?: string }> {
+  const j = await igGet("me", { fields: "id,user_id,username" });
+  return { id: String(j.id), userId: j.user_id ? String(j.user_id) : undefined, username: j.username };
 }
 
 /** Our recent media ids, newest first. */

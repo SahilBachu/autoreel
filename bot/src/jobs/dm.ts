@@ -65,19 +65,25 @@ function keywordRe(): RegExp {
 // error, just "not yet". Anything else IS an error and should surface.
 const isConsentError = (e: IgError) => /consent/i.test(e.message);
 
-let ourId = "";
+// every id Meta might use for our own account (see me() in ig.ts) + our username
+let ours = { ids: new Set<string>(), username: "" };
+const isOurs = (id?: string, username?: string) =>
+  (id !== undefined && ours.ids.has(id)) || (!!username && username === ours.username);
+async function loadOurs() {
+  const m = await me();
+  ours = { ids: new Set([m.id, m.userId, config.ig.userId].filter(Boolean) as string[]), username: m.username ?? "" };
+}
 
 // Can this token do what the funnel needs? Cheap, read-only, and the answer goes to Telegram
 // so a missing scope never fails silently for a week.
 async function selfCheck(): Promise<{ ok: boolean; note?: string }> {
   try {
-    const m = await me();
-    ourId = m.id;
+    await loadOurs();
     const posts = await recentToolPosts(30);
     const withMedia = posts.find((p) => p.ig_media_id);
     if (withMedia) await listComments(withMedia.ig_media_id!); // instagram_business_manage_comments
     // instagram_business_manage_messages — the conversations list needs it even when empty
-    await conversationWith(ourId).catch((e: IgError) => {
+    await conversationWith([...ours.ids][0]).catch((e: IgError) => {
       if (e.status === 400 || e.status === 403 || /permission|scope|OAuth/i.test(e.message)) throw e;
     });
     return { ok: true };
@@ -103,7 +109,7 @@ export async function dmTick(): Promise<void> {
     save(s);
     if (!c.ok) return;
   }
-  if (!ourId) ourId = (await me()).id;
+  if (!ours.ids.size) await loadOurs();
 
   try {
     await pollComments(s, now);
@@ -132,7 +138,7 @@ async function pollComments(s: DmState, now: number) {
     });
     for (const c of comments) {
       if (s.handled[c.id]) continue;
-      if (c.fromId && c.fromId === ourId) continue; // our own replies
+      if (isOurs(c.fromId, c.username)) continue; // our own replies
       if (c.timestamp && now - new Date(c.timestamp).getTime() > 7 * DAY) continue; // outside the reply window anyway
       if (!re.test(c.text)) continue;
 
@@ -162,7 +168,7 @@ async function pollReplies(s: DmState, now: number) {
       return [];
     });
     const since = new Date(p.lastOursAt).getTime();
-    const theirs = msgs.find((m) => m.fromId && m.fromId !== ourId && new Date(m.createdTime).getTime() > since);
+    const theirs = msgs.find((m) => m.fromId && !isOurs(m.fromId) && new Date(m.createdTime).getTime() > since);
     if (!theirs) continue;
 
     let follows: boolean | undefined;

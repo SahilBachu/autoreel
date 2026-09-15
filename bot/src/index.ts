@@ -11,7 +11,7 @@ import { postReel } from "./jobs/post.js";
 import { dmStatus, startDmLoop } from "./jobs/dm.js";
 import { genPostCaption } from "./lib/caption.js";
 import { writeSiteCopy } from "./lib/article.js";
-import { insertPost, postUrl, slugify } from "./lib/posts.js";
+import { deleteTestPosts, insertPost, postUrl, slugify } from "./lib/posts.js";
 import type { Pending } from "./state.js";
 import {
   learnFromIdea,
@@ -104,6 +104,8 @@ const HELP = [
   "/learn — run a learning pass now",
   "/forget — reset learned preferences",
   "/dm — comment→DM autoresponder status",
+  "/dryrun — after a render: do everything Post does except Instagram (site row, article)",
+  "/cleantest — delete the site rows /dryrun made",
   "/help — this list",
 ].join("\n");
 
@@ -127,6 +129,45 @@ bot.command("forget", (ctx) => {
 
 // how the comment -> DM funnel is doing (and whether the token can even run it)
 bot.command("dm", (ctx) => ctx.reply(dmStatus()));
+
+// REHEARSAL: everything [Post] does after the render EXCEPT Instagram — caption, site copy,
+// article, the reel_posts row (slug "test-…", no media id, so the DM loop ignores it). The
+// render stays pending, so [Post] still works afterwards for real.
+bot.command("dryrun", async (ctx) => {
+  const chat = String(ctx.chat.id);
+  const p = state.get(chat);
+  if (!p?.mp4Path) return ctx.reply("render a reel first (send the clip), then /dryrun.");
+  await ctx.reply(`dry run — NOT posting to Instagram. writing the site row${p.postType === "news" ? " + article" : ""}…`);
+  try {
+    const url = await publishToSite(p, undefined, undefined, { test: true });
+    await ctx.reply(
+      [
+        `dry run ok — type: ${p.postType === "tool" && p.toolUrl ? "tool" : "news"}`,
+        p.toolUrl ? `tool url: ${p.toolUrl}` : "",
+        `site: ${url}`,
+        ``,
+        `caption that would post:`,
+        p.caption ?? "(none)",
+        ``,
+        `tap Post on the render for real, or /cleantest to delete test rows.`,
+      ]
+        .filter((l) => l !== "")
+        .join("\n")
+        .slice(0, 4000),
+    );
+  } catch (e: any) {
+    await ctx.reply(`dry run failed at the site step: ${e.message}`);
+  }
+});
+
+bot.command("cleantest", async (ctx) => {
+  try {
+    const n = await deleteTestPosts();
+    await ctx.reply(`deleted ${n} test row${n === 1 ? "" : "s"} from the site.`);
+  } catch (e: any) {
+    await ctx.reply(`couldn't clean up: ${e.message}`);
+  }
+});
 
 // on-demand discovery (same machinery as the 3am digest)
 bot.command("discover", async (ctx) => {
@@ -267,11 +308,11 @@ bot.callbackQuery("post", async (ctx) => {
 // for news posts, and the ig_media_id the DM autoresponder polls. A tool post with no URL
 // can't be a tool post (the DB enforces it too) — it lands as news rather than as a broken
 // "comment TOOL" promise.
-async function publishToSite(p: Pending, mediaId: string, permalink: string): Promise<string> {
+async function publishToSite(p: Pending, mediaId?: string, permalink?: string, opts: { test?: boolean } = {}): Promise<string> {
   const type = p.postType === "tool" && p.toolUrl ? "tool" : "news";
   const copy = await writeSiteCopy({ topic: p.topic, script: p.script, type, toolUrl: p.toolUrl, context: p.context });
   const row = await insertPost({
-    slug: slugify(copy.title),
+    slug: (opts.test ? "test-" : "") + slugify(copy.title),
     type,
     title: copy.title,
     blurb: copy.blurb,

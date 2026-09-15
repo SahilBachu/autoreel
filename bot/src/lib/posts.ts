@@ -60,6 +60,17 @@ export async function insertPost(p: ReelPost): Promise<ReelPost> {
   throw new Error(`reel_posts insert failed: could not find a free slug for "${baseSlug}"`);
 }
 
+/** Rows written by /dryrun (slug starts with "test-", no ig_media_id). Returns how many went. */
+export async function deleteTestPosts(): Promise<number> {
+  const { url, headers } = rest();
+  const u = new URL(url);
+  u.searchParams.set("slug", "like.test-*");
+  u.searchParams.set("ig_media_id", "is.null");
+  const r = await fetch(u, { method: "DELETE", headers: { ...headers, prefer: "return=representation" }, signal: AbortSignal.timeout(20_000) });
+  if (!r.ok) throw new Error(`reel_posts delete failed: ${r.status} ${(await r.text()).slice(0, 200)}`);
+  return ((await r.json()) as unknown[]).length;
+}
+
 /** Tool posts from the last N days that made it to Instagram — the ones worth polling for
  *  TOOL comments. */
 export async function recentToolPosts(days = 7): Promise<ReelPost[]> {
