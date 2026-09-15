@@ -1,0 +1,21 @@
+---
+import Legal from "../components/Legal.astro";
+import { site, instagramUrl } from "../config";
+---
+
+<Legal title="Data deletion" updated="15 September 2026">
+  <p>
+    The only personal data this system handles is what's described in the
+    <a href="/privacy">privacy policy</a>: the IDs needed to reply to a comment on one of my reels.
+    It's deleted automatically after 14 days.
+  </p>
+  <p>If you want it removed sooner:</p>
+  <ul>
+    <li>Message <a href={instagramUrl} rel="noopener">@{site.handle}</a> on Instagram and say "delete my data".</li>
+    <li>Anything tied to your Instagram account is removed within 7 days, and I'll reply to confirm.</li>
+  </ul>
+  <p>
+    You can also remove this app's access at any time from Instagram: Settings → Security →
+    Apps and websites.
+  </p>
+</Legal>

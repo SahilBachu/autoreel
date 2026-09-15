@@ -1,0 +1,43 @@
+---
+import Legal from "../components/Legal.astro";
+import { site, instagramUrl } from "../config";
+---
+
+<Legal title="Privacy policy" updated="15 September 2026">
+  <p>
+    This site and its Instagram automation are run by @{site.handle}, one person. This page covers
+    what gets collected when you visit this site or comment on one of my reels, and nothing is
+    sold or shared for advertising.
+  </p>
+
+  <h2>This website</h2>
+  <ul>
+    <li>No accounts, no sign-up, no cookies.</li>
+    <li>
+      Visits are counted with Cloudflare Web Analytics, which is cookieless and doesn't track you
+      across sites. It records aggregate things like page views, referrer, country and device type.
+    </li>
+    <li>When you tap a tool, a click counter for that tool goes up by one. It doesn't record who you are.</li>
+  </ul>
+
+  <h2>Comments and direct messages on Instagram</h2>
+  <p>
+    If you comment the keyword on one of my reels, an automated system replies to you by direct
+    message with the link you asked for. To do that it uses Instagram's official API and handles:
+  </p>
+  <ul>
+    <li>the ID of your comment and your Instagram-scoped user ID, so it replies once and not twice;</li>
+    <li>whether you follow my account, checked only after you message back, to decide whether to send the link;</li>
+    <li>the messages in that one conversation, only to notice that you replied.</li>
+  </ul>
+  <p>
+    Those IDs are stored for at most 14 days and then deleted. Message contents aren't stored.
+    Nothing is used for anything other than sending you the link.
+  </p>
+
+  <h2>Deleting your data</h2>
+  <p>See <a href="/data-deletion">data deletion</a>.</p>
+
+  <h2>Contact</h2>
+  <p>Message <a href={instagramUrl} rel="noopener">@{site.handle}</a> on Instagram.</p>
+</Legal>
