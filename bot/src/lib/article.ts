@@ -1,5 +1,5 @@
 import { claude } from "./claude.js";
-import { voiceDoc, type PostType } from "./voice.js";
+import { stripAiTells, voiceDoc, type PostType } from "./voice.js";
 import { WRITER_TOOLS } from "../jobs/discover.js";
 import { REPO_ROOT } from "../config.js";
 
@@ -23,7 +23,8 @@ LONG-FORM RULES (this is a short read on his website — NOT a reel script):
 - Every fact verified — you have web tools, use them. Real names, real numbers. Nothing invented.
   If the script leaned on a claim you can't verify, drop the claim, don't dress it up.
 - Ends when the point lands. No summary paragraph, no "time will tell", no question to the reader.
-- Everything in VOICE.md's "sounds like AI" list applies double here.`.trim();
+- Everything in VOICE.md's "sounds like AI" list applies double here. Especially: NOT ONE EM DASH
+  or en dash in the whole article. Commas and full stops only. Long prose is where they creep in.`.trim();
 
 export async function writeSiteCopy(args: {
   topic: string;
@@ -66,9 +67,9 @@ BLURB: <the blurb on one line>${news ? `\nARTICLE:\n<the article, plain paragrap
   const { title, blurb, article } = parseSiteCopy(raw);
   if (news && !article) throw new Error(`article came back empty (model returned ${raw.length} chars)`);
   return {
-    title: (title || args.topic).trim().slice(0, 120),
-    blurb: blurb.trim().slice(0, 200),
-    article: news ? article : undefined,
+    title: stripAiTells(title || args.topic).trim().slice(0, 120),
+    blurb: stripAiTells(blurb).trim().slice(0, 200),
+    article: news ? stripAiTells(article) : undefined,
   };
 }
 

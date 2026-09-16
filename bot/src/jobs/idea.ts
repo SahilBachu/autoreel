@@ -1,5 +1,5 @@
 import { claude, claudeSession } from "../lib/claude.js";
-import { REVISE_TOOLS_LINE, revisePrompt, scriptPrompt, type PostType } from "../lib/voice.js";
+import { REVISE_TOOLS_LINE, revisePrompt, scriptPrompt, stripAiTells, type PostType } from "../lib/voice.js";
 import { REPO_ROOT } from "../config.js";
 import { WRITER_TOOLS, foundContext, logPitch, readPitchLog, research, verifyTopic, type Found } from "./discover.js";
 
@@ -55,7 +55,7 @@ export async function generateIdea(
   );
   return {
     topic: found.topic,
-    script: text.trim(),
+    script: stripAiTells(text.trim()),
     sessionId,
     type: found.type,
     toolUrl: found.toolUrl,
@@ -79,11 +79,11 @@ export async function reviseScript(
         `Revise the current script. Change requested: ${feedback}\n${REVISE_TOOLS_LINE}\nOutput ONLY the revised script lines — no preamble, no 'Sources:' block.`,
         { model: "opus", resume: sessionId, tools: WRITER_TOOLS, cwd: REPO_ROOT },
       );
-      if (text) return { script: text.trim(), sessionId: sid ?? sessionId };
+      if (text) return { script: stripAiTells(text.trim()), sessionId: sid ?? sessionId };
     } catch {
       /* fall through to cold revision */
     }
   }
-  const script = (await claude(revisePrompt(topic, currentScript, feedback), { model: "opus", tools: WRITER_TOOLS, cwd: REPO_ROOT })).trim();
+  const script = stripAiTells((await claude(revisePrompt(topic, currentScript, feedback), { model: "opus", tools: WRITER_TOOLS, cwd: REPO_ROOT })).trim());
   return { script };
 }

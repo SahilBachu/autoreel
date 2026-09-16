@@ -1,5 +1,5 @@
 import { claude } from "./claude.js";
-import { voiceSection, type PostType } from "./voice.js";
+import { stripAiTells, voiceSection, type PostType } from "./voice.js";
 import { captionStrategy, KEYWORDS, hashtagPalette } from "./growth.js";
 import { captionBlock } from "./learn.js";
 
@@ -26,5 +26,5 @@ ${hashtagPalette()}
 ${captionBlock()}
 Output ONLY the finished caption (the lines, then a blank line, then the 5 hashtags). No
 preamble, no quotes, no explanation.`;
-  return (await claude(prompt)).trim();
+  return stripAiTells((await claude(prompt)).trim());
 }

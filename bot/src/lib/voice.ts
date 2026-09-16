@@ -87,5 +87,29 @@ export function revisePrompt(topic: string, currentScript: string, feedback: str
   ].join("\n");
 }
 
+// Models reach for em dashes constantly, and a rule in the prompt only mostly works — so every
+// piece of writing that reaches the outside world (script, caption, title, blurb, article) gets
+// run through this on the way out. Dashes become the punctuation a person would have typed:
+// a comma mid-sentence, a colon when the dash was introducing something, nothing at the edges.
+export function stripAiTells(text: string): string {
+  return (
+    text
+      // a number range ("350–500", "3–4 min") is a hyphen, not a tell
+      .replace(/(\d)\s*[—–]\s*(\d)/g, "$1-$2")
+      // " — " / " – " between clauses -> comma
+      .replace(/\s+[—–]\s+/g, ", ")
+      // "word—word" with no spaces -> a plain hyphenated pair or a comma
+      .replace(/(\w)[—–](\w)/g, "$1, $2")
+      // leftovers at the start or end of a line
+      .replace(/^\s*[—–]\s*/gm, "")
+      .replace(/\s*[—–]\s*$/gm, "")
+      // the cleanup above can double up punctuation
+      .replace(/,\s*,/g, ",")
+      .replace(/([,.:;!?])\s*,/g, "$1")
+      .replace(/\s+([,.])/g, "$1")
+      .replace(/[ \t]{2,}/g, " ")
+  );
+}
+
 // the one-liner appended to a RESUMED-session revision (the session already has VOICE.md)
 export const REVISE_TOOLS_LINE = `You still have WebSearch/WebFetch/Bash — if the change needs a fact checked, check it; don't guess.`;

@@ -10,8 +10,7 @@ import { renderReel } from "./jobs/render.js";
 import { postReel } from "./jobs/post.js";
 import { dmStatus, startDmLoop } from "./jobs/dm.js";
 import { genPostCaption } from "./lib/caption.js";
-import { writeSiteCopy } from "./lib/article.js";
-import { insertPost, postUrl, slugify } from "./lib/posts.js";
+import { drainSiteQueue, pendingSiteJobs, publishWithRetry, startSiteQueue } from "./jobs/site-queue.js";
 import type { Pending } from "./state.js";
 import {
   learnFromIdea,
@@ -105,7 +104,7 @@ const HELP = [
   "/learn — run a learning pass now",
   "/forget — reset learned preferences",
   "/dm — comment→DM autoresponder status",
-  "/retrysite — re-add the last posted reel to the site (if that step failed)",
+  "/retrysite — force the site retry now (it already retries on its own)",
   "/help — this list",
 ].join("\n");
 
@@ -134,19 +133,22 @@ bot.command("dm", (ctx) => ctx.reply(dmStatus()));
 bot.command("retrysite", (ctx) => retrySite(ctx));
 
 async function retrySite(ctx: any) {
+  const queued = pendingSiteJobs();
+  if (queued.length) {
+    await ctx.reply(`retrying ${queued.length} queued post${queued.length === 1 ? "" : "s"} now…`);
+    await drainSiteQueue(true);
+    const left = pendingSiteJobs();
+    return ctx.reply(left.length ? `${left.length} still failing — last error: ${left[0].lastError?.slice(0, 200)}` : "all caught up.");
+  }
   let last: LastPost;
   try {
     last = JSON.parse(await readFile(LAST_POST, "utf8"));
   } catch {
-    return ctx.reply("nothing to retry — I only keep the most recent post.");
+    return ctx.reply("nothing to retry — nothing queued and no recent post on file.");
   }
-  await ctx.reply(`retrying the site row for "${last.p.topic}"${last.p.postType === "news" ? " — writing the article" : ""}…`);
-  try {
-    const url = await publishToSite(last.p, last.mediaId, last.permalink);
-    await ctx.reply(`on the site: ${url}`);
-  } catch (e: any) {
-    await ctx.reply(`still failing: ${e.message}`);
-  }
+  await ctx.reply(`nothing queued. retrying the last post, "${last.p.topic}"${last.p.postType === "news" ? " — writing the article" : ""}…`);
+  const r = await publishWithRetry(last.p, last.mediaId, last.permalink);
+  await ctx.reply(r.url ? `on the site: ${r.url}` : `still failing: ${String(r.error).slice(0, 200)}`);
 }
 
 // on-demand discovery (same machinery as the 3am digest)
@@ -274,26 +276,21 @@ bot.callbackQuery("post", async (ctx) => {
     learnFromPost(p.topic, p.script).catch(() => {}); // approved = strongest signal; learn in bg
     state.clear(chat); // the reel is done regardless of what the site does next
 
-    // the site row — a failure here must never read as a failed post
-    try {
-      const site = await publishToSite(p, mediaId, permalink);
-      await set(`*Posted:*\n${permalink}\n\n*On the site:*\n${site}`);
-    } catch (e: any) {
-      console.error("site publish failed:", e);
-      await set(`*Posted:*\n${permalink}\n\n_site: couldn't add it (${String(e.message).slice(0, 160)}) — the reel is live, the site row isn't._`);
-    }
+    // the site row — a failure here must never read as a failed post, and it retries itself
+    const r = await publishWithRetry(p, mediaId, permalink, (note) => set(`*Posted:*\n${permalink}\n\n_${note}_`));
+    if (r.url) await set(`*Posted:*\n${permalink}\n\n*On the site:*\n${r.url}`);
+    else if (r.queued)
+      await set(`*Posted:*\n${permalink}\n\n_site: couldn't add it yet (${String(r.error).slice(0, 120)}). I'll keep retrying in the background and tell you when it lands._`);
+    else await set(`*Posted:*\n${permalink}\n\n_site: ${String(r.error).slice(0, 160)} — retrying won't fix that one. /retrysite once it's sorted._`);
   } catch (e: any) {
     state.patch(chat, { posting: false });
     await set(`*Post failed:* ${e.message}\nTap Post again to retry, or Redo.`);
   }
 });
 
-// One reel_posts row per published reel: title + blurb for its block on the site, an article
-// for news posts, and the ig_media_id the DM autoresponder polls. A tool post with no URL
-// can't be a tool post (the DB enforces it too) — it lands as news rather than as a broken
-// "comment TOOL" promise.
 // [Post] clears the chat state, so a site-step failure used to strand the reel: published on
-// Instagram, missing from the site, with nothing left to retry from. Keep just enough on disk.
+// Instagram, missing from the site, with nothing left to retry from. Keep just enough on disk
+// for /retrysite (the automatic retries use their own queue — see jobs/site-queue.ts).
 const LAST_POST = resolve(REPO_ROOT, "bot/data/last-post.json");
 type LastPost = { p: Pending; mediaId: string; permalink: string; at: string };
 async function rememberPost(l: LastPost) {
@@ -303,28 +300,6 @@ async function rememberPost(l: LastPost) {
   } catch (e) {
     console.error("couldn't remember the last post:", e);
   }
-}
-
-async function publishToSite(p: Pending, mediaId: string, permalink: string): Promise<string> {
-  const type = p.postType === "tool" && p.toolUrl ? "tool" : "news";
-  const copy = await writeSiteCopy({ topic: p.topic, script: p.script, type, toolUrl: p.toolUrl, context: p.context });
-  const row = await insertPost({
-    slug: slugify(copy.title),
-    type,
-    title: copy.title,
-    blurb: copy.blurb,
-    tool_url: type === "tool" ? p.toolUrl : undefined,
-    article: copy.article,
-    script: p.script,
-    ig_media_id: mediaId,
-    ig_permalink: permalink,
-  });
-  const url = postUrl(row.slug, type);
-  if (type === "news" && copy.article) {
-    // echo the article so it's readable from the chat — and so a bad one gets noticed
-    await bot.api.sendMessage(config.telegram.chatId, `article for the site (${url}):\n\n${copy.title}\n\n${copy.article}`.slice(0, 4000)).catch(() => {});
-  }
-  return url;
 }
 
 bot.callbackQuery("redo", async (ctx) => {
@@ -418,6 +393,7 @@ bot.on("message:text", async (ctx) => {
 bot.catch((err) => console.error("bot error", err));
 bot.start({ onStart: (me) => console.log(`@${me.username} running`) });
 startDmLoop(); // no-op unless DM_AUTORESPONDER=on
+startSiteQueue(); // retries any site row that didn't make it, across restarts
 
 // TRIGGER INBOX — lets something outside the chat (a cron, a script, Claude over SSH) start
 // an idea exactly as if sahil had typed it. `npm run trigger -- "idea: ..."` drops a file in
