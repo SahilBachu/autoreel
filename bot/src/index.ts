@@ -1,5 +1,5 @@
 import { Bot, InlineKeyboard, InputFile } from "grammy";
-import { readdir, readFile, unlink, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { homedir } from "node:os";
 import { config, REPO_ROOT } from "./config.js";
@@ -105,6 +105,7 @@ const HELP = [
   "/learn — run a learning pass now",
   "/forget — reset learned preferences",
   "/dm — comment→DM autoresponder status",
+  "/retrysite — re-add the last posted reel to the site (if that step failed)",
   "/help — this list",
 ].join("\n");
 
@@ -129,6 +130,24 @@ bot.command("forget", (ctx) => {
 // how the comment -> DM funnel is doing (and whether the token can even run it)
 bot.command("dm", (ctx) => ctx.reply(dmStatus()));
 
+// the reel published but the site row didn't — rewrite the copy and insert it
+bot.command("retrysite", (ctx) => retrySite(ctx));
+
+async function retrySite(ctx: any) {
+  let last: LastPost;
+  try {
+    last = JSON.parse(await readFile(LAST_POST, "utf8"));
+  } catch {
+    return ctx.reply("nothing to retry — I only keep the most recent post.");
+  }
+  await ctx.reply(`retrying the site row for "${last.p.topic}"${last.p.postType === "news" ? " — writing the article" : ""}…`);
+  try {
+    const url = await publishToSite(last.p, last.mediaId, last.permalink);
+    await ctx.reply(`on the site: ${url}`);
+  } catch (e: any) {
+    await ctx.reply(`still failing: ${e.message}`);
+  }
+}
 
 // on-demand discovery (same machinery as the 3am digest)
 bot.command("discover", async (ctx) => {
@@ -273,6 +292,19 @@ bot.callbackQuery("post", async (ctx) => {
 // for news posts, and the ig_media_id the DM autoresponder polls. A tool post with no URL
 // can't be a tool post (the DB enforces it too) — it lands as news rather than as a broken
 // "comment TOOL" promise.
+// [Post] clears the chat state, so a site-step failure used to strand the reel: published on
+// Instagram, missing from the site, with nothing left to retry from. Keep just enough on disk.
+const LAST_POST = resolve(REPO_ROOT, "bot/data/last-post.json");
+type LastPost = { p: Pending; mediaId: string; permalink: string; at: string };
+async function rememberPost(l: LastPost) {
+  try {
+    await mkdir(resolve(REPO_ROOT, "bot/data"), { recursive: true });
+    await writeFile(LAST_POST, JSON.stringify(l));
+  } catch (e) {
+    console.error("couldn't remember the last post:", e);
+  }
+}
+
 async function publishToSite(p: Pending, mediaId: string, permalink: string): Promise<string> {
   const type = p.postType === "tool" && p.toolUrl ? "tool" : "news";
   const copy = await writeSiteCopy({ topic: p.topic, script: p.script, type, toolUrl: p.toolUrl, context: p.context });
@@ -412,6 +444,7 @@ setInterval(async () => {
     else if (/^\/?idea$/i.test(text)) {
       await ctx.reply("researching something…");
       await generateIdea().then((i) => activateIdea(ctx, chat, i)).catch((e) => ctx.reply(`couldn't come up with one: ${e.message}`));
-    } else console.error(`trigger: ignored "${text.slice(0, 60)}" (only "idea:/news:/tool: …" or "idea")`);
+    } else if (/^\/?retrysite$/i.test(text)) await retrySite(ctx);
+    else console.error(`trigger: ignored "${text.slice(0, 60)}" (only "idea:/news:/tool: …", "idea" or "retrysite")`);
   }
 }, 5000);

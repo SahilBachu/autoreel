@@ -7,8 +7,8 @@ import { REPO_ROOT } from "../config.js";
 //   npm run trigger -- "idea: ollama lets you run models locally"
 //   npm run trigger -- idea            (a random researched one)
 const text = process.argv.slice(2).join(" ").trim();
-if (!/^((idea|news|tool):\s*\S|\/?idea$)/i.test(text)) {
-  console.error('usage: npm run trigger -- "idea:|news:|tool: <what it is>"   |   npm run trigger -- idea');
+if (!/^((idea|news|tool):\s*\S|\/?(idea|retrysite)$)/i.test(text)) {
+  console.error('usage: npm run trigger -- "idea:|news:|tool: <what it is>"   |   npm run trigger -- idea|retrysite');
   process.exit(1);
 }
 const dir = resolve(REPO_ROOT, "bot/data/trigger");
