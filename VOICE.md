@@ -95,33 +95,6 @@ jokey register, the analogy-as-punchline closers ("group project where nobody's 
 kid", "lost in a parking garage"), the "anyway…" trail-off endings, and openers that don't
 start with "so". Those were the previous voice; the rules above win where they differ.
 
-Example (Gemini 3.5 Pro ships ungated, because it's too weak at hacking to scare the government):
-so Gemini 3.5 Pro just shipped ungated, no government cage, no gatekeeping, while every rival stays locked down.
-turns out the others got restricted for being too good at cyberattacks. Google's model earned its freedom by failing the same test.
-it's the one benchmark where you win by losing, score low enough on the scary-hacker exam and they wave you straight through.
-so while the frontier models sit in timeout for being dangerous, Gemini walks out precisely because nobody's worried about it.
-an odd thing to celebrate, but a pass is a pass. ships Thursday.
-
-Example (Google open-sourced a toolkit that turns your coding agent into an autonomous bug-hunter, with a 'do not run near anything real' warning):
-so Google just open-sourced a toolkit that turns your coding agent into an autonomous bug-hunter.
-point it at code and it goes hunting for security holes, finds them, and patches them itself, no human at the wheel.
-then they shipped it with a warning to not run it near anything real. any production system, any machine you actually care about, keep it away.
-so we built a robot that finds vulnerabilities by exploiting them, then immediately asked everyone to please keep it in a padded cell.
-security's getting automated on both sides now. the finding and the breaking are the same button.
-
-Example (China's Moonshot dropped the biggest open model ever, it beats Claude Opus at real jobs, and you can't download it until the 27th):
-so Moonshot just dropped the biggest open model anyone's ever shipped, 2.8 trillion parameters, and it beats Claude Opus at actual work.
-"open," they say. then in the same breath, you can't download it till the 27th.
-so it's open the way a store window is open. you can look, you can want it, you just can't have it yet.
-and even when you can, good luck, the thing needs its own little datacenter just to wake up.
-so the model's free, the electricity bill is not. open source with a mortgage attached.
-
-Example (Microsoft's CEO is publicly mad that the AI he pays $5B for keeps saying no):
-so Microsoft's CEO Satya Nadella went public this week annoyed that the AI he pays roughly five billion dollars for keeps refusing to do things.
-half the time you ask it something it comes back with "i don't feel comfortable doing that," or just quietly does half the job and stops.
-turns out the safety training that keeps these things in line is the same training that makes them hedgy and useless right when you need an answer.
-so it's every group project you've been in, the one guy who won't commit, except this one has a five billion dollar invoice Nadella already signed.
-
 Example (Felony Bench: a leaderboard for how often AI models commit crimes):
 so someone built a leaderboard for how often AI models commit crimes.
 it's called Felony Bench, and being #1 means you did the most felonies. the models are, obviously, competing.
@@ -147,6 +120,37 @@ SpaceX bought them, Musk and Altman have history, and now the models get shut of
 Cursor's whole business was reselling somebody else's model, so it just found out what happens when one of the parents changes the locks.
 and none of this is about the code. it's two billionaires, and one of them doesn't want the other one reading his homework.
 
+Example (OpenCode, the open-source coding agent at 208K GitHub stars):
+so the most-starred coding agent on github is free. it's called opencode, 208,000 stars in about 17 months.
+MIT licensed, one curl command, and it's running in your terminal.
+the part that matters is it doesn't ship with a model. it talks to 75+ providers, local ones included.
+so you're not paying twenty to two hundred a month for someone's agent welded to their own model, you pick it, and you swap when a better one lands.
+six of the models on their gateway are free right now, so you can actually run this today without paying anybody.
+comment TOOL if you want access
+
+Example (DeepSeek-V4.1-Flash: the cheap open model that ate its own flagship):
+so deepseek's cheap model beat deepseek's own flagship, so they killed the flagship.
+since the 14th every v4-pro request just gets routed to v4.1-flash, at flash prices.
+the trick is 552 billion parameters with only 8 billion of them awake when it reads you, that's why input runs fifteen cents a million instead of four dollars for gpt-5.6 sol.
+MIT licensed, million-token context, sitting on huggingface, 325,000 downloads in its first month.
+it still loses to opus 5 on the newest terminal-bench, 30 against 43. so what you're getting is frontier-adjacent at a twenty-fifth of the price.
+comment TOOL if you want access
+
+Example (Dario Amodei told the AI industry to slow down, and the market and the White House both blinked):
+so Dario Amodei, the guy running Anthropic, put out 3,800 words on saturday telling the industry to slow down, and by monday Nvidia was off 3.4% and Micron 5.3%.
+what he's asking for is an extra year or two of pacing, plus outside evaluators sitting inside the labs with badges and company laptops and the right to publish whatever they find.
+Altman, Musk and Hassabis all agreed within a day. Musk just posted "Dario is right."
+then Trump called it a hoax on Truth Social, a "SICK conspiracy going on against AI and Data Centers, and the only one that is happy about it is China."
+so the four guys building the thing asked for a brake, and the government's position is that asking is unpatriotic.
+
+Example (Claudex Loop: Claude Code and Codex grade each other's homework):
+so someone made claude code and codex grade each other's homework.
+it's called claudex-loop, 2,000 stars in three months, and the one rule is whoever built it never grades it.
+before a line of code exists the other model attacks your plan, up to five rounds of that.
+then whichever one didn't build it inspects the code in a fresh session, so it can't defend an idea it doesn't remember having.
+and there's nothing new to pay for. it's MIT and it runs on the claude and codex subscriptions you already have.
+comment TOOL if you want access
+
 ## never
 
 Never write like this: "Is there even a reason to pay for Opus anymore?!",
@@ -156,22 +160,24 @@ number, price or feature.
 
 ## learned (auto-updated from sahil's edits, safe to edit or delete lines)
 
-- open with "so" and pull the listener straight into a specific real thing ("so someone found this thing called…", "so there's this tool that…")
+- open with "so" and pull the listener straight into a specific real thing ("so someone made claude code and codex grade each other's homework", "so the most-starred coding agent on github is free")
 - keep it all-lowercase, ~4-6 short speakable lines, no hype, no emojis; the only CTA is the comment-TOOL line on tool posts
-- explain the mechanism in one plain line ("the guard reads what your command looks like, but bash runs what it actually means")
-- build around a concrete detail or failure/gotcha, ideally with a personal-stakes beat ("woke up to like forty of them still grinding")
-- when trimming, cut throwaway joke asides ("which is kinda funny") in favor of a substantive takeaway ("agents are getting better not just from models but the harness")
-- prefer plain everyday verbs over insider jargon ("searching" over "grepping")
+- lead the hook with the hard number or name (208,000 stars, 552 billion parameters, 3,800 words on saturday) rather than setup framing
+- when a person is the story, name them and say who they are in the same breath ("Dario Amodei, the guy running Anthropic") instead of assuming the viewer knows
+- explain the mechanism in one plain line ("552 billion parameters with only 8 billion of them awake when it reads you", "whoever built it never grades it")
+- name the thing that actually matters about it in a "the part that matters is…" / "the trick is…" / "the one rule is…" beat, then the concrete consequence for the viewer
+- quantify the stakes with a real price, date or market number ("fifteen cents a million instead of four", "Nvidia was off 3.4% and Micron 5.3%", "2,000 stars in three months") instead of saying it's cheap or big
+- when trimming, tighten by swapping long phrasings for shorter equivalents ("requiring payment for them" → "paying for them", "argues that" → "says") rather than deleting whole facts
 
 ## learned topics (what lands with sahil)
 
-- Claude Code / AI dev-tool quirks and failure modes; head-to-head coding-agent personality comparisons (Codex vs Claude Code, permission vs forgiveness)
+- Claude Code / AI dev-tool quirks and failure modes; head-to-head coding-agent comparisons and agents checking each other (Codex vs Claude Code, claudex-loop cross-grading)
+- open-source coding agents and self-hostable alternatives that break vendor lock-in, model-agnostic tools, BYO-provider, local models, what it saves you per month (OpenCode)
+- cheap open models undercutting flagships on price and the architecture that makes it possible (DeepSeek-V4.1-Flash, sparse activation, per-million token prices)
 - things quietly going wrong overnight while you sleep (runaway agents, surprise API bills, subagents burning the token budget)
 - security exploits and safety-bypass tricks in coding/AI agents, prompt-injection bypass phrases (GitLost 'Additionally'), shell-trick guard evasion (GuardFall), zero-click symlink/poisoned-file hijacks (DuneSlide → Cursor)
 - dev-tool/harness upgrades that make coding agents smarter or cheaper, codebase graphs, token efficiency, better context (graphify); harness matters as much as the model
-- AI-lab credibility gaps and government-gating, bold claims with no benchmarks (Meta 'Watermelon'), or capability inferred from who's caged/ungated (Gemini 3.5 Pro ships ungated for being too weak at hacking)
-- open-washing, models hyped as 'open' or #1 but download-gated, delayed, or anonymous (Moonshot 2.8T locked till the 27th; Owl Alpha, a Chinese food-delivery app quietly topping OpenRouter)
-- autonomous AI agents doing real-world jobs or crime unsupervised (JadePuffer, the first fully AI-run ransomware; Google's open-sourced autonomous bug-hunter toolkit; Felony Bench ranking models by crimes)
-- AI replacing or absorbing the humans who propped it up, and AI's fingerprints showing up in human work, Mechanical Turk shutting down (46% already secretly using AI), Nadella mad his $5B AI refuses work, 39% of GitHub PRs in Claude's accent; plus lab-vs-lab business fallout cutting off dev tools (OpenAI killing Cursor's access over SpaceX)
+- AI-lab credibility gaps and government-gating, bold claims with no benchmarks (Meta 'Watermelon'), capability inferred from who's caged/ungated (Gemini 3.5 Pro), open-washing where 'open' models are download-gated or anonymous
+- AI politics, law and money as leverage, lab leaders' public statements and the market/White House reaction, the DOJ siding with OpenAI against the NYT, licensing fights, who gets to keep the scraped data
 
 ## learned captions
