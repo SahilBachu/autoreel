@@ -9,6 +9,7 @@ import { buildDigest, formatDigest, foundContext, loadDigest, markPicked, type F
 import { renderReel } from "./jobs/render.js";
 import { postReel } from "./jobs/post.js";
 import { dmStatus, startDmLoop } from "./jobs/dm.js";
+import { setStyleMode, styleStatus } from "./lib/style.js";
 import { genPostCaption } from "./lib/caption.js";
 import { drainSiteQueue, pendingSiteJobs, publishWithRetry, startSiteQueue } from "./jobs/site-queue.js";
 import { claude, ClaudeAuthError } from "./lib/claude.js";
@@ -71,14 +72,14 @@ async function makeAndSendReel(ctx: any, chat: string, editNote?: string) {
   try {
     // a Redo passes no editNote but must keep honoring the last [Edit] instruction
     const note = editNote ?? p.lastEditNote;
-    const { mp4, planSummary } = await renderReel({ clipPath: p.clipPath, script: p.script, topic: p.topic, editNote: note });
+    const { mp4, planSummary, style } = await renderReel({ clipPath: p.clipPath, script: p.script, topic: p.topic, editNote: note });
     const caption = await genPostCaption(p.topic, p.script, p.postType); // tool posts lead with the comment CTA
     state.patch(chat, { mp4Path: mp4, caption, awaitingEdit: false, lastEditNote: note, lastPlan: planSummary });
     // show the generated IG caption under the reel; [Post] will publish with it.
     // width/height/supports_streaming are REQUIRED with the self-hosted local Bot API server:
     // without them Telegram picks a wrong-aspect player box and displays the reel stretched.
     await ctx.replyWithVideo(new InputFile(mp4), {
-      caption: `caption:\n${caption}`,
+      caption: `[${style} style]\n\ncaption:\n${caption}`,
       reply_markup: approveKeyboard,
       width: 1080,
       height: 1920,
@@ -105,6 +106,7 @@ const HELP = [
   "/learn — run a learning pass now",
   "/forget — reset learned preferences",
   "/dm — comment→DM autoresponder status",
+  "/style — which renderer videos use (alternating by default; `/style v2` pins it)",
   "/retrysite — force the site retry now (it already retries on its own)",
   "/help — this list",
 ].join("\n");
@@ -129,6 +131,21 @@ bot.command("forget", (ctx) => {
 
 // how the comment -> DM funnel is doing (and whether the token can even run it)
 bot.command("dm", (ctx) => ctx.reply(dmStatus()));
+
+// which renderer videos use — alternating by default, pin it either way
+bot.command("style", (ctx) => {
+  const arg = ctx.match?.toString().trim().toLowerCase();
+  if (arg && ["v2", "world", "alternate"].includes(arg)) {
+    setStyleMode(arg as "v2" | "world" | "alternate");
+    return ctx.reply(`${arg === "alternate" ? "alternating between both styles again" : `pinned to ${arg}`}.
+
+${styleStatus()}`);
+  }
+  if (arg) return ctx.reply(`unknown style "${arg}".
+
+${styleStatus()}`);
+  return ctx.reply(styleStatus());
+});
 
 // the reel published but the site row didn't — rewrite the copy and insert it
 bot.command("retrysite", (ctx) => retrySite(ctx));

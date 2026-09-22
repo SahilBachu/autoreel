@@ -32,6 +32,10 @@ export const config = {
     serviceKey: process.env.SUPABASE_SERVICE_KEY || "",
     bucket: process.env.SUPABASE_BUCKET || "reels",
   },
+  // which renderer a video uses: alternate (default) | v2 | world — see lib/style.ts
+  style: {
+    mode: (["alternate", "v2", "world"].includes(process.env.VIDEO_STYLE || "") ? process.env.VIDEO_STYLE : "alternate") as "alternate" | "v2" | "world",
+  },
   // the link-in-bio site (web/). Localhost until it's on Cloudflare — while it is, DM links
   // go straight to the tool instead of through the site's click-counting /go/ redirect.
   site: {

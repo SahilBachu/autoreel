@@ -8,6 +8,7 @@ import { alignCaptions } from "../lib/align.js";
 import { planCutaways, type AudioLib } from "../lib/scenePlan.js";
 import { buildCustomScenes } from "../lib/studio.js";
 import { screenshot } from "../lib/shot.js";
+import { compositionFor, pickStyle } from "../lib/style.js";
 
 const exists = (p: string) => stat(p).then(() => true, () => false);
 
@@ -75,7 +76,7 @@ export async function renderReel(opts: {
   script: string;
   topic: string;
   editNote?: string;
-}): Promise<{ mp4: string; planSummary: string }> {
+}): Promise<{ mp4: string; planSummary: string; style: string }> {
   const studio = config.studioDir;
   const id = `reel-${Date.now()}`;
 
@@ -159,17 +160,29 @@ export async function renderReel(opts: {
   // 4. props + render — the director chooses the accent to fit the topic; random fallback
   const ACCENTS = ["blue", "cyan", "green", "orange", "red", "pink", "violet"];
   const accent = plan.accent && ACCENTS.includes(plan.accent) ? plan.accent : ACCENTS[Math.floor(Math.random() * ACCENTS.length)];
+  // The first ~3.2s are always him on camera with the title over his face (both renderers).
+  // The title is normally the director's opening headline; when it didn't plan one, fall back
+  // to the topic so that beat never comes out bare.
+  const TEXT_KINDS = new Set(["headline", "decrypt", "callout"]);
+  const hasOpener = scenes.some((s: any) => s.startMs < 3200 && TEXT_KINDS.has(s.kind) && typeof s.text === "string");
+  const title = hasOpener ? undefined : opts.topic.split(/[:—,(]/)[0].trim().slice(0, 64).toLowerCase();
+
+  // two renderers off the same plan — alternating unless pinned (lib/style.ts)
+  const style = pickStyle(opts.topic);
   const propsPath = resolve(studio, "out", `${id}.props.json`);
-  await writeFile(propsPath, JSON.stringify({ videoSrc: clipRel, captions, scenes, accent, music, sfx, voiceBoost: 2.8 }));
+  await writeFile(propsPath, JSON.stringify({ videoSrc: clipRel, captions, scenes, accent, music, sfx, voiceBoost: 2.8, title }));
   const mp4 = resolve(studio, "out", `${id}.mp4`);
-  await run("npx", ["remotion", "render", "AutoReel", mp4, `--props=${propsPath}`], studio);
+  // --concurrency=1: parallel decoding of the talking-head clip races and dies with
+  // "No frame found at position" on clips whose frame rate is slightly variable
+  await run("npx", ["remotion", "render", compositionFor(style), mp4, `--props=${propsPath}`, "--concurrency=1"], studio);
 
   // compact description of what was rendered — stored in state so a Redo can log exactly
   // which plan got rejected (the learning pass needs to see WHAT he didn't like)
   const planSummary = [
+    `style=${style}`,
     scenes.map((s: any) => `${s.kind} ${(s.startMs / 1000).toFixed(1)}-${(s.endMs / 1000).toFixed(1)}s`).join(", "),
     `accent=${accent}`,
     music ? `music=${music}` : "",
   ].filter(Boolean).join(" | ");
-  return { mp4, planSummary };
+  return { mp4, planSummary, style };
 }
