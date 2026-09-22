@@ -9,7 +9,7 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { F2, T, useAccent } from "./theme";
 import { getLogo } from "./logos";
 import type { Word } from "../types";
@@ -118,16 +118,38 @@ export const Bg: React.FC<{ variant?: BgVariant }> = ({ variant = "plain" }) => 
 // ── Scene — wrapper every v2 component sits in (content lifted above captions).
 // overlay=true: no opaque background — a soft scrim over the talking head so the FACE shows
 // through while text stays legible (used by the text scenes / the opening hook).
-export const Scene: React.FC<{ bg?: BgVariant; overlay?: boolean; children: React.ReactNode }> = ({ bg = "plain", overlay, children }) => (
-  <AbsoluteFill>
-    {overlay ? (
-      <AbsoluteFill style={{ background: "radial-gradient(ellipse 108% 64% at 50% 42%, rgba(0,0,0,0.68), rgba(0,0,0,0.30) 58%, rgba(0,0,0,0.10) 100%)" }} />
-    ) : (
-      <Bg variant={bg} />
-    )}
-    <AbsoluteFill style={{ justifyContent: "center", alignItems: "center", padding: "90px 84px 400px" }}>{children}</AbsoluteFill>
-  </AbsoluteFill>
-);
+//
+// SceneMode "cover" (default, AutoReel): full-frame, own background, caption band reserved.
+// SceneMode "object" (WorldReel): the same component becomes an OBJECT in a camera world —
+// no background at all (the talking head is the world's floor), just a feathered dark pool
+// under the content so it stays legible where it overlaps him. The world places and sizes
+// the box, so no caption padding here.
+export type SceneMode = "cover" | "object";
+export const SceneModeCtx = createContext<SceneMode>("cover");
+export const useSceneMode = () => useContext(SceneModeCtx);
+
+export const Scene: React.FC<{ bg?: BgVariant; overlay?: boolean; children: React.ReactNode }> = ({ bg = "plain", overlay, children }) => {
+  const mode = useSceneMode();
+  if (mode === "object") {
+    return (
+      <AbsoluteFill>
+        {/* the pool: a blurred dark slab the shape of the box — even under the content, feathered ~80px past it */}
+        <div style={{ position: "absolute", inset: -30, borderRadius: 80, background: "rgba(5,5,7,0.80)", filter: "blur(34px)" }} />
+        <AbsoluteFill style={{ justifyContent: "center", alignItems: "center", padding: "30px 40px" }}>{children}</AbsoluteFill>
+      </AbsoluteFill>
+    );
+  }
+  return (
+    <AbsoluteFill>
+      {overlay ? (
+        <AbsoluteFill style={{ background: "radial-gradient(ellipse 108% 64% at 50% 42%, rgba(0,0,0,0.68), rgba(0,0,0,0.30) 58%, rgba(0,0,0,0.10) 100%)" }} />
+      ) : (
+        <Bg variant={bg} />
+      )}
+      <AbsoluteFill style={{ justifyContent: "center", alignItems: "center", padding: "90px 84px 400px" }}>{children}</AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
 
 // small kicker label used across components
 export const Kicker: React.FC<{ text: string }> = ({ text }) => {
@@ -153,13 +175,15 @@ export const Kicker: React.FC<{ text: string }> = ({ text }) => {
 // glassy panel used across components
 export const Panel: React.FC<{ children: React.ReactNode; style?: React.CSSProperties; glow?: boolean }> = ({ children, style, glow }) => {
   const a = useAccent();
+  // as an object over the talking head the wide glow reads as a coloured rim — keep it tight there
+  const halo = useSceneMode() === "object" ? `0 0 54px -30px ${a.glow}` : `0 0 90px -20px ${a.glow}`;
   return (
     <div
       style={{
         background: T.surface,
         border: `1px solid ${T.border}`,
         borderRadius: 28,
-        boxShadow: glow ? `0 0 90px -20px ${a.glow}, inset 0 1px 0 ${T.borderBright}` : `inset 0 1px 0 ${T.border}`,
+        boxShadow: glow ? `${halo}, inset 0 1px 0 ${T.borderBright}` : `inset 0 1px 0 ${T.border}`,
         backdropFilter: "blur(12px)",
         ...style,
       }}
