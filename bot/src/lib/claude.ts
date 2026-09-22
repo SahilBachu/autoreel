@@ -6,6 +6,17 @@ import { spawn } from "node:child_process";
 
 type Opts = { model?: string; resume?: string; json?: boolean; tools?: string[]; cwd?: string; timeoutMs?: number };
 
+// The runner's Claude login can expire. When it does EVERY writing step fails the same way, so
+// it gets its own error type — callers tell sahil what to do instead of retrying something that
+// can't succeed until a human logs back in.
+const AUTH_FAILURE = /failed to authenticate|oauth session expired|please run \/login|invalid api key|not logged in|authentication_error/i;
+export class ClaudeAuthError extends Error {
+  constructor(detail: string) {
+    super(`Claude is logged out on the runner (${detail.slice(0, 120)}). Fix: on the runner run \`claude setup-token\`, then put the token in .env as CLAUDE_CODE_OAUTH_TOKEN and restart the bot.`);
+    this.name = "ClaudeAuthError";
+  }
+}
+
 function run(args: string[], cwd?: string, timeoutMs?: number): Promise<string> {
   return new Promise((res, rej) => {
     // stdin: "ignore" -> the CLI won't stall 3s waiting for piped stdin (prompt is an arg).
@@ -24,7 +35,12 @@ function run(args: string[], cwd?: string, timeoutMs?: number): Promise<string> 
     p.on("error", rej);
     p.on("close", (code) => {
       if (timer) clearTimeout(timer);
-      code === 0 ? res(out.trim()) : rej(new Error(`claude exited ${code}: ${err.slice(-400)}`));
+      if (code === 0) return res(out.trim());
+      // the CLI prints some of its failures (auth among them) to STDOUT, so an stderr-only
+      // message came back blank — "claude exited 1: " — and hid the actual reason
+      const why = (err.trim() || out.trim()).slice(-400);
+      if (AUTH_FAILURE.test(why)) return rej(new ClaudeAuthError(why));
+      rej(new Error(`claude exited ${code}: ${why}`));
     });
   });
 }

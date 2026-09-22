@@ -11,6 +11,7 @@ import { postReel } from "./jobs/post.js";
 import { dmStatus, startDmLoop } from "./jobs/dm.js";
 import { genPostCaption } from "./lib/caption.js";
 import { drainSiteQueue, pendingSiteJobs, publishWithRetry, startSiteQueue } from "./jobs/site-queue.js";
+import { claude, ClaudeAuthError } from "./lib/claude.js";
 import type { Pending } from "./state.js";
 import {
   learnFromIdea,
@@ -394,6 +395,24 @@ bot.catch((err) => console.error("bot error", err));
 bot.start({ onStart: (me) => console.log(`@${me.username} running`) });
 startDmLoop(); // no-op unless DM_AUTORESPONDER=on
 startSiteQueue(); // retries any site row that didn't make it, across restarts
+
+// CLAUDE LOGIN WATCH — every writing step runs through the Claude CLI, and its login on the
+// runner can expire. The first sign used to be a missing 3am digest. A tiny call every 6h
+// catches it during the day instead: one message when it breaks, one when it's back.
+let claudeWasOk = true;
+async function checkClaudeLogin() {
+  try {
+    await claude("reply with just: ok", { timeoutMs: 90_000 });
+    if (!claudeWasOk) await bot.api.sendMessage(config.telegram.chatId, "Claude is logged back in on the runner. all good.").catch(() => {});
+    claudeWasOk = true;
+  } catch (e: any) {
+    if (!(e instanceof ClaudeAuthError)) return; // a timeout or blip isn't worth a message
+    if (claudeWasOk) await bot.api.sendMessage(config.telegram.chatId, `⚠️ ${e.message}\n\nuntil then: no ideas, scripts, captions or renders.`).catch(() => {});
+    claudeWasOk = false;
+  }
+}
+setTimeout(checkClaudeLogin, 30_000);
+setInterval(checkClaudeLogin, 6 * 3600_000);
 
 // TRIGGER INBOX — lets something outside the chat (a cron, a script, Claude over SSH) start
 // an idea exactly as if sahil had typed it. `npm run trigger -- "idea: ..."` drops a file in
