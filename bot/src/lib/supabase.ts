@@ -20,9 +20,11 @@ export async function uploadReel(localPath: string, destName?: string): Promise<
       "x-upsert": "true",
     },
     body,
-    // fail fast if Supabase's edge is unreachable (it flakes from some WSL/network combos) so
-    // the caller can fall back to another host instead of hanging.
-    signal: AbortSignal.timeout(25000),
+    // The runner uploads over a home connection: a 35MB reel (the world renderer makes bigger
+    // files than the old one) needs minutes, not seconds. The old 25s cap made healthy uploads
+    // "fail", falling back to tmpfiles, whose URLs Instagram often can't fetch — which surfaced
+    // as an unexplained container ERROR at publish time.
+    signal: AbortSignal.timeout(8 * 60_000),
   });
   if (!r.ok) throw new Error(`Supabase upload failed: ${r.status} ${await r.text()}`);
 

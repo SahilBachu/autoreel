@@ -174,7 +174,10 @@ export async function renderReel(opts: {
   const mp4 = resolve(studio, "out", `${id}.mp4`);
   // --concurrency=1: parallel decoding of the talking-head clip races and dies with
   // "No frame found at position" on clips whose frame rate is slightly variable
-  await run("npx", ["remotion", "render", compositionFor(style), mp4, `--props=${propsPath}`, "--concurrency=1"], studio);
+  // --crf 23 (Remotion's default is 18): Instagram re-encodes everything anyway, and the
+  // world renderer's camera moves were producing ~35MB files — big enough that uploads from
+  // the runner timed out and publishing failed. Visually indistinguishable on a phone.
+  await run("npx", ["remotion", "render", compositionFor(style), mp4, `--props=${propsPath}`, "--concurrency=1", "--crf=23"], studio);
 
   // compact description of what was rendered — stored in state so a Redo can log exactly
   // which plan got rejected (the learning pass needs to see WHAT he didn't like)

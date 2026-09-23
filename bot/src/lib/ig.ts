@@ -86,10 +86,12 @@ export async function publishReel(
   hooks.onProcessing?.();
   const deadline = Date.now() + 5 * 60_000;
   for (;;) {
-    const { status_code } = await igGet(creationId, { fields: "status_code" });
+    const { status_code, status } = await igGet(creationId, { fields: "status_code,status" });
     if (status_code === "FINISHED") break;
+    // `status` carries Meta's actual reason ("the video could not be downloaded", a codec
+    // complaint, …) — without it a failure is just "container ERROR" and a guessing game
     if (status_code === "ERROR" || status_code === "EXPIRED")
-      throw new Error(`IG container ${status_code}`);
+      throw new Error(`Instagram rejected the video (${status_code}${status ? `: ${status}` : ""})`);
     if (Date.now() > deadline) throw new Error("IG container timeout");
     await sleep(4000);
   }
