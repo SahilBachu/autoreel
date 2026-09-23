@@ -273,16 +273,21 @@ bot.on(["message:video", "message:document"], async (ctx) => {
 // approve / redo / edit
 bot.callbackQuery("post", async (ctx) => {
   await ctx.answerCallbackQuery();
-  const chat = String(ctx.chat!.id);
+  await postPending(String(ctx.chat!.id));
+});
+
+// The whole publish, shared by the [Post] button and the trigger inbox ("post"), so both go
+// through the same guards: nothing rendered -> say so; a publish already in flight -> refuse
+// a double post.
+async function postPending(chat: string) {
   const p = state.get(chat);
-  if (!p?.mp4Path) return ctx.reply("Nothing to post yet — send a clip first.");
-  if (p.posting) return ctx.reply("already posting that one — hang tight.");
+  if (!p?.mp4Path) return bot.api.sendMessage(chat, "Nothing to post yet — send a clip first.");
+  if (p.posting) return bot.api.sendMessage(chat, "already posting that one — hang tight.");
   state.patch(chat, { posting: true });
 
   // one status message, edited in place so the user always knows where it's at
-  const msg = await ctx.reply("*Posting…*\nuploading video to storage", { parse_mode: "Markdown" });
-  const set = (t: string) =>
-    ctx.api.editMessageText(chat, msg.message_id, t, { parse_mode: "Markdown" }).catch(() => {});
+  const msg = await bot.api.sendMessage(chat, "*Posting…*\nuploading video to storage", { parse_mode: "Markdown" });
+  const set = (t: string) => bot.api.editMessageText(chat, msg.message_id, t, { parse_mode: "Markdown" }).catch(() => {});
 
   try {
     const { permalink, mediaId } = await postReel(p.mp4Path, p.caption ?? p.script.split("\n")[0], {
@@ -291,6 +296,7 @@ bot.callbackQuery("post", async (ctx) => {
       onPublishing: () => set("*Posting…*\nuploaded, sent, processed — publishing…"),
     });
     await set(`*Posted:*\n${permalink}\n\nadding it to the site${p.postType === "news" ? " — writing the article" : ""}…`);
+    await rememberPost({ p, mediaId, permalink, at: new Date().toISOString() }); // so /retrysite has something to work from
     learnFromPost(p.topic, p.script).catch(() => {}); // approved = strongest signal; learn in bg
     state.clear(chat); // the reel is done regardless of what the site does next
 
@@ -304,7 +310,7 @@ bot.callbackQuery("post", async (ctx) => {
     state.patch(chat, { posting: false });
     await set(`*Post failed:* ${e.message}\nTap Post again to retry, or Redo.`);
   }
-});
+}
 
 // [Post] clears the chat state, so a site-step failure used to strand the reel: published on
 // Instagram, missing from the site, with nothing left to retry from. Keep just enough on disk
@@ -434,7 +440,8 @@ setInterval(checkClaudeLogin, 6 * 3600_000);
 // TRIGGER INBOX — lets something outside the chat (a cron, a script, Claude over SSH) start
 // an idea exactly as if sahil had typed it. `npm run trigger -- "idea: ..."` drops a file in
 // bot/data/trigger/; the bot picks it up within a few seconds, deletes it, and runs it
-// against the owner chat. Only the idea commands — nothing that posts or spends.
+// against the owner chat. The idea commands, "retrysite", and "post" — which publishes the
+// pending render exactly as tapping [Post] would, same guards, same status message.
 const TRIGGER_DIR = resolve(REPO_ROOT, "bot/data/trigger");
 const chatCtx = (chat: string) => ({ reply: (text: string, opts?: any) => bot.api.sendMessage(chat, text, opts) });
 setInterval(async () => {
@@ -457,6 +464,7 @@ setInterval(async () => {
       await ctx.reply("researching something…");
       await generateIdea().then((i) => activateIdea(ctx, chat, i)).catch((e) => ctx.reply(`couldn't come up with one: ${e.message}`));
     } else if (/^\/?retrysite$/i.test(text)) await retrySite(ctx);
+    else if (/^\/?post$/i.test(text)) await postPending(chat);
     else console.error(`trigger: ignored "${text.slice(0, 60)}" (only "idea:/news:/tool: …", "idea" or "retrysite")`);
   }
 }, 5000);
