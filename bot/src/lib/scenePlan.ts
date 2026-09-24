@@ -68,7 +68,7 @@ hook | setup | claim | evidence | aside | punchline.
 Boundaries on word starts, covering the whole reel, no overlaps, in order.
 Return ONLY JSON: [{"startMs":0,"endMs":2100,"type":"hook","gist":"3-6 words"}]`;
   try {
-    const beats = await claudeJson<Beat[]>(prompt, { model: "opus" });
+    const beats = await claudeJson<Beat[]>(prompt, {});
     const ok = (Array.isArray(beats) ? beats : []).filter(
       (b) => typeof b.startMs === "number" && typeof b.endMs === "number" && b.endMs > b.startMs && b.gist,
     );
@@ -301,7 +301,7 @@ Return ONLY JSON: {"accent":"<color>","music":"<file from the list>","sfx":[{"fi
   };
   for (let attempt = 1; attempt <= 2 && !scenes.length; attempt++) {
     try {
-      adopt(await claudeJson<any>(prompt, { model: "opus" }));
+      adopt(await claudeJson<any>(prompt, {}));
     } catch (e) {
       console.error(`director attempt ${attempt} failed:`, (e as Error).message?.slice(0, 400));
     }
@@ -316,7 +316,7 @@ Return ONLY JSON: {"accent":"<color>","music":"<file from the list>","sfx":[{"fi
         adopt(
           await claudeJson<any>(
             `${prompt}\n\nYou already returned this plan:\n${JSON.stringify({ accent, music, sfx, scenes })}\n\nA mechanical rules check found these violations:\n${violations.map((x) => `- ${x}`).join("\n")}\n\nReturn the FULL corrected JSON (same shape), changing only what's needed to fix every violation.`,
-            { model: "opus" },
+            {},
           ),
         );
       } catch (e) {

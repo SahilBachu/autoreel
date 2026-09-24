@@ -63,7 +63,7 @@ BLURB: <the blurb on one line>${news ? `\nARTICLE:\n<the article, plain paragrap
     .filter(Boolean)
     .join("\n");
 
-  const raw = await claude(prompt, { model: "opus", tools: WRITER_TOOLS, cwd: REPO_ROOT, timeoutMs: 8 * 60_000 });
+  const raw = await claude(prompt, { tools: WRITER_TOOLS, cwd: REPO_ROOT, timeoutMs: 8 * 60_000 });
   const { title, blurb, article } = parseSiteCopy(raw);
   if (news && !article) throw new Error(`article came back empty (model returned ${raw.length} chars)`);
   return {

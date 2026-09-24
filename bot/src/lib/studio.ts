@@ -123,14 +123,14 @@ REQUIREMENTS (all mandatory):
 Reply DONE when finished.`;
 
   try {
-    await claude(prompt, { model: "opus", tools: AGENT_TOOLS, cwd: studio, timeoutMs: 12 * 60_000 });
+    await claude(prompt, { tools: AGENT_TOOLS, cwd: studio, timeoutMs: 12 * 60_000 });
     await writeRegistry(dir);
     let check = await tsc(studio);
     if (!check.ok) {
       // one repair attempt with the actual compiler output
       await claude(
         `Your generated scene components in src/auto/generated/ fail typecheck. Fix them (do not touch index.ts or other files):\n${check.errors}\nReply DONE when fixed.`,
-        { model: "opus", tools: AGENT_TOOLS, cwd: studio, timeoutMs: 8 * 60_000 },
+        { tools: AGENT_TOOLS, cwd: studio, timeoutMs: 8 * 60_000 },
       );
       await writeRegistry(dir); // in case the fix renamed/added files
       check = await tsc(studio);
@@ -154,7 +154,7 @@ judge it like an art director: does it show what the spec asks? Is everything re
 the frame (nothing clipped/overflowing/invisible), dark glassy panels with the accent color?
 - If it looks right: reply exactly OK.
 - If not: fix ${file} (ONLY that file), keep it type-safe, then reply FIXED.`,
-        { model: "opus", tools: AGENT_TOOLS, cwd: studio, timeoutMs: 8 * 60_000 },
+        { tools: AGENT_TOOLS, cwd: studio, timeoutMs: 8 * 60_000 },
       );
       if (!/^\s*OK\b/i.test(verdict.trim())) touched = true;
     }

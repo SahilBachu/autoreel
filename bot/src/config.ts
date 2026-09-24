@@ -32,6 +32,12 @@ export const config = {
     serviceKey: process.env.SUPABASE_SERVICE_KEY || "",
     bucket: process.env.SUPABASE_BUCKET || "reels",
   },
+  // Every Claude call (ideas, scripts, captions, video direction, articles, research) uses this.
+  // An explicit ID rather than the "opus" alias: the alias silently tracks whatever the CLI
+  // version knows about, which is how the runner ended up on Opus 5 when 5.5 was out.
+  claude: {
+    model: process.env.CLAUDE_MODEL || "claude-opus-5-5",
+  },
   // which renderer a video uses: alternate (default) | v2 | world — see lib/style.ts
   style: {
     mode: (["alternate", "v2", "world"].includes(process.env.VIDEO_STYLE || "") ? process.env.VIDEO_STYLE : "alternate") as "alternate" | "v2" | "world",

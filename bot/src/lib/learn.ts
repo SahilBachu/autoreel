@@ -211,7 +211,7 @@ Update the profile. Rules:
   them, treat it as a one-off and drop it rather than writing a bullet that fights the rules.
 Return ONLY JSON: {"voice":[...],"visuals":[...],"topics":[...],"captions":[...]}`;
   try {
-    const next = await claudeJson<Partial<Record<keyof typeof H, string[]>>>(prompt, { model: "opus" });
+    const next = await claudeJson<Partial<Record<keyof typeof H, string[]>>>(prompt, {});
     (Object.keys(H) as (keyof typeof H)[]).forEach((k) => {
       if (Array.isArray(next[k])) writeSection(H[k].file, H[k].h, next[k]!);
     });

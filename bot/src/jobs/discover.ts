@@ -174,7 +174,6 @@ Return:
   "links":["2-3 REAL urls you saw"],"angle":"the hook for this creator — the one line that makes a viewer stop"}]
 Return ONLY the JSON array, exactly ${k} items.`;
   const found = await claudeJson<Found[]>(prompt, {
-    model: "opus",
     tools: WRITER_TOOLS,
     cwd: REPO_ROOT,
   });
@@ -250,7 +249,6 @@ Otherwise return:
   "links":["2-3 REAL urls you saw"],"angle":"the hook — his framing, sharpened by what you found"}
 Return ONLY the JSON object.`;
   const r = await claudeJson<({ found: true } & Found) | { found: false; note?: string }>(prompt, {
-    model: "opus",
     tools: WRITER_TOOLS,
     cwd: REPO_ROOT,
   });
@@ -325,7 +323,7 @@ export async function buildDigest(n = 3): Promise<Digest> {
     }
     const { text, sessionId } = await claudeSession(
       scriptPrompt(r.topic, { angle: r.angle, type: r.type, toolUrl: r.toolUrl, context: foundContext(r) }),
-      { model: "opus", tools: WRITER_TOOLS, cwd: REPO_ROOT },
+      { tools: WRITER_TOOLS, cwd: REPO_ROOT },
     );
     cards.push({ ...r, n: i + 1, script: text.trim(), sessionId });
   }

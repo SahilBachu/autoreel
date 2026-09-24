@@ -1,8 +1,9 @@
 import { spawn } from "node:child_process";
+import { config } from "../config.js";
 
 // Headless Claude Code calls. Draws from the Max subscription — keep prompts lean.
-// Complex creative steps (script, director, discovery) run on Opus; cheap utility
-// calls (captions etc.) stay on the default model.
+// Every call runs on config.claude.model (CLAUDE_MODEL, default Opus 5.5) unless it passes its
+// own — so upgrading the model is one line, not a hunt through a dozen call sites.
 
 type Opts = { model?: string; resume?: string; json?: boolean; tools?: string[]; cwd?: string; timeoutMs?: number };
 
@@ -47,7 +48,7 @@ function run(args: string[], cwd?: string, timeoutMs?: number): Promise<string> 
 
 function baseArgs(prompt: string, opts: Opts): string[] {
   const args = ["-p", prompt];
-  if (opts.model) args.push("--model", opts.model);
+  args.push("--model", opts.model ?? config.claude.model); // one model everywhere unless a call says otherwise
   if (opts.resume) args.push("--resume", opts.resume);
   // agentic mode: grant specific tools (Write/Read/WebSearch/...) to a headless call
   if (opts.tools?.length) args.push("--allowedTools", opts.tools.join(","), "--permission-mode", "acceptEdits");

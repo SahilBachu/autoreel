@@ -51,7 +51,7 @@ export async function generateIdea(
       context: opts.fromDescriptionOnly ? undefined : foundContext(found),
       fromDescriptionOnly: opts.fromDescriptionOnly,
     }),
-    { model: "opus", tools: WRITER_TOOLS, cwd: REPO_ROOT },
+    { tools: WRITER_TOOLS, cwd: REPO_ROOT },
   );
   return {
     topic: found.topic,
@@ -77,13 +77,13 @@ export async function reviseScript(
     try {
       const { text, sessionId: sid } = await claudeSession(
         `Revise the current script. Change requested: ${feedback}\n${REVISE_TOOLS_LINE}\nOutput ONLY the revised script lines — no preamble, no 'Sources:' block.`,
-        { model: "opus", resume: sessionId, tools: WRITER_TOOLS, cwd: REPO_ROOT },
+        { resume: sessionId, tools: WRITER_TOOLS, cwd: REPO_ROOT },
       );
       if (text) return { script: stripAiTells(text.trim()), sessionId: sid ?? sessionId };
     } catch {
       /* fall through to cold revision */
     }
   }
-  const script = stripAiTells((await claude(revisePrompt(topic, currentScript, feedback), { model: "opus", tools: WRITER_TOOLS, cwd: REPO_ROOT })).trim());
+  const script = stripAiTells((await claude(revisePrompt(topic, currentScript, feedback), { tools: WRITER_TOOLS, cwd: REPO_ROOT })).trim());
   return { script };
 }
