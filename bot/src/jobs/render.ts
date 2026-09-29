@@ -137,12 +137,12 @@ export async function renderReel(opts: {
   const scenes: any[] = [];
   let shotN = 0;
   for (const c of planned as any[]) {
-    if ((c.kind === "browser" || c.kind === "screenshot" || c.kind === "phone" || c.kind === "ascii") && c.url && !c.src && !c.brand) {
+    if ((c.kind === "browser" || c.kind === "screenshot" || c.kind === "phone" || c.kind === "ascii" || c.kind === "highlight") && c.url && !c.src && !c.brand) {
       const rel = `generated/shot-${id}-${shotN++}.png`;
       const ok = await screenshot(c.url, resolve(studio, "public", rel));
       if (ok) scenes.push({ ...c, src: rel });
       else if (c.kind === "phone") scenes.push(c); // phone renders a placeholder screen
-      // browser/ascii scenes whose fetch failed are dropped (head stays on screen)
+      // browser/ascii/highlight scenes whose fetch failed are dropped (head stays on screen)
     } else {
       scenes.push(c);
     }

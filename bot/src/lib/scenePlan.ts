@@ -20,7 +20,7 @@ export type Plan = {
   beats?: Beat[]; // stage-1 narrative segmentation (kept for the plan audit file)
 };
 
-const TEXT_KINDS = ["headline", "decrypt", "callout", "quote"];
+const TEXT_KINDS = ["headline", "decrypt", "callout", "quote", "kinetic"];
 
 // Required props per scene kind. A scene missing one renders blank (or crashes the component),
 // so it's a lint violation for the repair round AND a hard drop in sanitize (final net).
@@ -42,6 +42,10 @@ const KIND_FIELDS: Record<string, string[]> = {
   // tool-review arc (v2-tools.tsx): what it is → get it → watch it work → the catch → where
   toolcard: ["name"], install: ["steps"], runlog: ["steps"], beforeafter: ["rows"],
   catch: ["items"], getit: ["url"],
+  // v3 (v3-*.tsx): the workflow graph, a cursor driving UI, a zoom into a real screenshot, an API
+  // response, tools collapsing into one, kinetic type, a two-column compare, a hub, a repo card
+  flow: ["nodes"], cursor: ["items"], highlight: ["url"], json: ["data"], stack: ["items", "into"],
+  kinetic: ["text"], split: ["left", "right"], logoorbit: ["center", "brands"], repo: ["repo", "stars"],
 };
 
 const MAX_CUSTOM = 3; // bespoke components per video — a ceiling, not a quota
