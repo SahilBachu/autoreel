@@ -26,8 +26,16 @@ import { GENERATED } from "./generated/index";
 
 export type Scene = { kind: string; startMs: number; endMs: number } & Record<string, any>;
 
+// every kind SceneKind below can draw — keep in step with its switch. A kind the director
+// invents (or a typo) has no renderer; treating it as drawable used to give the world a dimmed,
+// empty beat where an object should be.
+const KNOWN_KINDS = new Set([
+  "ascii", "barchart", "beforeafter", "bento", "browser", "calendar", "callout", "catch", "chat", "checklist", "code", "command", "cursor", "custom", "dashboard", "decrypt", "diff", "donut", "flow", "getit", "headline", "highlight", "inbox", "install", "json", "kanban", "kbd", "kinetic", "leaderboard", "linechart", "logo", "logoorbit", "logowall", "notifications", "phone", "poll", "pricing", "progress", "prompt", "quote", "rating", "receipt", "repo", "runlog", "screenshot", "search", "split", "stack", "stat", "statrow", "table", "terminal", "ticker", "timeline", "toggles", "toolcard", "tweet", "versus", "waveform",
+]);
+
 /** true when the plan can actually draw this scene (a `custom` needs its generated component). */
 export const sceneRenderable = (s: Scene) => {
+  if (!KNOWN_KINDS.has(s.kind)) return false;
   if (s.kind === "custom") return Boolean(s.name && GENERATED[s.name]);
   if (s.kind === "browser" || s.kind === "screenshot" || s.kind === "highlight") return Boolean(s.src);
   return true;

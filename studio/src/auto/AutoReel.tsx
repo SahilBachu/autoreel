@@ -32,6 +32,10 @@ export type AutoReelData = {
   music?: string;
   sfx?: { file: string; atMs: number; trimBeforeMs?: number; volume?: number }[];
   voiceBoost?: number;
+  /** music bed level (default 0.32). The bot measures voice gain per clip and passes this so the mix balance holds. */
+  musicVolume?: number;
+  /** gain applied to every sound effect, in dB (default 0): volume × 10^(sfxGainDb/20). */
+  sfxGainDb?: number;
   /** the opening title over his face (~first 3.2s). Falls back to the first text scene in that window. */
   title?: string;
   titleKicker?: string;
@@ -51,12 +55,12 @@ const Fade: React.FC<{ durF: number; fadeIn: boolean; fadeOut: boolean; children
   return <AbsoluteFill style={{ opacity: op }}>{children}</AbsoluteFill>;
 };
 
-export const AutoReel: React.FC<AutoReelData> = ({ videoSrc, captions, scenes: planned, accent, music, sfx, voiceBoost, title, titleKicker, titleEmphasis }) => {
+export const AutoReel: React.FC<AutoReelData> = ({ videoSrc, captions, scenes: planned, accent, music, sfx, voiceBoost, musicVolume, sfxGainDb, title, titleKicker, titleEmphasis }) => {
   const { fps } = useVideoConfig();
   const frame = useCurrentFrame();
   const f = (ms: number) => Math.round((ms / 1000) * fps);
   useGeistFonts();
-  const { title: tp, scenes } = planTitle(planned ?? [], { title, titleKicker, titleEmphasis });
+  const { title: tp, scenes } = planTitle(planned ?? [], { title, titleKicker, titleEmphasis }, captions ?? []);
 
   return (
     <AccentProvider value={resolveAccent(accent)}>
@@ -68,10 +72,10 @@ export const AutoReel: React.FC<AutoReelData> = ({ videoSrc, captions, scenes: p
           <AbsoluteFill style={{ background: `linear-gradient(170deg, ${T.bg2}, ${T.bg})` }} />
         )}
 
-        {/* the opening: him, uncovered, with the title */}
+        {/* the opening hook: him + the title card (title.tsx, shared with WorldReel) */}
         {tp ? (
           <Sequence from={0} durationInFrames={f(tp.endMs)} layout="none">
-            <TitleOverlay text={tp.text} kicker={tp.kicker} emphasis={tp.emphasis} durF={f(tp.endMs)} />
+            <TitleOverlay text={tp.text} kicker={tp.kicker} emphasis={tp.emphasis} brand={tp.brand} words={captions ?? []} durF={f(tp.endMs)} />
           </Sequence>
         ) : null}
 
@@ -98,10 +102,10 @@ export const AutoReel: React.FC<AutoReelData> = ({ videoSrc, captions, scenes: p
         })()}
 
         {/* lofi bed leads; SFX stay subtle */}
-        {music ? <Audio src={asset(music)} volume={0.32} loop /> : null}
+        {music ? <Audio src={asset(music)} volume={musicVolume ?? 0.32} loop /> : null}
         {(sfx ?? []).map((s, i) => (
           <Sequence key={`sfx${i}`} from={f(s.atMs)} durationInFrames={Math.round(1.6 * fps)} layout="none">
-            <Audio src={asset(s.file)} volume={s.volume ?? 0.16} trimBefore={f(s.trimBeforeMs ?? 0)} />
+            <Audio src={asset(s.file)} volume={(s.volume ?? 0.16) * Math.pow(10, (sfxGainDb ?? 0) / 20)} trimBefore={f(s.trimBeforeMs ?? 0)} />
           </Sequence>
         ))}
 

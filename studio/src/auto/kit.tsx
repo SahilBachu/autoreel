@@ -198,7 +198,10 @@ export const Surface: React.FC<Kids & { style?: CSS; radius?: number; glow?: boo
               : "linear-gradient(180deg, rgba(255,255,255,0.075), rgba(255,255,255,0.032))",
         border: `1px solid ${hot ? a.dim : T.border}`,
         boxShadow: [halo, "inset 0 1px 0 rgba(255,255,255,0.09)", "0 40px 90px -40px rgba(0,0,0,0.85)"].filter(Boolean).join(", "),
-        backdropFilter: tone === "glass" ? "blur(18px)" : undefined,
+        // no backdrop blur in object mode: the glass is already ~80% opaque there, and blurring
+        // the live video behind every card was the single biggest render cost (~0.07 s/frame
+        // on this machine — far more on the runner laptop)
+        backdropFilter: tone === "glass" && !obj ? "blur(18px)" : undefined,
         ...style,
       }}
     >
