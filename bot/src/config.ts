@@ -38,9 +38,9 @@ export const config = {
   claude: {
     model: process.env.CLAUDE_MODEL || "claude-opus-5-5",
   },
-  // which renderer a video uses: alternate (default) | v2 | world — see lib/style.ts
+  // which renderer a video uses: world (default) | v2 | alternate — see lib/style.ts
   style: {
-    mode: (["alternate", "v2", "world"].includes(process.env.VIDEO_STYLE || "") ? process.env.VIDEO_STYLE : "alternate") as "alternate" | "v2" | "world",
+    mode: (["alternate", "v2", "world"].includes(process.env.VIDEO_STYLE || "") ? process.env.VIDEO_STYLE : "world") as "alternate" | "v2" | "world",
   },
   // the link-in-bio site (web/). Localhost until it's on Cloudflare — while it is, DM links
   // go straight to the tool instead of through the site's click-counting /go/ redirect.

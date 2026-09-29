@@ -116,7 +116,9 @@ export async function renderReel(opts: {
   // picks the video's accent + music bed (+ emphasis SFX), and may commission bespoke
   // components (built + typechecked + visually verified by lib/studio.ts; dropped on failure)
   const audio = await audioLib(studio);
-  const plan = await planCutaways({ topic: opts.topic, words: captions, editNote: opts.editNote, audio });
+  // style first: the director's timing rules depend on whether scenes cover him or float over him
+  const style = pickStyle(opts.topic);
+  const plan = await planCutaways({ topic: opts.topic, words: captions, editNote: opts.editNote, audio, style });
   await writeFile(resolve(studio, "out", `${id}.plan.json`), JSON.stringify(plan, null, 2)).catch(() => {});
   const planned = await buildCustomScenes(plan.scenes, id);
 
@@ -148,7 +150,9 @@ export async function renderReel(opts: {
     return lead.get(f)!;
   };
   const sfx: { file: string; atMs: number; trimBeforeMs: number; volume: number }[] = [];
-  if (whoosh) {
+  // world style: the renderer's own sound policy (studio/src/auto/sound.ts) places subtle cues
+  // from the camera's actual arrivals, so none of the mechanical whooshes here
+  if (whoosh && style !== "world") {
     const t = await leadOf(whoosh);
     for (const atMs of spacedStarts(scenes, 5000, 3)) sfx.push({ file: whoosh, atMs, trimBeforeMs: t, volume: 0.16 });
   }
@@ -167,8 +171,6 @@ export async function renderReel(opts: {
   const hasOpener = scenes.some((s: any) => s.startMs < 3200 && TEXT_KINDS.has(s.kind) && typeof s.text === "string");
   const title = hasOpener ? undefined : opts.topic.split(/[:—,(]/)[0].trim().slice(0, 64).toLowerCase();
 
-  // two renderers off the same plan — alternating unless pinned (lib/style.ts)
-  const style = pickStyle(opts.topic);
   const propsPath = resolve(studio, "out", `${id}.props.json`);
   await writeFile(propsPath, JSON.stringify({ videoSrc: clipRel, captions, scenes, accent, music, sfx, voiceBoost: 2.8, title }));
   const mp4 = resolve(studio, "out", `${id}.mp4`);
