@@ -9,6 +9,7 @@ import { planCutaways, type AudioLib } from "../lib/scenePlan.js";
 import { buildCustomScenes } from "../lib/studio.js";
 import { screenshot } from "../lib/shot.js";
 import { compositionFor, pickStyle } from "../lib/style.js";
+import { LEGACY_BOOST, measureVoice } from "../lib/loudness.js";
 
 const exists = (p: string) => stat(p).then(() => true, () => false);
 
@@ -102,6 +103,14 @@ export async function renderReel(opts: {
   }
   const captions = alignCaptions(opts.script, words, { syncFromAudio: true });
 
+  // voice gain measured per clip instead of a fixed 2.8x (which hard-clipped his hotter
+  // phone-down recordings). Music and SFX follow the same ratio, so the balance is unchanged.
+  if (!(await exists(wav))) await run("npx", ["remotion", "ffmpeg", "-i", opts.clipPath, "-ar", "16000", "-ac", "1", "-y", wav], studio);
+  const level = await measureVoice(wav);
+  const voiceBoost = level?.gain ?? LEGACY_BOOST;
+  const mixRatio = voiceBoost / LEGACY_BOOST; // < 1 means everything was too hot before
+  if (level) console.log(`voice: ${level.rmsDb} dBFS rms, peak ${level.peak} -> gain ${voiceBoost} (was ${LEGACY_BOOST})`);
+
   // Normalize the clip to EXACTLY 1080x1920 (center cover-crop) up front. Whatever it was
   // recorded at — odd resolutions from weird apps, square, landscape — it now fills the 9:16
   // frame with correct proportions and can NEVER stretch the face (Remotion then shows it 1:1).
@@ -154,11 +163,13 @@ export async function renderReel(opts: {
   // from the camera's actual arrivals, so none of the mechanical whooshes here
   if (whoosh && style !== "world") {
     const t = await leadOf(whoosh);
-    for (const atMs of spacedStarts(scenes, 5000, 3)) sfx.push({ file: whoosh, atMs, trimBeforeMs: t, volume: 0.16 });
+    const vol = (audio.sfx.find((x) => x.file === whoosh) as { volume?: number } | undefined)?.volume ?? 0.16;
+    for (const atMs of spacedStarts(scenes, 5000, 3)) sfx.push({ file: whoosh, atMs, trimBeforeMs: t, volume: vol * mixRatio });
   }
   for (const e of plan.sfx ?? []) {
     if (sfx.some((x) => Math.abs(x.atMs - e.atMs) < 800)) continue; // don't stack on a whoosh
-    sfx.push({ file: e.file, atMs: e.atMs, trimBeforeMs: await leadOf(e.file), volume: 0.2 });
+    const vol = (audio.sfx.find((x) => x.file === e.file) as { volume?: number } | undefined)?.volume ?? 0.2;
+    sfx.push({ file: e.file, atMs: e.atMs, trimBeforeMs: await leadOf(e.file), volume: vol * mixRatio });
   }
 
   // 4. props + render — the director chooses the accent to fit the topic; random fallback
@@ -172,7 +183,17 @@ export async function renderReel(opts: {
   const title = hasOpener ? undefined : opts.topic.split(/[:—,(]/)[0].trim().slice(0, 64).toLowerCase();
 
   const propsPath = resolve(studio, "out", `${id}.props.json`);
-  await writeFile(propsPath, JSON.stringify({ videoSrc: clipRel, captions, scenes, accent, music, sfx, voiceBoost: 2.8, title }));
+  // musicVolume/sfxGainDb carry the same ratio into the composition (the bed was 0.32 against a
+  // 2.8x voice; the world renderer's sound policy was calibrated against that voice too)
+  await writeFile(
+    propsPath,
+    JSON.stringify({
+      videoSrc: clipRel, captions, scenes, accent, music, sfx, title,
+      voiceBoost,
+      musicVolume: Math.round(0.32 * mixRatio * 1000) / 1000,
+      sfxGainDb: Math.round(20 * Math.log10(mixRatio) * 10) / 10,
+    }),
+  );
   const mp4 = resolve(studio, "out", `${id}.mp4`);
   // --concurrency=1: parallel decoding of the talking-head clip races and dies with
   // "No frame found at position" on clips whose frame rate is slightly variable

@@ -3,15 +3,35 @@
     "Handpicked audio library. Drop files in public/sfx and public/music, then add an",
     "entry here describing each one. The render/director step reads this so Claude can",
     "place the RIGHT sound at the RIGHT moment (SFX on cuts/emphasis, music as a bed",
-    "ducked under the voice). 'tags' + 'use' guide the choice; 'file' is relative to public/."
+    "ducked under the voice). 'tags' + 'use' guide the choice; 'file' is relative to public/.",
+    "SFX = the v3 kit (public/sfx/v3, synthesised by make-kit.mjs there): soft, airy UI sounds",
+    "for a talking-head reel — felt more than heard. Every file is level-matched to -20 LUFS",
+    "(max momentary), so 'volume' is the recommended <Audio volume> in the current mix",
+    "(voice x2.8, bed 0.32): cues land ~20-25 dB under the voice. 'hitMs' = where the sound",
+    "lands inside the file (start the cue that much before the moment). WorldReel places these",
+    "itself via src/auto/sound.ts; see src/auto/SOUND.md. 'sfx_legacy' = the old stock files,",
+    "kept only so older renders/props still resolve — hot and generic, don't pick them."
   ],
   "sfx": [
-    { "file": "sfx/whoosh.mp3",   "tags": ["transition", "smooth"], "use": "scene hard-cut / cutaway in" },
-    { "file": "sfx/click.mp3",    "tags": ["ui", "tick", "subtle"], "use": "word emphasis / small UI tick" },
-    { "file": "sfx/pop.mp3",      "tags": ["appear", "light"],      "use": "an element or card popping in" },
-    { "file": "sfx/riser.mp3",    "tags": ["build", "tension"],     "use": "build into a reveal / stat" },
-    { "file": "sfx/keyboard.mp3", "tags": ["typing", "code"],       "use": "terminal / code typing moments" },
-    { "file": "sfx/thud.mp3",     "tags": ["impact", "stop"],       "use": "punchline / hard stop" }
+    { "file": "sfx/v3/whoosh-air-down.wav",  "tags": ["transition", "air", "soft", "whoosh"], "use": "soft filtered-air swish (0.67s, peaks at 0.26s) — a camera move / scene change, centred; darkens as it lands", "volume": 0.3, "hitMs": 260 },
+    { "file": "sfx/v3/whoosh-air-right.wav", "tags": ["transition", "air", "soft", "whoosh"], "use": "same air swish panned in from the right — camera travelling right / content entering from the right", "volume": 0.3, "hitMs": 260 },
+    { "file": "sfx/v3/whoosh-air-left.wav",  "tags": ["transition", "air", "soft", "whoosh"], "use": "same air swish panned in from the left — camera travelling left / content entering from the left", "volume": 0.3, "hitMs": 260 },
+    { "file": "sfx/v3/tick-a.wav",           "tags": ["ui", "tick", "check", "subtle"],       "use": "tiny glassy UI tick (0.16s) — a checkmark landing, a step completing, a toggle flipping, a cursor click", "volume": 0.316, "hitMs": 0 },
+    { "file": "sfx/v3/tick-b.wav",           "tags": ["ui", "tick", "check", "subtle"],       "use": "the same tick two semitones up — the NEXT check/step right after tick-a (never the same sample twice in a row)", "volume": 0.299, "hitMs": 0 },
+    { "file": "sfx/v3/pop-soft.wav",         "tags": ["appear", "pop", "soft", "ui"],         "use": "round soft bloop (0.3s) — a card/object arriving on screen when there's no camera move to carry it", "volume": 0.316, "hitMs": 0 },
+    { "file": "sfx/v3/keys-3.wav",           "tags": ["typing", "keys", "code", "soft"],      "use": "three soft low-profile key taps (0.42s) — ONCE as a terminal/code/prompt starts typing; never loop it into a typing track", "volume": 0.316, "hitMs": 0 },
+    { "file": "sfx/v3/key-1.wav",            "tags": ["keys", "press", "shortcut", "soft"],   "use": "one soft key press + release (0.22s) — a keyboard shortcut / kbd moment", "volume": 0.335, "hitMs": 0 },
+    { "file": "sfx/v3/confirm.wav",          "tags": ["result", "success", "chime", "gentle"], "use": "gentle two-note rising chime, D5→A5 (0.7s) — the payoff: the link/result lands, 'get it here', done", "volume": 0.376, "hitMs": 0 },
+    { "file": "sfx/v3/thump-soft.wav",       "tags": ["emphasis", "impact", "low", "soft"],   "use": "low felt thump with a soft knock (0.55s) — a big number settling, a stat, a one-word punch; not a cinematic boom", "volume": 0.473, "hitMs": 0 },
+    { "file": "sfx/v3/riser-soft.wav",       "tags": ["build", "tension", "air", "reveal"],   "use": "0.9s filtered-air rise that stops ON the hit — into a reveal/comparison after a pause; at most one per video", "volume": 0.266, "hitMs": 900 }
+  ],
+  "sfx_legacy": [
+    { "file": "sfx/whoosh.mp3",   "tags": ["legacy", "transition"], "use": "LEGACY stock whoosh (5.6s file, ~1.1s lead silence, -14.8 LUFS) — kept for old renders only" },
+    { "file": "sfx/click.mp3",    "tags": ["legacy", "ui"],         "use": "LEGACY stock click — kept for old renders only" },
+    { "file": "sfx/pop.mp3",      "tags": ["legacy", "appear"],     "use": "LEGACY stock pop (4.9s file) — kept for old renders only" },
+    { "file": "sfx/riser.mp3",    "tags": ["legacy", "build"],      "use": "LEGACY stock riser (-7.4 LUFS, ~1.8s lead silence) — kept for old renders only" },
+    { "file": "sfx/keyboard.mp3", "tags": ["legacy", "typing"],     "use": "LEGACY stock typing loop (4.8s) — kept for old renders only" },
+    { "file": "sfx/thud.mp3",     "tags": ["legacy", "impact"],     "use": "LEGACY stock thud — brick-walled (-0.8 LUFS, DC offset); kept for old renders only, never use" }
   ],
   "music": [
     { "file": "music/rosewater.mp3",   "tags": ["calm", "lofi", "warm"],                        "use": "default bed for dry/relaxed scripts" },
