@@ -10,6 +10,7 @@ import { renderReel } from "./jobs/render.js";
 import { postReel } from "./jobs/post.js";
 import { dmStatus, startDmLoop } from "./jobs/dm.js";
 import { setStyleMode, styleStatus } from "./lib/style.js";
+import { chunkForTelegram, runAnalytics } from "./jobs/analytics.js";
 import { genPostCaption } from "./lib/caption.js";
 import { drainSiteQueue, pendingSiteJobs, publishWithRetry, startSiteQueue } from "./jobs/site-queue.js";
 import { claude, ClaudeAuthError } from "./lib/claude.js";
@@ -106,6 +107,7 @@ const HELP = [
   "/learn — run a learning pass now",
   "/forget — reset learned preferences",
   "/dm — comment→DM autoresponder status",
+  "/stats — your Instagram numbers + what to do next (also every morning)",
   "/style — which renderer videos use (alternating by default; `/style v2` pins it)",
   "/retrysite — force the site retry now (it already retries on its own)",
   "/help — this list",
@@ -132,7 +134,18 @@ bot.command("forget", (ctx) => {
 // how the comment -> DM funnel is doing (and whether the token can even run it)
 bot.command("dm", (ctx) => ctx.reply(dmStatus()));
 
-// which renderer videos use — alternating by default, pin it either way
+// the analyst, on demand (it also runs every morning before the digest)
+bot.command("stats", async (ctx) => {
+  await ctx.reply("pulling your Instagram numbers and writing the report — takes a couple of minutes…");
+  try {
+    const { report } = await runAnalytics();
+    for (const part of chunkForTelegram(report)) await ctx.reply(part);
+  } catch (e: any) {
+    await ctx.reply(`couldn't build the report: ${String(e?.message ?? e).slice(0, 300)}`);
+  }
+});
+
+// which renderer videos use — world by default, switch or alternate
 bot.command("style", (ctx) => {
   const arg = ctx.match?.toString().trim().toLowerCase();
   if (arg && ["v2", "world", "alternate"].includes(arg)) {

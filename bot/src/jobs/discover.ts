@@ -141,6 +141,8 @@ with what's new:\n${seen.map((p) => `- ${p.topic}${picked.has(p.topic) ? " (he a
     : "";
   const cfg = discoveryConfig();
   const signals = await signalPack();
+  // what the daily analytics report found actually performs on his page (jobs/analytics.ts)
+  const performance = await readFile(resolve(REPO_ROOT, "bot/data/performance.md"), "utf8").catch(() => "");
   const prompt = `Today is ${new Date().toDateString()}. Find what the AI builder community is ACTIVELY talking
 about right now, for a creator whose page covers AI things people can use (tools, skills, repos,
 workflows) plus the AI news that community is arguing about.
@@ -150,7 +152,10 @@ ${cfg.counts}
 
 SKIP:
 ${cfg.skip}
-
+${performance ? `
+WHAT'S PERFORMING ON HIS PAGE (from his real Instagram numbers — weigh it, don't overfit one reel):
+${performance}
+` : ""}
 HERE IS WHAT'S MOVING RIGHT NOW — pulled minutes ago from the creators he follows, the subreddits,
 new GitHub repos and Hacker News. START HERE. The best picks usually show up in this list, or are
 the specific thing a creator video / top post is about (open it and find out what that is):
