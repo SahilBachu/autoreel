@@ -69,9 +69,10 @@ async function pruneGenerated(dir: string, keep = 5): Promise<void> {
   for (const c of comps) if (dead.has(c.ts)) await unlink(resolve(dir, c.file)).catch(() => {});
 }
 
-// render one still of the custom scene (mid-animation, springs settled) for the visual gate
-async function renderStill(studio: string, videoId: string, c: any): Promise<string | null> {
-  const rel = `out/verify-${videoId}-${c.name}.png`;
+// Render stills of the custom scene for the visual gate — in the renderer the video will
+// actually use, at arrival (springs settled) and deep into a long hold (is it still alive, or a
+// frozen card?). World-style scenes now hold up to ~10s, so the late frame matters.
+async function renderStills(studio: string, videoId: string, c: any, composition: string): Promise<string[]> {
   const propsPath = resolve(studio, "out", `verify-${videoId}-${c.name}.props.json`);
   await mkdir(resolve(studio, "out"), { recursive: true });
   await writeFile(
@@ -79,18 +80,23 @@ async function renderStill(studio: string, videoId: string, c: any): Promise<str
     JSON.stringify({
       videoSrc: "",
       captions: [],
-      scenes: [{ ...c, name: `${videoId}/${c.name}`, startMs: 0, endMs: 3000 }],
+      scenes: [{ ...c, name: `${videoId}/${c.name}`, startMs: 0, endMs: 9000 }],
       accent: "cyan",
     }),
   );
-  const r = await run("npx", ["remotion", "still", "AutoReel", rel, `--props=${propsPath}`, "--frame=45", "--scale=0.5"], studio);
-  if (!r.ok) console.error(`verify still failed for ${c.name}:`, r.out.slice(-300));
-  return r.ok ? rel : null;
+  const out: string[] = [];
+  for (const frame of [60, 240]) {
+    const rel = `out/verify-${videoId}-${c.name}-${frame}.png`;
+    const r = await run("npx", ["remotion", "still", composition, rel, `--props=${propsPath}`, `--frame=${frame}`, "--scale=0.5"], studio);
+    if (r.ok) out.push(rel);
+    else console.error(`verify still ${frame} failed for ${c.name}:`, r.out.slice(-300));
+  }
+  return out;
 }
 
 const AGENT_TOOLS = ["Read", "Write", "Edit", "Glob", "Grep"];
 
-export async function buildCustomScenes(scenes: any[], videoId: string): Promise<any[]> {
+export async function buildCustomScenes(scenes: any[], videoId: string, composition = "WorldReel"): Promise<any[]> {
   const customs = scenes.filter((s) => s.kind === "custom" && s.name && s.spec);
   if (!customs.length) return scenes.filter((s) => s.kind !== "custom");
 
@@ -108,18 +114,31 @@ export async function buildCustomScenes(scenes: any[], videoId: string): Promise
 inside this studio project (cwd = studio root). Build these:
 ${brief}
 
+HOW IT WILL BE SEEN: the reel is a talking head. Each scene is an OBJECT that floats over the
+creator in the upper-middle of the 1080x1920 frame while his face stays visible around it; a
+camera glides from object to object. A scene can hold for up to ~10 seconds while he talks about
+it. Bar: a professional Instagram reel (think Nick Saraev) — fluid, choreographed, product-grade.
+
 REQUIREMENTS (all mandatory):
-1. Read src/auto/theme.ts and src/auto/fx.tsx first — reuse their pieces.
+1. Read src/auto/kit.tsx and the "## kit" section of COMPONENTS.md FIRST, then src/auto/theme.ts
+   and src/auto/fx.tsx. Build from the kit's primitives (surfaces, entrances, typing, counters,
+   connectors, cursor, highlight, logo chips) rather than from scratch — they already carry the
+   house finish. Look at one or two existing components in src/auto/v3-*.tsx or v2-*.tsx for the
+   quality bar.
 2. For each component: create src/auto/generated/${videoId}-<Name>.tsx with a DEFAULT export
    React.FC that takes the props above. Visual language: dark glassy panels, hairline borders
    (T tokens), Geist fonts (F2), the video accent via useAccent() — NEVER hardcode colors.
 3. ALL motion frame-deterministic: useCurrentFrame + spring/interpolate. No wall-clock, no
-   Math.random (use remotion's random(seed)), no external animation libs.
-4. Wrap the content in <Scene bg="plain|grid|shader"> from fx.tsx (keeps clear of captions).
-   Design for 1080x1920; content fits within ~950px width.
-5. Do NOT touch src/auto/generated/index.ts — it is machine-generated and will pick your
+   Math.random (use remotion's random(seed)), no external animation libs, no CSS animation.
+4. Wrap the content in <Scene> from fx.tsx. Content fits a box about 1000px wide by 900px tall —
+   no full-screen backgrounds (the object sits over his video).
+5. CHOREOGRAPH IT: a clear entrance (~0.5-1s), the main action that shows what the spec is about,
+   then SECONDARY MOTION for the rest of the hold (data flowing, a counter ticking, a cursor
+   moving, a subtle pulse on the key element) so it is never a frozen card at second 8.
+6. Real content only — every number, name and label comes from the props or the spec.
+7. Do NOT touch src/auto/generated/index.ts — it is machine-generated and will pick your
    files up automatically. Do not edit any other existing file.
-6. Keep it self-contained and type-safe (strict TS). No new npm dependencies.
+8. Keep it self-contained and type-safe (strict TS). No new npm dependencies.
 Reply DONE when finished.`;
 
   try {
@@ -141,17 +160,19 @@ Reply DONE when finished.`;
     // Render a still of each component and let Opus judge it (and fix the file if needed).
     let touched = false;
     for (const c of customs) {
-      const still = await renderStill(studio, videoId, c);
-      if (!still) continue; // still failed but tsc passed — let it through rather than kill the reel
+      const stills = await renderStills(studio, videoId, c, composition);
+      if (!stills.length) continue; // stills failed but tsc passed — let it through rather than kill the reel
       const file = `src/auto/generated/${videoId}-${c.name}.tsx`;
       const verdict = await claude(
         `You built the bespoke Remotion component "${c.name}" (file: ${file}) for this spec:
 ${c.spec}
 Props it renders with: ${JSON.stringify(c.props ?? {})}
 
-A still from mid-scene was rendered to ${still} (1080x1920 at 0.5 scale). Read that image and
-judge it like an art director: does it show what the spec asks? Is everything readable, inside
-the frame (nothing clipped/overflowing/invisible), dark glassy panels with the accent color?
+Stills were rendered (1080x1920 at 0.5 scale): ${stills.join(" (at ~2s, just after arriving), ")}${stills.length > 1 ? " (at 8s, deep into a long hold)" : ""}.
+Read them and judge like an art director for a professional Instagram reel: does it show what the
+spec asks? Is everything readable at phone size, inside its box (nothing clipped, overflowing or
+invisible), dark glassy panels with the accent colour? At 8s is it still visibly alive and
+complete — not blank, not stuck mid-entrance, not a frozen empty card?
 - If it looks right: reply exactly OK.
 - If not: fix ${file} (ONLY that file), keep it type-safe, then reply FIXED.`,
         { tools: AGENT_TOOLS, cwd: studio, timeoutMs: 8 * 60_000 },

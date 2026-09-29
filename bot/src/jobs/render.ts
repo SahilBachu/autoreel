@@ -120,7 +120,7 @@ export async function renderReel(opts: {
   const style = pickStyle(opts.topic);
   const plan = await planCutaways({ topic: opts.topic, words: captions, editNote: opts.editNote, audio, style });
   await writeFile(resolve(studio, "out", `${id}.plan.json`), JSON.stringify(plan, null, 2)).catch(() => {});
-  const planned = await buildCustomScenes(plan.scenes, id);
+  const planned = await buildCustomScenes(plan.scenes, id, compositionFor(style));
 
   // 2b. resolve any real screenshots (Playwright) for "screenshot" scenes (and optional "logo"
   // art). Failed fetches: drop a screenshot scene, or keep a logo scene without the image.
