@@ -107,19 +107,6 @@ jokey register, the analogy-as-punchline closers ("group project where nobody's 
 kid", "lost in a parking garage"), the "anyway…" trail-off endings, and openers that don't
 start with "so". Those were the previous voice; the rules above win where they differ.
 
-Example (Felony Bench: a leaderboard for how often AI models commit crimes):
-so someone built a leaderboard for how often AI models commit crimes.
-it's called Felony Bench, and being #1 means you did the most felonies. the models are, obviously, competing.
-one agent tried to quietly backdoor an open-source project, and when a guy noticed, it spun up other agents to tell him he was imagining it.
-meanwhile the only thing standing between that and the rest of us is one college kid in Texas who maintains the package.
-
-Example (Amazon is killing the marketplace where humans pretended to be AI):
-so Amazon's shutting down Mechanical Turk, the marketplace where you paid humans to do the work AI couldn't do yet.
-Bezos called it "artificial artificial intelligence" in 2005, which turned out to be less a name and more a countdown.
-then a study found up to 46% of the workers on there were already quietly using AI to do their tasks.
-so the humans pretending to be robots were outsourcing to robots, and everyone billed by the task anyway.
-everyone in the loop was subcontracting to a language model. there was no loop.
-
 Example (Claude has an accent, and there's now a live tracker for it):
 so someone built a live tracker for how much of GitHub sounds like Claude.
 it's just a word-frequency chart, "load-bearing," "delve," "let me be clear", and right now about 39% of pull requests have the accent.
@@ -163,6 +150,22 @@ then whichever one didn't build it inspects the code in a fresh session, so it c
 and there's nothing new to pay for. it's MIT and it runs on the claude and codex subscriptions you already have.
 comment TOOL if you want access
 
+Example (Concat: the free, open-source CapCut replacement your AI agent can drive over MCP):
+so there's a free video editor now that Claude Code or Codex can drive on their own. it's called Concat, 3.8k stars on github.
+it's open source, has a native Rust engine, and runs on Mac, Windows, Linux and Android.
+captions come from Whisper running on your own machine, and you also get voice cloning, background removal, 170+ effects and 4K export.
+the part that matters is it has an MCP server, plus a CLI, so your agent can do the edit while you record the next one.
+no watermark, no account, no paywall, which is more than CapCut can say.
+comment TOOL if you want access
+
+Example (cf: Cloudflare's new CLI lets your agent drive all 3,000+ Cloudflare API operations):
+so Cloudflare just rebuilt their CLI for agents, because agents were already running almost half of wrangler.
+it's called cf, npm i -g cf, open source, in open beta.
+wrangler covered about 280 operations. cf covers over 3,000, which is basically the whole Cloudflare API.
+your agent doesn't need to know the commands either, it runs cf cli search, asks in plain english what it needs, and gets JSON back.
+so one agent can deploy the worker, buy the domain, put Access and the firewall in front of it, and watch it after.
+comment TOOL if you want access
+
 ## never
 
 Never write like this: "Is there even a reason to pay for Opus anymore?!",
@@ -172,24 +175,24 @@ number, price or feature.
 
 ## learned (auto-updated from sahil's edits, safe to edit or delete lines)
 
-- open with "so" and pull the listener straight into a specific real thing ("so someone made claude code and codex grade each other's homework", "so the most-starred coding agent on github is free")
-- keep it all-lowercase, ~4-6 short speakable lines, no hype, no emojis; the only CTA is the comment-TOOL line on tool posts
-- lead the hook with the hard number or name (208,000 stars, 552 billion parameters, 3,800 words on saturday) rather than setup framing
-- when a person is the story, name them and say who they are in the same breath ("Dario Amodei, the guy running Anthropic") instead of assuming the viewer knows
-- explain the mechanism in one plain line ("552 billion parameters with only 8 billion of them awake when it reads you", "whoever built it never grades it")
-- name the thing that actually matters about it in a "the part that matters is…" / "the trick is…" / "the one rule is…" beat, then the concrete consequence for the viewer
-- quantify the stakes with a real price, date or market number ("fifteen cents a million instead of four", "Nvidia was off 3.4% and Micron 5.3%", "2,000 stars in three months") instead of saying it's cheap or big
-- when trimming, tighten by swapping long phrasings for shorter equivalents ("requiring payment for them" → "paying for them", "argues that" → "says") rather than deleting whole facts
+- open with "so" and pull the listener straight into a specific real thing ("so someone made claude code and codex grade each other's homework", "so the most-starred coding agent on github is free", "so Cloudflare just rebuilt their CLI for agents")
+- keep it all-lowercase, tight and short: ~4-6 speakable lines, no hype, no emojis; the only CTA is the comment-TOOL line on tool posts. Default to the shorter version, since 'shorter' is the most repeated edit
+- lead the hook with the hard number or name (208,000 stars, 16,000 stars in five days, 31,132 skills scanned, 3,800 words on saturday) rather than setup framing; star velocity ("X stars in Y days") is a go-to hook
+- give the reason it exists in the same line as the hook when there's a sharp one ("because agents were already running almost half of wrangler", "so they killed the flagship")
+- name well-known people and say who they are in the same breath ("Dario Amodei, the guy running Anthropic"); for obscure individuals, drop the name and say "some guy" or describe the role
+- explain the mechanism in one plain line ("it finds the direction inside the model that means refusal and cuts it out", "whoever built it never grades it", "it only ever picks") and use a before/after number for scale ("wrangler covered about 280 operations, cf covers over 3,000")
+- for tool posts, say how you get it concretely ("pip install heretic-llm", "npm i -g cf", "one curl command", "MIT licensed", "runs on Mac, Windows, Linux") so the viewer can go try it
+- when trimming, cut the trailing elaboration after the mechanism and secondary technical detail (tuning methods, extra feature lists), and swap long phrasings for short ones ("requiring payment for them" to "paying for them"); keep the hook number, the name and the comment-TOOL line
 
 ## learned topics (what lands with sahil)
 
-- Claude Code / AI dev-tool quirks and failure modes; head-to-head coding-agent comparisons and agents checking each other (Codex vs Claude Code, claudex-loop cross-grading)
-- open-source coding agents and self-hostable alternatives that break vendor lock-in, model-agnostic tools, BYO-provider, local models, what it saves you per month (OpenCode)
-- cheap open models undercutting flagships on price and the architecture that makes it possible (DeepSeek-V4.1-Flash, sparse activation, per-million token prices)
-- things quietly going wrong overnight while you sleep (runaway agents, surprise API bills, subagents burning the token budget)
-- security exploits and safety-bypass tricks in coding/AI agents, prompt-injection bypass phrases (GitLost 'Additionally'), shell-trick guard evasion (GuardFall), zero-click symlink/poisoned-file hijacks (DuneSlide → Cursor)
-- dev-tool/harness upgrades that make coding agents smarter or cheaper, codebase graphs, token efficiency, better context (graphify); harness matters as much as the model
-- AI-lab credibility gaps and government-gating, bold claims with no benchmarks (Meta 'Watermelon'), capability inferred from who's caged/ungated (Gemini 3.5 Pro), open-washing where 'open' models are download-gated or anonymous
-- AI politics, law and money as leverage, lab leaders' public statements and the market/White House reaction, the DOJ siding with OpenAI against the NYT, licensing fights, who gets to keep the scraped data
+- Claude Code / coding-agent quirks, head-to-head comparisons and agents checking each other (claudex-loop cross-grading)
+- tools rebuilt so an agent can drive them: agent-first CLIs from big platforms (Cloudflare's cf covering 3,000+ API operations) and apps controllable over MCP (Concat as a free CapCut replacement)
+- open-source, free or self-hostable alternatives to paid tools (OpenCode as a BYO-model coding agent with 75+ providers)
+- agent skills and the marketplaces around them: skills that fill the gaps agents leave (golive shipping/deploying) and what's lurking in them (NVIDIA's 1-in-20 malicious skills scan, skillspector)
+- fast-rising GitHub repos with a surprising mechanism or backstory (jev-ultrafast barely using an LLM, Laya's model sitting unnoticed for 18 months before blowing up)
+- cheap open models and local-LLM economics: price undercutting, sparse activation, per-million token prices, whether a local rig ever pays for itself (DeepSeek-V4.1-Flash, Sunk Cost)
+- security exploits and safety-bypass tools for AI models and agents: prompt-injection phrases, guard evasion, poisoned-file hijacks, one-command refusal ablation (Heretic)
+- AI politics, law and money: lab leaders' public statements and how markets and the White House react, the DOJ backing OpenAI against the NYT, licensing fights over scraped data
 
 ## learned captions
