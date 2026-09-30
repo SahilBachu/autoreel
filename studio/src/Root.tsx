@@ -41,7 +41,9 @@ export const RemotionRoot: React.FC = () => {
       defaultProps={autoDefaults}
       calculateMetadata={autoMeta}
     />
-    {/* style B: the same plan as objects in one world, a camera travelling between them */}
+    {/* style B — the default: the same plan as objects in one world, a camera travelling
+        between them (world/WorldReel.tsx; motion v3: top-centre band, long holds, hook card,
+        face punch-ins, motion blur) */}
     <Composition
       id="WorldReel"
       component={WorldReel}

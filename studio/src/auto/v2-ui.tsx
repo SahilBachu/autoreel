@@ -1,7 +1,8 @@
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { F2, T, useAccent } from "./theme";
-import { Kicker, Panel, Scene } from "./fx";
+import { Panel, Scene } from "./fx";
 import { Logo, hasLogo } from "./logos";
+import { Caret, Float, LiveDot, LogoTile, ObjectCard, RevealText, Surface, TickList, Underline, breathe, clamp01, rise, schedule, useT, Kicker } from "./kit";
 
 // ── ui scenes — product-grade cards and layouts (Linear/Notion energy) ────────
 
@@ -16,7 +17,7 @@ export const Bento: React.FC<{ title?: string; cells: { title: string; sub?: str
   const cs = cells.slice(0, 5);
   return (
     <Scene bg="plain">
-      <div style={{ width: "100%", maxWidth: 940 }}>
+      <Float style={{ width: "100%", maxWidth: 940 }} seed={0.6} amp={4}>
         {title ? <Kicker text={title} /> : null}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
           {cs.map((c, i) => {
@@ -50,7 +51,7 @@ export const Bento: React.FC<{ title?: string; cells: { title: string; sub?: str
             );
           })}
         </div>
-      </div>
+      </Float>
     </Scene>
   );
 };
@@ -63,7 +64,7 @@ export const CalendarCard: React.FC<{ month?: string; highlights?: number[]; lab
   const hi = new Set(highlights);
   return (
     <Scene bg="grid">
-      <div style={{ width: "100%", maxWidth: 780 }}>
+      <Float style={{ width: "100%", maxWidth: 780 }} seed={1.6} amp={4}>
         <Panel style={{ padding: "44px 46px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 34 }}>
             <span style={{ fontFamily: F2.sans, fontWeight: 600, fontSize: 44, letterSpacing: "-0.02em", color: T.text }}>{month}</span>
@@ -106,7 +107,7 @@ export const CalendarCard: React.FC<{ month?: string; highlights?: number[]; lab
           </div>
         </Panel>
         {label ? <div style={{ fontFamily: F2.sans, fontWeight: 500, fontSize: 34, color: T.dim, textAlign: "center", marginTop: 28 }}>{label}</div> : null}
-      </div>
+      </Float>
     </Scene>
   );
 };
@@ -118,7 +119,8 @@ export const Timeline: React.FC<{ title?: string; steps: { title: string; sub?: 
   const { fps } = useVideoConfig();
   return (
     <Scene bg="plain">
-      <div style={{ width: "100%", maxWidth: 820 }}>
+      <Float style={{ width: "100%", maxWidth: 820 }} seed={2.8} amp={4}>
+        <ObjectCard pad="44px 50px 8px">
         {title ? <Kicker text={title} /> : null}
         <div style={{ position: "relative", paddingLeft: 54 }}>
           <div style={{ position: "absolute", left: 17, top: 10, bottom: 10, width: 3, borderRadius: 2, background: `linear-gradient(180deg, ${a.hex}, transparent)` }} />
@@ -133,128 +135,172 @@ export const Timeline: React.FC<{ title?: string; steps: { title: string; sub?: 
             );
           })}
         </div>
-      </div>
+        </ObjectCard>
+      </Float>
     </Scene>
   );
 };
 
-// AI chat exchange (claude / chatgpt style), assistant reply types itself
+// ── Chat — an AI conversation. User bubble slides in, the assistant "thinks" (3 dots),
+// then its reply STREAMS word by word (newest words fade up) — paced to the beat. An input
+// bar waits at the bottom with a blinking caret for the rest of the hold.
 export const Chat: React.FC<{ app?: string; messages: { role: "user" | "ai"; text: string }[] }> = ({ app = "claude", messages }) => {
   const a = useAccent();
-  const f = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { f, fps, beat, sp } = useT();
   const ms = messages.slice(0, 4);
-  const CPS = 30;
-  // how many chars of message k are visible (messages appear sequentially)
-  const startF = (k: number) => 8 + ms.slice(0, k).reduce((acc, m) => acc + (m.role === "ai" ? (m.text.length / CPS) * fps : 12) + 10, 0);
+  const THINK = 18;
+  const aiChars = ms.filter((m) => m.role === "ai").reduce((n, m) => n + m.text.length, 0);
+  const nUser = ms.filter((m) => m.role !== "ai").length;
+  const budget = Math.max(20, beat * 0.62 - 10 - nUser * 14 - (ms.length - nUser) * THINK);
+  const cps = Math.max(30, Math.min(80, (aiChars / budget) * fps));
+  const sched: { at: number; streamAt: number; done: number }[] = [];
+  let cur = 8;
+  for (const m of ms) {
+    if (m.role === "ai") {
+      const streamAt = cur + THINK;
+      const done = streamAt + Math.ceil((m.text.length / cps) * fps);
+      sched.push({ at: cur, streamAt, done });
+      cur = done + 10;
+    } else {
+      sched.push({ at: cur, streamAt: cur, done: cur });
+      cur += 16;
+    }
+  }
+  const allDone = cur;
+  const e = sp(0);
+  const name = app.charAt(0).toUpperCase() + app.slice(1);
   return (
     <Scene bg="plain">
-      <div style={{ width: "100%", maxWidth: 860 }}>
-        <Panel style={{ padding: "36px 40px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 16, paddingBottom: 26, borderBottom: `1px solid ${T.border}`, marginBottom: 30 }}>
-            {hasLogo(app) ? <Logo name={app} size={40} color="#fff" /> : <div style={{ width: 14, height: 14, borderRadius: 7, background: a.hex }} />}
-            <span style={{ fontFamily: F2.sans, fontWeight: 600, fontSize: 30, color: T.dim, textTransform: "capitalize" }}>{app}</span>
-          </div>
-          {ms.map((m, k) => {
-            const s = startF(k);
-            const vis = spr(f, fps, s, { damping: 20 });
-            if (f < s - 4) return null;
-            const shown = m.role === "ai" ? m.text.slice(0, Math.max(0, Math.floor(((f - s) / fps) * CPS))) : m.text;
-            const done = m.role !== "ai" || shown.length >= m.text.length;
-            return (
-              <div key={k} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start", marginBottom: 22, opacity: vis }}>
-                <div
-                  style={{
-                    maxWidth: "82%",
-                    padding: "20px 28px",
-                    borderRadius: m.role === "user" ? "22px 22px 6px 22px" : "22px 22px 22px 6px",
-                    background: m.role === "user" ? a.soft : T.surface2,
-                    border: `1px solid ${m.role === "user" ? a.dim : T.border}`,
-                    fontFamily: F2.sans,
-                    fontSize: 33,
-                    lineHeight: 1.4,
-                    color: T.text,
-                  }}
-                >
-                  {shown}
-                  {!done ? <span style={{ color: a.hex, opacity: Math.floor(f / 8) % 2 ? 1 : 0 }}>▍</span> : null}
-                </div>
-              </div>
-            );
-          })}
-        </Panel>
-      </div>
+      <Float style={{ width: "100%", maxWidth: 880 }} seed={1.4} amp={4}>
+        <div style={rise(e, 36, 0.96)}>
+          <Surface glow style={{ padding: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "24px 32px", borderBottom: `1px solid ${T.border}` }}>
+              <LogoTile brand={app} letter={app} size={52} />
+              <span style={{ fontFamily: F2.sans, fontWeight: 600, fontSize: 32, color: T.text, flex: 1 }}>{name}</span>
+              <LiveDot size={11} />
+            </div>
+            <div style={{ padding: "30px 32px 10px" }}>
+              {ms.map((m, k) => {
+                const s = sched[k];
+                const vis = f < s.at - 2 ? 0 : sp(s.at, "snappy");
+                if (m.role !== "ai") {
+                  return (
+                    <div key={k} style={{ display: "flex", justifyContent: "flex-end", marginBottom: 24, ...rise(vis, 18, 0.94), transformOrigin: "right bottom" }}>
+                      <div style={{ maxWidth: "80%", padding: "20px 28px", borderRadius: "26px 26px 8px 26px", background: a.soft, border: `1px solid ${a.dim}`, fontFamily: F2.sans, fontSize: 34, lineHeight: 1.38, color: T.text }}>{m.text}</div>
+                    </div>
+                  );
+                }
+                const words = m.text.split(" ");
+                const perWord = Math.max(1, m.text.length / Math.max(1, words.length));
+                const n = f < s.streamAt ? 0 : Math.min(words.length, (((f - s.streamAt) / fps) * cps) / perWord);
+                const thinking = f >= s.at && f < s.streamAt;
+                return (
+                  <div key={k} style={{ display: "flex", gap: 16, alignItems: "flex-start", marginBottom: 24, ...rise(vis, 14, 0.97) }}>
+                    <LogoTile brand={app} letter={app} size={46} radius={23} />
+                    <div style={{ position: "relative", maxWidth: "82%", padding: "18px 26px", borderRadius: "8px 26px 26px 26px", background: "rgba(255,255,255,0.06)", border: `1px solid ${T.border}`, fontFamily: F2.sans, fontSize: 34, lineHeight: 1.38, color: T.text, minHeight: 68 }}>
+                      {thinking ? (
+                        <span style={{ position: "absolute", left: 26, top: 18, display: "inline-flex", gap: 9, alignItems: "center", height: 46 }}>
+                          {[0, 1, 2].map((d) => {
+                            const b = Math.max(0, Math.sin((f - s.at) / 3.2 - d * 0.9));
+                            return <span key={d} style={{ width: 12, height: 12, borderRadius: 6, background: a.hex, opacity: 0.35 + 0.65 * b, transform: `translateY(${-5 * b}px)` }} />;
+                          })}
+                        </span>
+                      ) : null}
+                      {words.map((w, i) => {
+                          const o = clamp01(n - i);
+                          return (
+                            <span key={i} style={{ opacity: o, display: "inline-block", transform: `translateY(${(1 - o) * 6}px)`, marginRight: "0.26em" }}>
+                              {w}
+                            </span>
+                          );
+                        })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ margin: "0 24px 24px", padding: "18px 22px 18px 26px", borderRadius: 20, border: `1px solid ${T.border}`, background: "rgba(0,0,0,0.25)", display: "flex", alignItems: "center", gap: 14 }}>
+              <span style={{ flex: 1, fontFamily: F2.sans, fontSize: 28, color: T.faint }}>
+                Reply to {name}...
+                {f > allDone ? <Caret /> : null}
+              </span>
+              <span style={{ width: 46, height: 46, borderRadius: 14, background: f > allDone ? a.hex : "rgba(255,255,255,0.08)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={f > allDone ? T.bg : T.faint} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 19V5" />
+                  <path d="M5 12l7-7 7 7" />
+                </svg>
+              </span>
+            </div>
+          </Surface>
+        </div>
+      </Float>
     </Scene>
   );
 };
 
-// iOS-style notification stack dropping in
+// ── Notifications — iOS-style banners DROP in (paced over the beat) with a haptic wiggle
+// as each lands; the newest one keeps a soft accent glow through the hold.
 export const Notifications: React.FC<{ items: { app: string; title: string; body?: string; brand?: string }[] }> = ({ items }) => {
-  const f = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const a = useAccent();
+  const { f, beat, sp } = useT();
+  const its = items.slice(0, 4);
+  const at = schedule(its.length, beat, { start: 6, fill: 0.42, min: 10, max: 36 });
+  const newest = at.reduce((k, t, i) => (f >= t ? i : k), -1);
   return (
     <Scene bg="shader">
-      <div style={{ width: "100%", maxWidth: 800, display: "flex", flexDirection: "column", gap: 22 }}>
-        {items.slice(0, 4).map((n, i) => {
-          const e = spr(f, fps, 6 + i * 12, { damping: 17, stiffness: 150 });
+      <Float style={{ width: "100%", maxWidth: 820, display: "flex", flexDirection: "column", gap: 20 }} seed={2.4} amp={4}>
+        {its.map((n, i) => {
+          const e = sp(at[i], "bouncy");
+          const land = f - at[i];
+          const wig = land > 3 && land < 18 ? Math.sin(land * 1.9) * (18 - land) * 0.09 : 0;
+          const hot = i === newest;
           return (
-            <div
-              key={i}
-              style={{
-                background: "rgba(22,22,26,0.92)",
-                border: `1px solid ${T.borderBright}`,
-                borderRadius: 26,
-                padding: "26px 30px",
-                display: "flex",
-                gap: 22,
-                alignItems: "center",
-                boxShadow: "0 30px 70px -20px rgba(0,0,0,0.8)",
-                opacity: e,
-                transform: `translateY(${interpolate(e, [0, 1], [-70, 0])}px) scale(${interpolate(e, [0, 1], [0.92, 1])})`,
-              }}
-            >
-              <div style={{ width: 74, height: 74, borderRadius: 20, background: T.surface2, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                {n.brand && hasLogo(n.brand) ? <Logo name={n.brand} size={42} color="#fff" /> : <span style={{ fontFamily: F2.sans, fontWeight: 700, fontSize: 34, color: T.text }}>{n.app.slice(0, 1).toUpperCase()}</span>}
-              </div>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ display: "flex", gap: 14, alignItems: "baseline" }}>
-                  <span style={{ fontFamily: F2.sans, fontWeight: 700, fontSize: 32, color: T.text }}>{n.app}</span>
-                  <span style={{ fontFamily: F2.sans, fontSize: 24, color: T.faint }}>now</span>
+            <div key={i} style={{ opacity: clamp01(e * 1.6), transform: `translateY(${(1 - e) * -90}px) scale(${interpolate(e, [0, 1], [0.9, 1])}) rotate(${wig}deg)` }}>
+              <div style={{ background: "linear-gradient(180deg, rgba(38,38,44,0.94), rgba(24,24,28,0.94))", border: `1px solid ${hot ? a.dim : T.borderBright}`, borderRadius: 30, padding: "24px 28px", display: "flex", gap: 22, alignItems: "center", boxShadow: `0 30px 70px -24px rgba(0,0,0,0.85)${hot ? `, 0 0 ${40 + 20 * breathe(f, 80)}px -18px ${a.glow}` : ""}` }}>
+                <LogoTile brand={n.brand} letter={n.app} size={76} radius={20} />
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ display: "flex", gap: 14, alignItems: "baseline", justifyContent: "space-between" }}>
+                    <span style={{ fontFamily: F2.sans, fontWeight: 600, fontSize: 26, color: T.dim, textTransform: "uppercase", letterSpacing: "0.05em" }}>{n.app}</span>
+                    <span style={{ fontFamily: F2.sans, fontSize: 24, color: T.faint }}>now</span>
+                  </div>
+                  <div style={{ fontFamily: F2.sans, fontWeight: 650, fontSize: 35, letterSpacing: "-0.015em", color: T.text, marginTop: 4, lineHeight: 1.2 }}>{n.title}</div>
+                  {n.body ? <div style={{ fontFamily: F2.sans, fontSize: 29, color: T.dim, marginTop: 4, lineHeight: 1.25 }}>{n.body}</div> : null}
                 </div>
-                <div style={{ fontFamily: F2.sans, fontWeight: 600, fontSize: 32, color: T.text, marginTop: 4 }}>{n.title}</div>
-                {n.body ? <div style={{ fontFamily: F2.sans, fontSize: 28, color: T.dim, marginTop: 3 }}>{n.body}</div> : null}
               </div>
             </div>
           );
         })}
-      </div>
+      </Float>
     </Scene>
   );
 };
 
-// accent check list
+// ── Checklist — the gist in ticks: title rises with an accent underline, boxes appear and
+// their ticks DRAW (paced), text brightens; afterwards a soft light sweeps down the list.
 export const Checklist: React.FC<{ title?: string; items: string[] }> = ({ title, items }) => {
-  const a = useAccent();
-  const f = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { f, beat } = useT();
+  const its = items.slice(0, 5);
+  const at = schedule(its.length, beat, { start: title ? 12 : 6, fill: 0.45, min: 8, max: 26 });
+  const done = (at[at.length - 1] ?? 0) + 24;
+  const sweep = f > done ? ((f - done) % 110) / 110 : -1;
   return (
     <Scene bg="plain">
-      <div style={{ width: "100%", maxWidth: 840 }}>
+      <Float style={{ width: "100%", maxWidth: 860 }} seed={3.4} amp={4}>
+        <ObjectCard pad="46px 52px">
         {title ? (
-          <div style={{ fontFamily: F2.sans, fontWeight: 700, fontSize: 66, letterSpacing: "-0.03em", color: T.text, marginBottom: 44 }}>{title}</div>
-        ) : null}
-        {items.slice(0, 5).map((it, i) => {
-          const e = spr(f, fps, 8 + i * 9, { damping: 18 });
-          return (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 26, marginBottom: 32, opacity: e, transform: `translateX(${interpolate(e, [0, 1], [-36, 0])}px)` }}>
-              <div style={{ width: 52, height: 52, borderRadius: 16, background: a.soft, border: `1px solid ${a.dim}`, boxShadow: `0 0 24px -6px ${a.glow}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={a.hex} strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-              </div>
-              <span style={{ fontFamily: F2.sans, fontWeight: 500, fontSize: 46, letterSpacing: "-0.015em", color: T.text, lineHeight: 1.15 }}>{it}</span>
+          <div style={{ marginBottom: 46 }}>
+            <div style={{ fontFamily: F2.sans, fontWeight: 700, fontSize: 70, letterSpacing: "-0.04em", color: T.text, lineHeight: 1.05 }}>
+              <RevealText text={title} start={2} />
             </div>
-          );
-        })}
-      </div>
+            <Underline start={10} dur={18} width={140} thickness={6} style={{ marginTop: 20 }} />
+          </div>
+        ) : null}
+        <div style={{ position: "relative" }}>
+          <TickList items={its} starts={at} size={46} gap={30} />
+          {sweep >= 0 ? <div style={{ position: "absolute", left: -30, right: -30, height: 90, top: `${sweep * 130 - 20}%`, background: "linear-gradient(180deg, transparent, rgba(255,255,255,0.05), transparent)", pointerEvents: "none" }} /> : null}
+        </div>
+        </ObjectCard>
+      </Float>
     </Scene>
   );
 };
@@ -266,7 +312,7 @@ export const Kbd: React.FC<{ keys: string[]; label?: string }> = ({ keys, label 
   const { fps } = useVideoConfig();
   return (
     <Scene bg="grid">
-      <div style={{ textAlign: "center" }}>
+      <Float style={{ textAlign: "center" }} seed={3.9} amp={5}>
         <div style={{ display: "flex", gap: 26, justifyContent: "center", alignItems: "center" }}>
           {keys.slice(0, 4).map((k, i) => {
             const e = spr(f, fps, 4 + i * 7, { damping: 14, stiffness: 190 });
@@ -295,7 +341,7 @@ export const Kbd: React.FC<{ keys: string[]; label?: string }> = ({ keys, label 
           })}
         </div>
         {label ? <div style={{ fontFamily: F2.sans, fontWeight: 500, fontSize: 40, color: T.dim, marginTop: 44 }}>{label}</div> : null}
-      </div>
+      </Float>
     </Scene>
   );
 };

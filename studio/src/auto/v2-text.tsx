@@ -1,6 +1,7 @@
 import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { F2, T, useAccent } from "./theme";
-import { DecryptText, Kicker, Scene, useEnter } from "./fx";
+import { DecryptText, Scene, useEnter } from "./fx";
+import { Kicker } from "./kit";
 
 // ── text scenes — Geist, tight tracking, accent used sparingly ────────────────
 

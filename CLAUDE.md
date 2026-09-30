@@ -54,6 +54,24 @@ Telegram Bot API server, whisper, cron all installed). Move the repo to the runn
 - The IG token needs **four scopes** (see `.env.example`). `npm run refresh-ig-token` renews
   a live one; an expired one must be regenerated in the App Dashboard.
 
+## Motion v3 (2026-09-29) — world is the default
+- **Renderer:** `WorldReel` for every video (`VIDEO_STYLE` / `/style` switch to v2 or
+  alternate). Scene objects float top-centre over him; a camera travels between them; see
+  DESIGN.md. The director plans per style (`planCutaways({style})`): world scenes follow the
+  speech (2.5-10s, contiguous, ~70-90% coverage); `holdThroughSpeech()` extends any object
+  that would end mid-sentence.
+- **Components:** the catalog the director sees is `bot/src/lib/catalog.ts`; renderers are in
+  `studio/src/auto/scenes.tsx` (+ `v2-*.tsx`, `v3-*.tsx`). `studio/src/auto/kit.tsx` is the
+  shared vocabulary for every component and for render-time bespoke `custom` ones (see the
+  kit section of COMPONENTS.md).
+- **Sound:** `studio/src/auto/sound.ts` + `public/sfx/v3/`; voice gain per clip in
+  `bot/src/lib/loudness.ts`.
+- **Analytics:** `bot/src/jobs/analytics.ts` runs before the 3am digest and on `/stats`:
+  Instagram insights + the system's own data → a social-media-manager report on Telegram,
+  snapshots in `bot/data/analytics/`, and `bot/data/performance.md`, which topic research
+  reads.
+- **Model:** every Claude call uses `config.claude.model` (`CLAUDE_MODEL`, default Opus 5.5).
+
 ## Design system (BRAND V2 — replaced the old Nick/terracotta look, 2026-07-01)
 **Canonical docs: [`DESIGN.md`](./DESIGN.md) (look/motion/audio rules) + [`COMPONENTS.md`](./COMPONENTS.md)
 (the full scene catalog) + [`PIPELINE.md`](./PIPELINE.md) (the build plan). Read those, not this summary.**

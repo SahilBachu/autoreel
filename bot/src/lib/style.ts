@@ -6,8 +6,8 @@ import { config, REPO_ROOT } from "../config.js";
 //   v2    — AutoReel: scenes hard-cut over the talking head, the established look
 //   world — WorldReel: the same scenes are objects in one world, a camera travels
 //           between them, and they overlap him instead of covering him
-// Videos alternate by default so the feed doesn't settle into one rhythm. VIDEO_STYLE
-// (or /style in Telegram) pins it to one renderer when that's not wanted.
+// World is the default (sahil: "I really like the world view. I want to make this the
+// default"). VIDEO_STYLE or /style in Telegram switches to v2 or to alternating.
 //
 // Alternation is keyed to the TOPIC, not to each render: a Redo or an Edit of the same
 // reel keeps the style it already had, and only the next topic flips.

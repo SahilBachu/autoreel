@@ -76,6 +76,17 @@ export async function recentToolPosts(days = 7): Promise<ReelPost[]> {
   return (await r.json()) as ReelPost[];
 }
 
+/** Every row, newest first — the analytics join (type, title, clicks per reel). */
+export async function allPosts(): Promise<ReelPost[]> {
+  const { url, headers } = rest();
+  const u = new URL(url);
+  u.searchParams.set("select", "slug,type,title,tool_url,ig_media_id,clicks,published_at");
+  u.searchParams.set("order", "published_at.desc");
+  const r = await fetch(u, { headers, signal: AbortSignal.timeout(20_000) });
+  if (!r.ok) throw new Error(`reel_posts read failed: ${r.status} ${(await r.text()).slice(0, 200)}`);
+  return (await r.json()) as ReelPost[];
+}
+
 /** Every published row (any type) from the last N days — the deleted-reel sweep checks these. */
 export async function postsWithMedia(days = 60): Promise<ReelPost[]> {
   const { url, headers } = rest();

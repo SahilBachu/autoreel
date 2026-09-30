@@ -1,8 +1,9 @@
 import { buildDigest, formatDigest, sendToChat } from "./discover.js";
 import { ClaudeAuthError } from "../lib/claude.js";
+import { chunkForTelegram, runAnalytics } from "./analytics.js";
 
-// The 3am job (systemd timer autoreel-digest.timer): research → 3 topic cards with scripts →
-// Telegram. Run manually with: npm run digest
+// The 3am job (systemd timer autoreel-digest.timer): analytics report, then research → 3 topic
+// cards with scripts → Telegram. Run manually with: npm run digest
 //
 // It used to fail silently: one bad night meant no message at all and no idea why. Now a
 // transient failure (network, a CLI hiccup) retries twice, five minutes apart — inside the
@@ -10,6 +11,24 @@ import { ClaudeAuthError } from "../lib/claude.js";
 // A logged-out Claude isn't retried: nothing changes until a human logs back in.
 const ATTEMPTS = 3;
 const WAIT_MS = 5 * 60_000;
+
+// The analytics report goes FIRST: it refreshes bot/data/performance.md, which the topic
+// research reads — so this morning's ideas already know what performed yesterday. A failed
+// report never blocks the ideas.
+try {
+  const { report } = await runAnalytics();
+  for (const part of chunkForTelegram(`📊 daily report
+
+${report}`)) await sendToChat(part);
+  console.log("analytics report sent");
+} catch (e: any) {
+  console.error("analytics failed:", e?.message ?? e);
+  if (e instanceof ClaudeAuthError) {
+    await sendToChat(`⚠️ no ideas or report this morning: ${e.message}`).catch(() => {});
+    process.exit(1);
+  }
+  await sendToChat(`(couldn't build today's analytics report: ${String(e?.message ?? e).slice(0, 200)})`).catch(() => {});
+}
 
 for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
   try {

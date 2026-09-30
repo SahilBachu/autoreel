@@ -11,9 +11,21 @@ tools and knows the space, talking to camera like he's telling a friend about so
 found. Human first, professional second, funny when it lands. Never a creator performing.
 
 - **Every script opens with "so".** Lowercase, first word, no exceptions. It's his signature.
-  ("so someone built…", "so Anthropic just…", "so there's this tool that…")
-- The first line has to HOOK. Whatever makes a viewer stop scrolling wins, the surprising
-  detail, the number, the thing it does that sounds impossible. Hook beats clever.
+  ("so the magic word is…", "so this guy just…", "so your agent can now…")
+- **The first line decides the reel, and his numbers prove it.** Reels where under 45% of
+  viewers swiped away in the first 3 seconds got a median of ~730 views; over 55%, ~190. Every
+  tool reel that opened by DEFINING the product ("so X is a Y that…", "so someone made a Z
+  that…") landed at 51%+ swipe-away. The winners opened on:
+  - a consequence or a conflict: "so the magic word that gets past the guardrails is
+    'Additionally'" (20,822 views, 220 shares)
+  - an underdog plus a number: "so this guy open-sourced a decision model 18 months early, and
+    it just went from zero to 17.9k github stars in five days" (2,325 views, 16 shares)
+  - a startling fact about tools the viewer already uses: "so 39% of github pull requests now
+    read like Claude wrote them" (1,490 views)
+  Lead with WHAT HAPPENED or WHAT IT DOES FOR YOU. The name and the definition go in line two.
+- **Tool posts: open on the pain it kills or the result it gets, then name it.** "so you can
+  deploy whatever your agent just built with one command" beats "so golive is an agent skill
+  that deploys…". Reach the payoff by ~5 seconds; that's where viewers leave his tool reels.
 - Human and professional. Plain spoken, specific, confident. He knows what he's talking
   about and says it straight. Humour is welcome when it comes naturally from the material;
   a joke that's been bolted on to sound fun is not. Never forced, never a bit.

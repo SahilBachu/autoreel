@@ -1,5 +1,7 @@
 import React from "react";
-import { AsciiImage, Scene as SceneWrap } from "./fx";
+import { useVideoConfig } from "remotion";
+import { Float, SceneDurCtx } from "./kit";
+import { AsciiImage, Scene as SceneWrap, useSceneMode } from "./fx";
 import { Callout, Decrypt, Headline, Quote } from "./v2-text";
 import { BarChart, Donut, LineChart, Stat, StatRow, Table } from "./v2-data";
 import { Bento, CalendarCard, Chat, Checklist, Kbd, Notifications, Timeline } from "./v2-ui";
@@ -9,24 +11,65 @@ import {
   ProgressCard, PromptCard, Rating, Receipt, SearchCard, Ticker, Toggles, Waveform,
 } from "./v2-apps";
 import { BeforeAfter, Catch, GetIt, Install, RunLog, ToolCard } from "./v2-tools";
+import { Flow } from "./v3-flow";
+import { CursorDemo, Split, Stack } from "./v3-ui";
+import { Highlight, LogoOrbit } from "./v3-media";
+import { Json, Repo } from "./v3-data";
+import { Kinetic } from "./v3-text";
 import { GENERATED } from "./generated/index";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The director's scene plan → the v2 component for each beat. Shared by BOTH
+// The director's scene plan → the v2/v3 component for each beat. Shared by BOTH
 // renderers (AutoReel = full-screen covers, WorldReel = objects in a camera world).
 // Kinds are catalogued in ../../COMPONENTS.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export type Scene = { kind: string; startMs: number; endMs: number } & Record<string, any>;
 
+// every kind SceneKind below can draw — keep in step with its switch. A kind the director
+// invents (or a typo) has no renderer; treating it as drawable used to give the world a dimmed,
+// empty beat where an object should be.
+const KNOWN_KINDS = new Set([
+  "ascii", "barchart", "beforeafter", "bento", "browser", "calendar", "callout", "catch", "chat", "checklist", "code", "command", "cursor", "custom", "dashboard", "decrypt", "diff", "donut", "flow", "getit", "headline", "highlight", "inbox", "install", "json", "kanban", "kbd", "kinetic", "leaderboard", "linechart", "logo", "logoorbit", "logowall", "notifications", "phone", "poll", "pricing", "progress", "prompt", "quote", "rating", "receipt", "repo", "runlog", "screenshot", "search", "split", "stack", "stat", "statrow", "table", "terminal", "ticker", "timeline", "toggles", "toolcard", "tweet", "versus", "waveform",
+]);
+
 /** true when the plan can actually draw this scene (a `custom` needs its generated component). */
 export const sceneRenderable = (s: Scene) => {
+  if (!KNOWN_KINDS.has(s.kind)) return false;
   if (s.kind === "custom") return Boolean(s.name && GENERATED[s.name]);
-  if (s.kind === "browser" || s.kind === "screenshot") return Boolean(s.src);
+  if (s.kind === "browser" || s.kind === "screenshot" || s.kind === "highlight") return Boolean(s.src);
   return true;
 };
 
+// every scene knows how long it holds (kit useBeat) so its choreography can pace to the beat
 export const SceneBody: React.FC<{ s: Scene }> = ({ s }) => {
+  const { fps } = useVideoConfig();
+  const dur = Math.max(1, Math.round((((s.endMs ?? 0) - (s.startMs ?? 0)) / 1000) * fps));
+  const mode = useSceneMode();
+  const body = <SceneKind s={s} />;
+  return (
+    <SceneDurCtx.Provider value={dur}>
+      {mode === "object" && !OWN_LIFE.has(s.kind) ? (
+        // kinds without their own hold-life still hover gently as world objects
+        <Float style={{ position: "absolute", inset: 0 }} seed={dur % 7} amp={4} tilt={0.35}>
+          {body}
+        </Float>
+      ) : (
+        body
+      )}
+    </SceneDurCtx.Provider>
+  );
+};
+
+// kinds that already animate through a long hold (kit Float / beams / flowing detail)
+const OWN_LIFE = new Set([
+  "toolcard", "install", "runlog", "beforeafter", "catch", "getit", "terminal", "code", "browser", "screenshot", "phone", "logo", "logowall",
+  "versus", "tweet", "stat", "statrow", "linechart", "barchart", "donut", "table", "bento", "calendar", "timeline", "chat", "notifications",
+  "checklist", "kbd", "command", "prompt", "leaderboard", "toggles",
+  "flow", "cursor", "highlight", "json", "stack", "kinetic", "split", "logoorbit", "repo",
+]);
+
+const SceneKind: React.FC<{ s: Scene }> = ({ s }) => {
   switch (s.kind) {
     case "headline":
       return <Headline text={s.text} emphasis={s.emphasis} kicker={s.kicker} overlay={s.overlay} />;
@@ -37,7 +80,7 @@ export const SceneBody: React.FC<{ s: Scene }> = ({ s }) => {
     case "quote":
       return <Quote pre={s.pre} boxed={s.boxed} post={s.post} overlay={s.overlay} />;
     case "stat":
-      return <Stat value={s.value} label={s.label ?? s.sub} kicker={s.kicker} />;
+      return <Stat value={s.value} label={s.label ?? s.sub} kicker={s.kicker} prev={s.prev} />;
     case "statrow":
       return <StatRow items={s.items} kicker={s.kicker} />;
     case "linechart":
@@ -86,7 +129,7 @@ export const SceneBody: React.FC<{ s: Scene }> = ({ s }) => {
         </SceneWrap>
       );
     case "command":
-      return <CommandK query={s.query ?? ""} results={s.results} hint={s.hint} />;
+      return <CommandK query={s.query ?? ""} results={s.results ?? []} hint={s.hint} pick={s.pick} />;
     case "diff":
       return <DiffBlock title={s.title} lines={s.lines} />;
     case "pricing":
@@ -119,7 +162,7 @@ export const SceneBody: React.FC<{ s: Scene }> = ({ s }) => {
       return <Rating name={s.name} rating={s.rating} count={s.count} brand={s.brand} tagline={s.tagline} />;
     // tool-review arc (v2-tools.tsx)
     case "toolcard":
-      return <ToolCard name={s.name} tagline={s.tagline} brand={s.brand} by={s.by} chips={s.chips} />;
+      return <ToolCard name={s.name} tagline={s.tagline} brand={s.brand} by={s.by} chips={s.chips} badge={s.badge} specs={s.specs} />;
     case "install":
       return <Install title={s.title} steps={s.steps} />;
     case "runlog":
@@ -130,6 +173,25 @@ export const SceneBody: React.FC<{ s: Scene }> = ({ s }) => {
       return <Catch kicker={s.kicker} items={s.items} verdict={s.verdict} />;
     case "getit":
       return <GetIt url={s.url} name={s.name} brand={s.brand} badges={s.badges} price={s.price} note={s.note} />;
+    // v3 vocabulary (v3-*.tsx)
+    case "flow":
+      return <Flow title={s.title} nodes={s.nodes ?? []} edges={s.edges} />;
+    case "cursor":
+      return <CursorDemo app={s.app} title={s.title} items={s.items ?? []} clicks={s.clicks} action={s.action} done={s.done} result={s.result} />;
+    case "highlight":
+      return s.src ? <Highlight src={s.src} label={s.label} box={s.box} note={s.note} style={s.style} /> : null;
+    case "json":
+      return <Json title={s.title} method={s.method} status={s.status} data={s.data} highlight={s.highlight} />;
+    case "stack":
+      return s.into ? <Stack title={s.title} items={s.items ?? []} into={s.into} /> : null;
+    case "kinetic":
+      return <Kinetic text={s.text ?? ""} emphasis={s.emphasis} kicker={s.kicker} />;
+    case "split":
+      return s.left && s.right ? <Split title={s.title} left={s.left} right={s.right} winner={s.winner} /> : null;
+    case "logoorbit":
+      return <LogoOrbit center={s.center ?? s.brand ?? ""} brands={s.brands ?? []} label={s.label} />;
+    case "repo":
+      return <Repo repo={s.repo ?? ""} description={s.description} stars={String(s.stars ?? "")} forks={s.forks != null ? String(s.forks) : undefined} language={s.language} topics={s.topics} today={s.today} spark={s.spark} />;
     case "custom": {
       // bespoke per-video component, code-generated + typechecked at render time
       const C = s.name ? GENERATED[s.name] : undefined;

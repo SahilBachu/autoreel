@@ -125,6 +125,7 @@ export const Bg: React.FC<{ variant?: BgVariant }> = ({ variant = "plain" }) => 
 // under the content so it stays legible where it overlaps him. The world places and sizes
 // the box, so no caption padding here.
 export type SceneMode = "cover" | "object";
+const POOL = "rgba(5,5,7,0.56)";
 export const SceneModeCtx = createContext<SceneMode>("cover");
 export const useSceneMode = () => useContext(SceneModeCtx);
 
@@ -133,8 +134,23 @@ export const Scene: React.FC<{ bg?: BgVariant; overlay?: boolean; children: Reac
   if (mode === "object") {
     return (
       <AbsoluteFill>
-        {/* the pool: a blurred dark slab the shape of the box — even under the content, feathered ~80px past it */}
-        <div style={{ position: "absolute", inset: -30, borderRadius: 80, background: "rgba(5,5,7,0.80)", filter: "blur(34px)" }} />
+        {/* the pool: an elliptical core feathered by its own box-shadow (Skia draws a blurred
+            rrect analytically — far cheaper than filter:blur on a big layer). Reads as soft
+            light falloff, not a box; keeps loose text legible over his face without darkening
+            the whole width of the frame. */}
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            width: 700,
+            marginLeft: -350,
+            top: 120,
+            bottom: 120,
+            borderRadius: "50%",
+            background: POOL,
+            boxShadow: `0 0 150px 90px ${POOL}`,
+          }}
+        />
         <AbsoluteFill style={{ justifyContent: "center", alignItems: "center", padding: "30px 40px" }}>{children}</AbsoluteFill>
       </AbsoluteFill>
     );
@@ -172,23 +188,67 @@ export const Kicker: React.FC<{ text: string }> = ({ text }) => {
   );
 };
 
-// glassy panel used across components
+// a light sweep across a surface: once as it lands (~0.35s in), then a slow glint every
+// 6s while it holds — so a long hold never reads as a frozen card. Renders nothing between
+// sweeps (zero cost), and it's a plain gradient (no blur, no blend modes).
+export const Sheen: React.FC<{ first?: number; every?: number; strength?: number }> = ({ first = 10, every = 6, strength = 1 }) => {
+  const f = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const dur = 28;
+  const period = Math.round(every * fps);
+  const t = f < first ? -1 : (f - first) % period;
+  if (t < 0 || t > dur) return null;
+  const u = t / dur;
+  const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+  const k = (f - first < period ? 1 : 0.7) * strength; // the arrival sweep is the brightest
+  return (
+    <div style={{ position: "absolute", inset: 0, borderRadius: "inherit", overflow: "hidden", pointerEvents: "none" }}>
+      <div
+        style={{
+          position: "absolute",
+          top: "-10%",
+          bottom: "-10%",
+          width: "42%",
+          left: `${-50 + e * 160}%`,
+          transform: "skewX(-20deg)",
+          background: `linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,${(0.05 * k).toFixed(3)}) 42%, rgba(255,255,255,${(0.085 * k).toFixed(3)}) 50%, rgba(255,255,255,${(0.05 * k).toFixed(3)}) 58%, rgba(255,255,255,0) 100%)`,
+        }}
+      />
+    </div>
+  );
+};
+
+// the panel every card is built on. Premium restraint: a faint top-lit surface, a crisp
+// hairline, a 1px inner highlight on the top edge + a dark one on the bottom (it reads as
+// a physical slab), a layered soft shadow for depth, the accent only as a tight halo when
+// `glow`, and the Sheen. As an OBJECT over his face it turns near-opaque dark glass so it
+// stays legible without a heavy scrim. No backdrop-filter (costly on the render box, and
+// invisible over the dark base anyway).
 export const Panel: React.FC<{ children: React.ReactNode; style?: React.CSSProperties; glow?: boolean }> = ({ children, style, glow }) => {
   const a = useAccent();
+  const obj = useSceneMode() === "object";
+  const inner = `inset 0 1px 0 rgba(255,255,255,${glow ? 0.17 : 0.12}), inset 0 -1px 0 rgba(0,0,0,0.35)`;
+  const depth = obj
+    ? "0 30px 70px -24px rgba(0,0,0,0.85), 0 12px 26px -12px rgba(0,0,0,0.6)"
+    : "0 34px 80px -34px rgba(0,0,0,0.8), 0 10px 24px -14px rgba(0,0,0,0.5)";
   // as an object over the talking head the wide glow reads as a coloured rim — keep it tight there
-  const halo = useSceneMode() === "object" ? `0 0 54px -30px ${a.glow}` : `0 0 90px -20px ${a.glow}`;
+  const halo = glow ? (obj ? `, 0 0 64px -30px ${a.glow}` : `, 0 0 90px -22px ${a.glow}`) : "";
   return (
     <div
       style={{
-        background: T.surface,
-        border: `1px solid ${T.border}`,
+        position: "relative",
+        background: obj
+          ? "linear-gradient(180deg, rgba(27,27,32,0.94) 0%, rgba(14,14,17,0.95) 100%)"
+          : "linear-gradient(180deg, rgba(255,255,255,0.065) 0%, rgba(255,255,255,0.035) 100%)",
+        border: `1px solid ${obj ? "rgba(255,255,255,0.105)" : T.border}`,
         borderRadius: 28,
-        boxShadow: glow ? `${halo}, inset 0 1px 0 ${T.borderBright}` : `inset 0 1px 0 ${T.border}`,
-        backdropFilter: "blur(12px)",
+        boxShadow: `${inner}, ${depth}${halo}`,
         ...style,
       }}
     >
       {children}
+      {/* arrival sweep on every panel; the periodic hold-glint only on the hero (glow) one */}
+      <Sheen every={glow ? 6 : 10_000} strength={glow ? 1 : 0.7} />
     </div>
   );
 };

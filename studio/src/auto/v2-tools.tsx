@@ -1,379 +1,505 @@
-import { interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { Easing, interpolate } from "remotion";
 import { F2, T, useAccent } from "./theme";
-import { Kicker, Panel, Scene } from "./fx";
-import { Logo, hasLogo } from "./logos";
+import { Scene } from "./fx";
+import {
+  Beam, Caret, Check, Chip, Float, Label, LiveDot, LogoChip, LogoDraw, LogoTile, Ripple, RevealText, Sheen, Spinner, Surface, Window,
+  breathe, clamp01, focusIn, pop, ramp, rise, schedule, slide, typed, useT, Kicker } from "./kit";
+import { hasLogo } from "./logos";
 
 // ── tool-review scenes — the arc of "a tool people can actually use" ──────────
 //   toolcard  → what it is          install → how you get it
 //   runlog    → watching it work    beforeafter → what it replaces
 //   catch     → the fine print      getit → where to find it
-// Same contract as the rest of the kit: frame-deterministic (useCurrentFrame + springs,
-// remotion random only), T tokens + ONE accent from context, content ≤ ~950px wide,
-// everything inside <Scene> so it stays clear of the caption band.
-
-const spr = (frame: number, fps: number, delay = 0, cfg = {}) =>
-  spring({ frame: frame - delay, fps, config: { damping: 22, stiffness: 130, mass: 0.9, ...cfg } });
-
-const Check: React.FC<{ size?: number; color: string; width?: number }> = ({ size = 24, color, width = 3.2 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={width} strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 6L9 17l-5-5" />
-  </svg>
-);
-
-const BrandBox: React.FC<{ brand?: string; letter?: string; size?: number; glow?: string }> = ({ brand, letter, size = 64, glow }) => (
-  <div style={{ width: size, height: size, borderRadius: size * 0.28, background: T.surface2, border: `1px solid ${T.borderBright}`, boxShadow: glow ? `0 0 ${size * 0.6}px -${size * 0.12}px ${glow}, inset 0 1px 0 ${T.borderBright}` : `inset 0 1px 0 ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-    {brand && hasLogo(brand) ? (
-      <Logo name={brand} size={size * 0.56} color="#fff" />
-    ) : (
-      <span style={{ fontFamily: F2.sans, fontWeight: 700, fontSize: size * 0.44, color: T.text }}>{(letter ?? brand ?? "?").slice(0, 1).toUpperCase()}</span>
-    )}
-  </div>
-);
-
-const Caret: React.FC<{ f: number }> = ({ f }) => {
-  const a = useAccent();
-  return <span style={{ color: a.hex, opacity: Math.floor(f / 8) % 2 ? 1 : 0 }}>▍</span>;
-};
-
-// deterministic spinner arc (rotation driven by the frame)
-const Spinner: React.FC<{ f: number; size?: number; color: string }> = ({ f, size = 30, color }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ transform: `rotate(${(f * 22) % 360}deg)` }}>
-    <circle cx="12" cy="12" r="9" stroke={T.border} strokeWidth="3" />
-    <path d="M21 12a9 9 0 0 0-9-9" stroke={color} strokeWidth="3" strokeLinecap="round" />
-  </svg>
-);
+// Built from kit.tsx. Every scene: one choreographed entrance paced to the beat
+// (useBeat), then HOLD-LIFE (beam / sheen / float / flowing detail) so a 6s hold
+// never freezes. T tokens + ONE accent, content ≤ ~950px wide, inside <Scene>.
 
 // ── ToolCard — "what it is": the spec sheet at a glance ──────────────────────
-// Logo pops, name + one-liner land, meta chips (platform / license / price) stagger in.
-// Chips carry facts only (no invented numbers — a star count goes here only if real).
-export const ToolCard: React.FC<{ name: string; tagline?: string; brand?: string; by?: string; chips?: string[] }> = ({ name, tagline, brand, by, chips = [] }) => {
+// Logo tile pops (mark draws itself, a ring ripples out, an orbit ring turns), the name
+// rises out of a mask, the one-liner focuses in, meta chips stagger, optional spec rows
+// (model releases: context / price / benchmark — REAL values) slide in. Beam circles the card.
+export const ToolCard: React.FC<{ name: string; tagline?: string; brand?: string; by?: string; chips?: string[]; badge?: string; specs?: { label: string; value: string }[] }> = ({
+  name,
+  tagline,
+  brand,
+  by,
+  chips = [],
+  badge,
+  specs = [],
+}) => {
   const a = useAccent();
-  const f = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const e = spr(f, fps, 2, { damping: 18 });
-  const le = spr(f, fps, 5, { damping: 13, stiffness: 190 });
-  const ne = spr(f, fps, 9, { damping: 18 });
-  const te = spr(f, fps, 13, { damping: 18 });
-  const nameSize = Math.max(56, Math.min(92, Math.round(1250 / Math.max(name.length, 8))));
+  const { f, sp } = useT();
+  const e = sp(0);
+  const le = sp(4, "bouncy");
+  const te = sp(16, "snappy");
+  const nameSize = Math.max(58, Math.min(124, Math.round(1300 / Math.max(name.length, 6))));
+  const mark = brand ?? name;
+  const glowK = breathe(f, 96);
+  const ss = specs.slice(0, 4);
   return (
     <Scene bg="shader">
-      <div style={{ width: "100%", maxWidth: 860, opacity: e, transform: `translateY(${interpolate(e, [0, 1], [40, 0])}px) scale(${interpolate(e, [0, 1], [0.95, 1])})` }}>
-        <Panel glow style={{ padding: "56px 52px 50px", textAlign: "center" }}>
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 34, opacity: le, transform: `scale(${interpolate(le, [0, 1], [0.5, 1])})` }}>
-            <BrandBox brand={brand ?? name} letter={name} size={150} glow={a.glow} />
-          </div>
-          <div style={{ fontFamily: F2.sans, fontWeight: 700, fontSize: nameSize, letterSpacing: "-0.04em", lineHeight: 1.05, color: T.text, opacity: ne, transform: `translateY(${interpolate(ne, [0, 1], [18, 0])}px)` }}>{name}</div>
-          {tagline ? (
-            <div style={{ fontFamily: F2.sans, fontWeight: 500, fontSize: 34, lineHeight: 1.3, color: T.dim, marginTop: 16, opacity: te, transform: `translateY(${interpolate(te, [0, 1], [14, 0])}px)` }}>{tagline}</div>
-          ) : null}
-          {by ? (
-            <div style={{ fontFamily: F2.mono, fontSize: 23, letterSpacing: "0.14em", textTransform: "uppercase", color: T.faint, marginTop: 20, opacity: te }}>by {by}</div>
-          ) : null}
-          {chips.length ? (
-            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 14, marginTop: 38 }}>
-              {chips.slice(0, 5).map((c, i) => {
-                const ce = spr(f, fps, 18 + i * 5, { damping: 16, stiffness: 170 });
-                const hero = i === 0;
-                return (
-                  <span
-                    key={i}
-                    style={{
-                      fontFamily: F2.mono, fontWeight: 600, fontSize: 24, letterSpacing: "0.06em",
-                      padding: "12px 22px", borderRadius: 999,
-                      background: hero ? a.soft : T.surface, border: `1px solid ${hero ? a.dim : T.borderBright}`,
-                      color: hero ? a.hex : T.dim, boxShadow: hero ? `0 0 30px -8px ${a.glow}` : "none",
-                      opacity: ce, transform: `translateY(${interpolate(ce, [0, 1], [16, 0])}px) scale(${interpolate(ce, [0, 1], [0.85, 1])})`,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {c}
-                  </span>
-                );
-              })}
+      <Float style={{ width: "100%", maxWidth: 880 }} seed={0.4}>
+        <div style={rise(e, 44, 0.94)}>
+          <Surface glow beam radius={34} style={{ padding: "58px 52px 50px", textAlign: "center" }}>
+            {badge ? (
+              <div style={{ position: "absolute", top: 26, left: 28, ...pop(sp(20, "bouncy"), 0.6) }}>
+                <Chip hero style={{ fontSize: 20, padding: "8px 16px" }}>
+                  <LiveDot size={9} />
+                  {badge}
+                </Chip>
+              </div>
+            ) : null}
+            {/* logo block: orbit ring + one-shot ripple + tile with the mark drawing itself */}
+            <div style={{ position: "relative", width: 168, height: 168, margin: "0 auto 36px" }}>
+              <div style={{ position: "absolute", inset: -34, borderRadius: "50%", border: `1.5px dashed ${a.dim}`, opacity: 0.35 * clamp01(le), transform: `rotate(${f * 0.35}deg)` }} />
+              <Ripple x={84} y={84} at={10} size={250} />
+              <div style={{ position: "absolute", inset: 0, ...pop(le, 0.4) }}>
+                <div
+                  style={{
+                    width: 168,
+                    height: 168,
+                    borderRadius: 46,
+                    background: "linear-gradient(180deg, rgba(255,255,255,0.13), rgba(255,255,255,0.04))",
+                    border: `1px solid ${T.borderBright}`,
+                    boxShadow: `0 0 ${70 + glowK * 40}px -16px ${a.glow}, inset 0 1px 0 rgba(255,255,255,0.18)`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {hasLogo(mark) ? <LogoDraw brand={mark} size={92} start={6} /> : <span style={{ fontFamily: F2.sans, fontWeight: 700, fontSize: 80, color: T.text }}>{name.slice(0, 1).toUpperCase()}</span>}
+                </div>
+              </div>
             </div>
-          ) : null}
-        </Panel>
-      </div>
+            <div style={{ fontFamily: F2.sans, fontWeight: 700, fontSize: nameSize, letterSpacing: "-0.045em", lineHeight: 1.02, color: T.text }}>
+              <RevealText text={name} start={9} step={3} center />
+            </div>
+            {tagline ? <div style={{ fontFamily: F2.sans, fontWeight: 500, fontSize: 34, lineHeight: 1.3, color: T.dim, marginTop: 18, ...focusIn(te) }}>{tagline}</div> : null}
+            {by ? <Label style={{ marginTop: 20, opacity: clamp01(te) }}>by {by}</Label> : null}
+            {chips.length ? (
+              <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 14, marginTop: 36 }}>
+                {chips.slice(0, 5).map((c, i) => (
+                  <span key={i} style={{ ...pop(sp(22 + i * 5, "bouncy"), 0.7), display: "inline-block" }}>
+                    <Chip hero={i === 0}>{c}</Chip>
+                  </span>
+                ))}
+              </div>
+            ) : null}
+            {ss.length ? (
+              <div style={{ marginTop: 34, borderTop: `1px solid ${T.border}`, textAlign: "left" }}>
+                {ss.map((s, i) => {
+                  const re = sp(30 + chips.length * 5 + i * 6, "snappy");
+                  return (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 20, padding: "18px 6px", borderBottom: i < ss.length - 1 ? `1px solid ${T.border}` : "none", ...slide(re, -22) }}>
+                      <span style={{ fontFamily: F2.mono, fontSize: 23, letterSpacing: "0.12em", textTransform: "uppercase", color: T.faint }}>{s.label}</span>
+                      <span style={{ fontFamily: F2.sans, fontWeight: 700, fontSize: 36, letterSpacing: "-0.02em", color: i === 0 ? a.hex : T.text, textShadow: i === 0 ? `0 0 26px ${a.glow}` : "none" }}>{s.value}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </Surface>
+        </div>
+      </Float>
     </Scene>
   );
 };
 
 // ── Install — "how you get it": numbered steps, commands type themselves, ticks land ─
-// Steps run strictly in sequence: a step's command types out, its ring turns into an accent
-// check, then the next step wakes up. Steps without a command just tick after a beat.
+// Steps run strictly in sequence, spread across the beat: a step wakes (ring spins), its
+// command types, ↵ flashes, the ring becomes an accent check and the rail fills down to the
+// next step. After the last tick a light keeps travelling down the finished rail.
 export const Install: React.FC<{ title?: string; steps: { title: string; cmd?: string; sub?: string }[] }> = ({ title, steps }) => {
   const a = useAccent();
-  const f = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { f, fps, beat, sp } = useT();
   const ss = steps.slice(0, 4);
-  const CPS = 40;
-  // sequential schedule: [start, typingDone, ticked]
+  // schedule: typing time per step; spread idle gaps over the beat (or speed typing up when tight)
+  const base = ss.map((s) => (s.cmd ? (s.cmd.length / 32) * fps : 0) + (s.cmd ? 14 : 16));
+  const need = base.reduce((x, y) => x + y, 0);
+  const avail = beat * 0.62 - 10;
+  const speed = need > avail ? Math.min(2.2, need / Math.max(avail, 1)) : 1;
+  const gap = need < avail ? Math.min(28, (avail - need) / ss.length) : 3;
+  const cps = 32 * speed;
   const sched: { start: number; done: number; tick: number }[] = [];
-  let cursor = 10;
+  let cur = 10;
   for (const s of ss) {
-    const typeF = s.cmd ? Math.ceil((s.cmd.length / CPS) * fps) : 0;
-    const start = cursor;
+    const typeF = s.cmd ? Math.ceil((s.cmd.length / cps) * fps) : 0;
+    const start = cur;
     const done = start + typeF;
-    const tick = done + (s.cmd ? 8 : 12);
+    const tick = done + (s.cmd ? 9 : 14);
     sched.push({ start, done, tick });
-    cursor = tick + 4;
+    cur = tick + gap;
   }
-  const e = spr(f, fps, 2, { damping: 18 });
+  const allDone = sched.length ? sched[sched.length - 1].tick : 0;
+  const e = sp(0);
+  const RING = 58;
   return (
     <Scene bg="grid">
-      <div style={{ width: "100%", maxWidth: 900, opacity: e, transform: `translateY(${interpolate(e, [0, 1], [36, 0])}px)` }}>
-        {title ? <Kicker text={title} /> : null}
-        <Panel style={{ padding: "14px 0" }}>
-          {ss.map((s, i) => {
-            const { start, tick } = sched[i];
-            const re = spr(f, fps, 4 + i * 5, { damping: 20 });
-            const active = f >= start && f < tick;
-            const ticked = f >= tick;
-            const te = spr(f, fps, tick, { damping: 12, stiffness: 220 });
-            const typed = s.cmd ? s.cmd.slice(0, Math.max(0, Math.floor(((f - start) / fps) * CPS))) : "";
-            const typing = s.cmd ? typed.length < s.cmd.length && f >= start : false;
-            const dimmed = !active && !ticked;
-            return (
-              <div key={i} style={{ display: "flex", gap: 26, alignItems: "flex-start", padding: "26px 40px", borderBottom: i < ss.length - 1 ? `1px solid ${T.border}` : "none", opacity: re * (dimmed ? 0.45 : 1), transform: `translateX(${interpolate(re, [0, 1], [-24, 0])}px)` }}>
-                <div style={{ position: "relative", width: 58, height: 58, flexShrink: 0, marginTop: 2 }}>
-                  <div style={{ position: "absolute", inset: 0, borderRadius: 29, border: `2px solid ${ticked ? a.hex : active ? a.dim : T.borderBright}`, background: ticked ? a.hex : active ? a.soft : "transparent", boxShadow: ticked || active ? `0 0 ${ticked ? 28 : 16}px ${a.glow}` : "none", display: "flex", alignItems: "center", justifyContent: "center", transform: `scale(${ticked ? interpolate(te, [0, 1], [1.25, 1]) : 1})` }}>
-                    {ticked ? <Check size={28} color={T.bg} width={3.6} /> : <span style={{ fontFamily: F2.mono, fontWeight: 700, fontSize: 26, color: active ? a.hex : T.faint }}>{i + 1}</span>}
-                  </div>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: F2.sans, fontWeight: 600, fontSize: 36, letterSpacing: "-0.015em", color: ticked || active ? T.text : T.dim, lineHeight: 1.2 }}>{s.title}</div>
-                  {s.sub ? <div style={{ fontFamily: F2.sans, fontSize: 26, color: T.faint, marginTop: 4 }}>{s.sub}</div> : null}
-                  {s.cmd ? (
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 14, marginTop: 14, padding: "12px 20px", borderRadius: 14, background: "#0C0C10", border: `1px solid ${active ? a.dim : T.border}`, maxWidth: "100%" }}>
-                      <span style={{ fontFamily: F2.mono, fontSize: 27, color: a.hex }}>$</span>
-                      <span style={{ fontFamily: F2.mono, fontSize: 27, color: ticked ? T.dim : T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {typed}
-                        {typing ? <Caret f={f} /> : null}
-                      </span>
+      <Float style={{ width: "100%", maxWidth: 900 }} seed={1.1} amp={4}>
+        <div style={rise(e, 36)}>
+          {title ? <Kicker text={title} /> : null}
+          <Surface sheen style={{ padding: "16px 0" }}>
+            {ss.map((s, i) => {
+              const { start, done, tick } = sched[i];
+              const re = sp(3 + i * 5, "snappy");
+              const active = f >= start && f < tick;
+              const ticked = f >= tick;
+              const tp = sp(tick, "bouncy");
+              const t = s.cmd ? typed(s.cmd, f, start, cps, fps) : null;
+              const dimmed = !active && !ticked;
+              const enter = f >= done && f < done + 9;
+              // rail below this ring fills from this tick to the next step's start
+              const nextStart = i < ss.length - 1 ? sched[i + 1].start : tick;
+              const fill = ramp(f, tick, Math.max(tick + 8, nextStart), 0, 1, Easing.out(Easing.cubic));
+              // hold-life: after everything, a light travels down the rail
+              const loop = f > allDone + 10 ? ((f - allDone - 10) % 80) / 80 : -1;
+              return (
+                <div key={i} style={{ position: "relative", display: "flex", gap: 26, alignItems: "flex-start", padding: "24px 40px", borderBottom: i < ss.length - 1 ? `1px solid ${T.border}` : "none", opacity: clamp01(re * 1.3) * (dimmed ? 0.42 : 1), transform: `translateX(${(1 - re) * -24}px)` }}>
+                  {i < ss.length - 1 ? (
+                    <div style={{ position: "absolute", left: 40 + RING / 2 - 1.5, top: 24 + RING + 6, bottom: -24 + 6, width: 3, borderRadius: 2, background: T.border, overflow: "hidden" }}>
+                      <div style={{ width: "100%", height: `${fill * 100}%`, background: `linear-gradient(180deg, ${a.hex}, ${a.dim})`, boxShadow: `0 0 12px ${a.glow}` }} />
+                      {loop >= 0 ? <div style={{ position: "absolute", left: -2, width: 7, height: 34, borderRadius: 4, top: `${loop * 130 - 20}%`, background: `linear-gradient(180deg, transparent, #fff, transparent)`, opacity: 0.8 }} /> : null}
                     </div>
                   ) : null}
-                </div>
-              </div>
-            );
-          })}
-        </Panel>
-      </div>
-    </Scene>
-  );
-};
-
-// ── RunLog — "watching it actually work": a task log streams, spinners become ticks,
-// the result line lands late in the accent. Details (right column) are REAL facts only.
-export const RunLog: React.FC<{ title?: string; steps: { text: string; detail?: string }[]; result?: { text: string; sub?: string } }> = ({ title, steps, result }) => {
-  const a = useAccent();
-  const f = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const ss = steps.slice(0, 5);
-  const STEP = 12, SPIN = 11;
-  const resultAt = 10 + ss.length * STEP + 6;
-  const e = spr(f, fps, 2, { damping: 18 });
-  const re = spr(f, fps, resultAt, { damping: 13, stiffness: 200 });
-  return (
-    <Scene bg="plain">
-      <div style={{ width: "100%", maxWidth: 920, opacity: e, transform: `translateY(${interpolate(e, [0, 1], [36, 0])}px)` }}>
-        <div style={{ borderRadius: 26, overflow: "hidden", background: "#0C0C10", border: `1px solid ${T.borderBright}`, boxShadow: `0 50px 120px -30px rgba(0,0,0,0.9), 0 0 90px -40px ${a.glow}` }}>
-          <div style={{ height: 60, background: "rgba(255,255,255,0.04)", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 11, padding: "0 26px" }}>
-            {["#ff5f57", "#febc2e", "#28c840"].map((c) => <div key={c} style={{ width: 15, height: 15, borderRadius: 8, background: c }} />)}
-            {title ? <span style={{ marginLeft: 16, fontFamily: F2.mono, fontSize: 24, color: T.dim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}><span style={{ color: a.hex }}>❯ </span>{title}</span> : null}
-          </div>
-          <div style={{ padding: "22px 34px 26px" }}>
-            {ss.map((s, i) => {
-              const at = 10 + i * STEP;
-              const se = spr(f, fps, at, { damping: 22 });
-              const doneAt = at + SPIN;
-              const done = f >= doneAt;
-              const de = spr(f, fps, doneAt, { damping: 14, stiffness: 200 });
-              if (f < at - 2) return null;
-              return (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 20, padding: "13px 0", opacity: se, transform: `translateY(${interpolate(se, [0, 1], [10, 0])}px)` }}>
-                  <div style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    {done ? (
-                      <div style={{ transform: `scale(${interpolate(de, [0, 1], [0.4, 1])})`, display: "flex" }}><Check size={30} color={a.hex} width={3.4} /></div>
-                    ) : (
-                      <Spinner f={f} size={30} color={a.hex} />
-                    )}
+                  <div style={{ position: "relative", width: RING, height: RING, flexShrink: 0, marginTop: 2 }}>
+                    {active ? (
+                      <svg width={RING} height={RING} viewBox="0 0 58 58" style={{ position: "absolute", inset: 0, transform: `rotate(${f * 9}deg)` }}>
+                        <circle cx="29" cy="29" r="27" fill="none" stroke={a.hex} strokeWidth="2.5" strokeDasharray="40 130" strokeLinecap="round" />
+                      </svg>
+                    ) : null}
+                    <div style={{ position: "absolute", inset: 0, borderRadius: RING, border: `2px solid ${ticked ? a.hex : active ? a.dim : T.borderBright}`, background: ticked ? a.hex : active ? a.soft : "transparent", boxShadow: ticked ? `0 0 ${22 + 10 * breathe(f, 80, i)}px ${a.glow}` : "none", display: "flex", alignItems: "center", justifyContent: "center", transform: `scale(${ticked ? interpolate(tp, [0, 1], [1.3, 1]) : 1})` }}>
+                      {ticked ? <Check size={28} color={T.bg} width={3.6} progress={ramp(f, tick, tick + 8)} /> : <span style={{ fontFamily: F2.mono, fontWeight: 700, fontSize: 25, color: active ? a.hex : T.faint }}>{i + 1}</span>}
+                    </div>
+                    <Ripple x={RING / 2} y={RING / 2} at={tick} size={110} />
                   </div>
-                  <span style={{ fontFamily: F2.mono, fontSize: 29, color: done ? T.dim : T.text, flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.text}</span>
-                  {s.detail ? (
-                    <span style={{ fontFamily: F2.mono, fontSize: 25, color: T.faint, flexShrink: 0, opacity: done ? de : 0 }}>{s.detail}</span>
-                  ) : null}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: F2.sans, fontWeight: 600, fontSize: 36, letterSpacing: "-0.02em", color: ticked || active ? T.text : T.dim, lineHeight: 1.2 }}>{s.title}</div>
+                    {s.sub ? <div style={{ fontFamily: F2.sans, fontSize: 26, color: T.faint, marginTop: 4 }}>{s.sub}</div> : null}
+                    {s.cmd && t ? (
+                      <div style={{ display: "flex", alignItems: "center", gap: 14, marginTop: 14, padding: "12px 14px 12px 20px", borderRadius: 14, background: "#0A0A0E", border: `1px solid ${active ? a.dim : T.border}`, boxShadow: active ? `0 0 30px -12px ${a.glow}` : "none", maxWidth: "100%" }}>
+                        <span style={{ fontFamily: F2.mono, fontSize: 26, color: a.hex }}>$</span>
+                        <span style={{ fontFamily: F2.mono, fontSize: 26, color: ticked ? T.dim : T.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", flex: 1, minWidth: 0 }}>
+                          {t.shown}
+                          {active && !t.done ? <Caret solid /> : null}
+                        </span>
+                        {/* ↵ flashes on enter; a copy glyph turns into a check once the step is done */}
+                        <span style={{ flexShrink: 0, width: 40, height: 34, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${enter ? a.hex : T.border}`, background: enter ? a.soft : "transparent", fontFamily: F2.mono, fontSize: 20, color: enter ? a.hex : T.faint }}>
+                          {ticked ? <Check size={18} width={3} /> : enter ? "↵" : (
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.faint} strokeWidth="2.2"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
+                          )}
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               );
             })}
-            {result && f >= resultAt - 2 ? (
-              <div style={{ marginTop: 18, paddingTop: 22, borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 20, opacity: re, transform: `scale(${interpolate(re, [0, 1], [1.06, 1])})`, transformOrigin: "left center" }}>
-                <div style={{ width: 34, height: 34, borderRadius: 17, background: a.hex, boxShadow: `0 0 26px ${a.glow}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  <Check size={22} color={T.bg} width={3.8} />
+          </Surface>
+        </div>
+      </Float>
+    </Scene>
+  );
+};
+
+// shimmering text — the "agent is working on this" sweep (Claude Code style)
+const Shimmer: React.FC<{ text: string; f: number; style?: React.CSSProperties }> = ({ text, f, style }) => (
+  <span
+    style={{
+      backgroundImage: `linear-gradient(90deg, ${T.dim} 0%, ${T.dim} 35%, #FFFFFF 50%, ${T.dim} 65%, ${T.dim} 100%)`,
+      backgroundSize: "250% 100%",
+      backgroundPosition: `${100 - ((f * 2.2) % 150)}% 0`,
+      WebkitBackgroundClip: "text",
+      backgroundClip: "text",
+      color: "transparent",
+      ...style,
+    }}
+  >
+    {text}
+  </span>
+);
+
+// ── RunLog — "watching it actually work": a task log streams, spinners become ticks,
+// a thin progress line fills, the result lands late in the accent. Status pill in the
+// title bar flips running → done. Details (right column) are REAL facts only.
+export const RunLog: React.FC<{ title?: string; steps: { text: string; detail?: string }[]; result?: { text: string; sub?: string } }> = ({ title, steps, result }) => {
+  const a = useAccent();
+  const { f, beat, sp } = useT();
+  const ss = steps.slice(0, 5);
+  const at = schedule(ss.length, beat, { start: 12, fill: 0.5, min: 12, max: 38 });
+  const step = ss.length > 1 ? at[1] - at[0] : 20;
+  const SPIN = Math.max(9, Math.min(24, Math.round(step * 0.72)));
+  const doneAt = at.map((x) => x + SPIN);
+  const lastDone = doneAt[doneAt.length - 1] ?? 20;
+  const resultAt = lastDone + 8;
+  const finished = f >= (result ? resultAt : lastDone);
+  const prog = ss.length ? interpolate(f, [at[0], ...doneAt], [0, ...doneAt.map((_, i) => (i + 1) / ss.length)], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) : 0;
+  const e = sp(0);
+  const re = sp(resultAt, "bouncy");
+  const pill = (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 10, padding: "7px 16px", borderRadius: 999, flexShrink: 0, background: finished ? a.soft : "rgba(255,255,255,0.05)", border: `1px solid ${finished ? a.dim : T.border}`, fontFamily: F2.mono, fontSize: 20, letterSpacing: "0.08em", color: finished ? a.hex : T.dim }}>
+      {finished ? <Check size={18} width={3.4} /> : <Spinner size={18} />}
+      {finished ? "done" : "running"}
+    </span>
+  );
+  return (
+    <Scene bg="plain">
+      <Float style={{ width: "100%", maxWidth: 920 }} seed={2.3} amp={4}>
+        <div style={rise(e, 36, 0.95)}>
+          <Window
+            glow
+            title={title ? <><span style={{ color: a.hex }}>❯ </span>{title}</> : undefined}
+            right={pill}
+            bodyStyle={{ padding: "0 34px 28px" }}
+          >
+            <div style={{ height: 3, margin: "0 -34px 14px", background: "rgba(255,255,255,0.04)", position: "relative", overflow: "hidden" }}>
+              <div style={{ width: `${prog * 100}%`, height: "100%", background: `linear-gradient(90deg, ${a.dim}, ${a.hex})`, boxShadow: `0 0 12px ${a.glow}` }} />
+            </div>
+            {ss.map((s, i) => {
+              const se = sp(at[i], "snappy");
+              const done = f >= doneAt[i];
+              const active = f >= at[i] && !done;
+              const de = sp(doneAt[i], "bouncy");
+              const queued = f < at[i];
+              return (
+                <div key={i} style={{ position: "relative", display: "flex", alignItems: "center", gap: 20, padding: "14px 14px", margin: "0 -14px", borderRadius: 14, background: active ? "rgba(255,255,255,0.04)" : "transparent", opacity: queued ? 0.38 * clamp01(e) : 1, transform: `translateY(${queued ? 0 : (1 - clamp01(se)) * 6}px)` }}>
+                  <div style={{ width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    {done ? <div style={{ transform: `scale(${interpolate(de, [0, 1], [0.3, 1])})`, display: "flex" }}><Check size={32} width={3.4} progress={ramp(f, doneAt[i], doneAt[i] + 7)} /></div> : queued ? <div style={{ width: 24, height: 24, borderRadius: 12, border: `2px solid ${T.borderBright}` }} /> : <Spinner size={30} />}
+                  </div>
+                  <span style={{ fontFamily: F2.mono, fontSize: 31, flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: done ? T.dim : T.text }}>
+                    {active ? <Shimmer text={s.text} f={f} /> : s.text}
+                  </span>
+                  {s.detail ? <span style={{ fontFamily: F2.mono, fontSize: 24, color: T.faint, flexShrink: 0, maxWidth: "46%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", opacity: done ? clamp01(de) : 0, transform: `translateX(${done ? (1 - clamp01(de)) * 12 : 12}px)` }}>{s.detail}</span> : null}
                 </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: F2.sans, fontWeight: 700, fontSize: 38, letterSpacing: "-0.02em", color: a.hex, textShadow: `0 0 28px ${a.glow}`, lineHeight: 1.15 }}>{result.text}</div>
-                  {result.sub ? <div style={{ fontFamily: F2.mono, fontSize: 24, color: T.dim, marginTop: 6 }}>{result.sub}</div> : null}
+              );
+            })}
+            {result ? (
+              <div style={{ marginTop: 16, paddingTop: 22, borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", gap: 22, opacity: f >= resultAt - 1 ? 1 : 0 }}>
+                <div style={{ position: "relative", width: 46, height: 46, flexShrink: 0 }}>
+                  <div style={{ position: "absolute", inset: 0, borderRadius: 23, background: a.hex, boxShadow: `0 0 ${24 + 14 * breathe(f, 70)}px ${a.glow}`, display: "flex", alignItems: "center", justifyContent: "center", transform: `scale(${interpolate(re, [0, 1], [0.2, 1])})` }}>
+                    <Check size={26} color={T.bg} width={3.8} progress={ramp(f, resultAt + 2, resultAt + 10)} />
+                  </div>
+                  <Ripple x={23} y={23} at={resultAt} size={130} />
+                </div>
+                <div style={{ minWidth: 0, ...slide(re, -16) }}>
+                  <div style={{ fontFamily: F2.sans, fontWeight: 700, fontSize: 40, letterSpacing: "-0.025em", color: a.hex, textShadow: `0 0 28px ${a.glow}`, lineHeight: 1.12 }}>{result.text}</div>
+                  {result.sub ? <div style={{ fontFamily: F2.mono, fontSize: 23, color: T.dim, marginTop: 6 }}>{result.sub}</div> : null}
                 </div>
               </div>
             ) : null}
-          </div>
+          </Window>
         </div>
-      </div>
+      </Float>
     </Scene>
   );
 };
 
-// ── BeforeAfter — "what it replaces": each row's old way gets struck through, the new
-// way springs in on the accent side. Rows are pairs of short phrases.
+// ── BeforeAfter — "what it replaces": each row's old way gets struck through, an arrow
+// draws, the new way springs in on the accent. Rows paced over the beat; afterwards a slow
+// glow wave runs through the new-way chips.
 export const BeforeAfter: React.FC<{ title?: string; beforeLabel?: string; afterLabel?: string; rows: { before: string; after: string }[] }> = ({ title, beforeLabel = "before", afterLabel = "after", rows }) => {
   const a = useAccent();
-  const f = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { f, beat, sp } = useT();
   const rs = rows.slice(0, 4);
-  const e = spr(f, fps, 2, { damping: 18 });
+  const at = schedule(rs.length, beat, { start: 8, fill: 0.45, min: 10, max: 30 });
+  const settled = (at[at.length - 1] ?? 0) + 30;
+  const e = sp(0);
   return (
     <Scene bg="plain">
-      <div style={{ width: "100%", maxWidth: 950, opacity: e, transform: `translateY(${interpolate(e, [0, 1], [36, 0])}px)` }}>
-        {title ? <Kicker text={title} /> : null}
-        <Panel style={{ overflow: "hidden" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 72px 1fr", padding: "20px 36px 16px", borderBottom: `1px solid ${T.border}` }}>
-            <span style={{ fontFamily: F2.mono, fontSize: 22, letterSpacing: "0.22em", textTransform: "uppercase", color: T.faint }}>{beforeLabel}</span>
-            <span />
-            <span style={{ fontFamily: F2.mono, fontSize: 22, letterSpacing: "0.22em", textTransform: "uppercase", color: a.hex, textShadow: `0 0 18px ${a.glow}` }}>{afterLabel}</span>
-          </div>
-          {rs.map((r, i) => {
-            const at = 6 + i * 10;
-            const re = spr(f, fps, at, { damping: 20 });
-            const strike = interpolate(f, [at + 8, at + 18], [0, 100], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-            const ae = spr(f, fps, at + 14, { damping: 14, stiffness: 190 });
-            const arrow = spr(f, fps, at + 10, { damping: 12, stiffness: 220 });
-            return (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 72px 1fr", alignItems: "center", padding: "26px 36px", borderBottom: i < rs.length - 1 ? `1px solid ${T.border}` : "none", background: i % 2 ? "rgba(255,255,255,0.015)" : "transparent", opacity: re, transform: `translateX(${interpolate(re, [0, 1], [-20, 0])}px)` }}>
-                {/* strike sweeps left→right: a line-through copy revealed by a clip (works across wrapped lines) */}
-                <span style={{ position: "relative", display: "inline-block", fontFamily: F2.sans, fontWeight: 500, fontSize: 32, lineHeight: 1.25, color: T.dim, opacity: interpolate(strike, [0, 100], [1, 0.6]), alignSelf: "center", justifySelf: "start" }}>
-                  {r.before}
-                  <span aria-hidden style={{ position: "absolute", inset: 0, color: T.dim, textDecoration: "line-through", textDecorationThickness: 3, textDecorationColor: T.faint, clipPath: `inset(0 ${100 - strike}% 0 0)` }}>{r.before}</span>
-                </span>
-                <div style={{ display: "flex", justifyContent: "center", opacity: arrow, transform: `translateX(${interpolate(arrow, [0, 1], [-12, 0])}px)` }}>
-                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke={a.hex} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ filter: `drop-shadow(0 0 8px ${a.glow})` }}><path d="M5 12h14" /><path d="M13 6l6 6-6 6" /></svg>
+      <Float style={{ width: "100%", maxWidth: 950 }} seed={3.1} amp={4}>
+        <div style={rise(e, 36)}>
+          {title ? <Kicker text={title} /> : null}
+          <Surface sheen>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 72px 1fr", padding: "22px 36px 18px", borderBottom: `1px solid ${T.border}` }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 12, fontFamily: F2.mono, fontSize: 22, letterSpacing: "0.22em", textTransform: "uppercase", color: T.faint }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.faint} strokeWidth="3" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+                {beforeLabel}
+              </span>
+              <span />
+              <span style={{ display: "flex", alignItems: "center", gap: 12, fontFamily: F2.mono, fontSize: 22, letterSpacing: "0.22em", textTransform: "uppercase", color: a.hex, textShadow: `0 0 18px ${a.glow}` }}>
+                <Check size={20} width={3.4} />
+                {afterLabel}
+              </span>
+            </div>
+            {rs.map((r, i) => {
+              const t0 = at[i];
+              const re = sp(t0, "snappy");
+              const strike = ramp(f, t0 + 7, t0 + 17, 0, 100, Easing.out(Easing.cubic));
+              const arrow = ramp(f, t0 + 10, t0 + 20, 0, 1, Easing.out(Easing.cubic));
+              const ae = sp(t0 + 15, "bouncy");
+              const wave = f > settled ? breathe(f, 90, -i * 1.1) : 0;
+              return (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 72px 1fr", alignItems: "center", padding: "28px 36px", borderBottom: i < rs.length - 1 ? `1px solid ${T.border}` : "none", ...slide(Math.max(re, sp(4 + i * 4, "snappy")), -20) }}>
+                  <span style={{ position: "relative", display: "inline-block", fontFamily: F2.sans, fontWeight: 500, fontSize: 34, lineHeight: 1.25, color: strike > 0 ? T.dim : T.text, opacity: interpolate(strike, [0, 100], [1, 0.62]), justifySelf: "start" }}>
+                    {r.before}
+                    <span aria-hidden style={{ position: "absolute", inset: 0, color: "transparent", textDecoration: "line-through", textDecorationThickness: 3, textDecorationColor: T.dim, clipPath: `inset(0 ${100 - strike}% 0 0)` }}>{r.before}</span>
+                  </span>
+                  <div style={{ display: "flex", justifyContent: "center" }}>
+                    <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke={a.hex} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" style={{ filter: `drop-shadow(0 0 8px ${a.glow})` }}>
+                      <path d="M4 12h15" pathLength={1} strokeDasharray={1} strokeDashoffset={1 - arrow} />
+                      <path d="M13 6l6 6-6 6" pathLength={1} strokeDasharray={1} strokeDashoffset={1 - ramp(f, t0 + 16, t0 + 22)} />
+                    </svg>
+                  </div>
+                  <span style={{ justifySelf: "start", ...pop(ae, 0.75), transformOrigin: "left center" }}>
+                    <span style={{ fontFamily: F2.sans, fontWeight: 600, fontSize: 34, lineHeight: 1.25, letterSpacing: "-0.015em", color: T.text, background: a.soft, border: `1px solid ${a.dim}`, borderRadius: 12, padding: "6px 16px", display: "inline-block", boxShadow: `0 0 ${26 + wave * 24}px -10px ${a.glow}` }}>{r.after}</span>
+                  </span>
                 </div>
-                <span style={{ fontFamily: F2.sans, fontWeight: 600, fontSize: 32, lineHeight: 1.25, letterSpacing: "-0.015em", color: T.text, opacity: ae, transform: `translateX(${interpolate(ae, [0, 1], [22, 0])}px)`, justifySelf: "start" }}>
-                  <span style={{ background: a.soft, border: `1px solid ${a.dim}`, borderRadius: 12, padding: "6px 16px", display: "inline-block", boxShadow: `0 0 30px -10px ${a.glow}` }}>{r.after}</span>
-                </span>
-              </div>
-            );
-          })}
-        </Panel>
-      </div>
+              );
+            })}
+          </Surface>
+        </div>
+      </Float>
     </Scene>
   );
 };
 
-// ── Catch — "the fine print": 1–3 caveats land with a thud, optional verdict line.
+// ── Catch — "the fine print": a live hazard stripe scrolls along the top, the warning
+// mark draws itself, 1–3 caveats thud in (paced), and the verdict STAMPS down.
 // Stays on the accent (no red) — it's a caveat, not an error.
 export const Catch: React.FC<{ kicker?: string; items: { text: string; sub?: string }[]; verdict?: string }> = ({ kicker = "the catch", items, verdict }) => {
   const a = useAccent();
-  const f = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { f, beat, sp } = useT();
   const its = items.slice(0, 3);
-  const e = spr(f, fps, 2, { damping: 18 });
-  const verdictAt = 12 + its.length * 12 + 6;
-  const ve = spr(f, fps, verdictAt, { damping: 14, stiffness: 180 });
+  const at = schedule(its.length, beat, { start: 12, fill: 0.36, min: 12, max: 30 });
+  const verdictAt = (at[at.length - 1] ?? 14) + 20;
+  const e = sp(0);
+  const ve = sp(verdictAt, "bouncy");
+  const icon = ramp(f, 4, 22, 0, 1, Easing.out(Easing.cubic));
   return (
     <Scene bg="grid">
-      <div style={{ width: "100%", maxWidth: 860, opacity: e, transform: `translateY(${interpolate(e, [0, 1], [36, 0])}px)` }}>
-        <Panel glow style={{ padding: "44px 48px 40px", position: "relative", overflow: "hidden" }}>
-          <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: 4, background: `repeating-linear-gradient(90deg, ${a.hex} 0 26px, transparent 26px 44px)`, opacity: 0.8 }} />
-          <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 30 }}>
-            <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke={a.hex} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ filter: `drop-shadow(0 0 10px ${a.glow})` }}>
-              <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /><path d="M12 9v4" /><path d="M12 17h.01" />
-            </svg>
-            <span style={{ fontFamily: F2.mono, fontSize: 26, letterSpacing: "0.26em", textTransform: "uppercase", color: a.hex, textShadow: `0 0 24px ${a.glow}` }}>{kicker}</span>
-          </div>
-          {its.map((it, i) => {
-            const at = 12 + i * 12;
-            const ie = spr(f, fps, at, { damping: 12, stiffness: 210 });
-            return (
-              <div key={i} style={{ display: "flex", gap: 22, alignItems: "flex-start", padding: "20px 0", borderTop: `1px solid ${T.border}`, opacity: ie, transform: `scale(${interpolate(ie, [0, 1], [1.08, 1])}) translateY(${interpolate(ie, [0, 1], [-10, 0])}px)`, transformOrigin: "left center" }}>
-                <span style={{ fontFamily: F2.mono, fontWeight: 700, fontSize: 30, color: a.hex, width: 40, flexShrink: 0, marginTop: 4 }}>!</span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontFamily: F2.sans, fontWeight: 600, fontSize: 40, letterSpacing: "-0.02em", lineHeight: 1.18, color: T.text }}>{it.text}</div>
-                  {it.sub ? <div style={{ fontFamily: F2.sans, fontSize: 28, color: T.dim, marginTop: 8, lineHeight: 1.3 }}>{it.sub}</div> : null}
-                </div>
-              </div>
-            );
-          })}
-          {verdict ? (
-            <div style={{ marginTop: 22, paddingTop: 26, borderTop: `1px solid ${T.borderBright}`, display: "flex", alignItems: "center", gap: 16, opacity: ve, transform: `translateY(${interpolate(ve, [0, 1], [14, 0])}px)` }}>
-              <span style={{ fontFamily: F2.mono, fontSize: 22, letterSpacing: "0.2em", textTransform: "uppercase", color: T.faint }}>verdict</span>
-              <span style={{ fontFamily: F2.sans, fontWeight: 700, fontSize: 34, letterSpacing: "-0.015em", color: a.hex, background: a.soft, border: `1px solid ${a.dim}`, borderRadius: 14, padding: "8px 20px", boxShadow: `0 0 40px -10px ${a.glow}` }}>{verdict}</span>
+      <Float style={{ width: "100%", maxWidth: 870 }} seed={4.2} amp={4}>
+        <div style={rise(e, 36)}>
+          <Surface glow style={{ padding: "48px 48px 40px" }}>
+            <div style={{ position: "absolute", left: 0, right: 0, top: 0, height: 6, backgroundImage: `repeating-linear-gradient(-45deg, ${a.hex} 0 14px, transparent 14px 28px)`, backgroundSize: "40px 6px", backgroundPosition: `${f * 0.9}px 0`, opacity: 0.85 }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 28 }}>
+              <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke={a.hex} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ filter: `drop-shadow(0 0 ${8 + 8 * breathe(f, 60)}px ${a.glow})` }}>
+                <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" pathLength={1} strokeDasharray={1} strokeDashoffset={1 - icon} />
+                <path d="M12 9v4" opacity={ramp(f, 18, 24)} />
+                <path d="M12 17h.01" opacity={ramp(f, 20, 26)} />
+              </svg>
+              <span style={{ fontFamily: F2.mono, fontSize: 26, letterSpacing: "0.26em", textTransform: "uppercase", color: a.hex, textShadow: `0 0 24px ${a.glow}` }}>{kicker}</span>
             </div>
-          ) : null}
-        </Panel>
-      </div>
+            {its.map((it, i) => {
+              const ie = sp(at[i], "bouncy");
+              const land = f - at[i];
+              const shake = land > 4 && land < 16 ? Math.sin(land * 2.4) * (16 - land) * 0.35 : 0;
+              return (
+                <div key={i} style={{ display: "flex", gap: 22, alignItems: "flex-start", padding: "22px 0", borderTop: `1px solid ${T.border}`, opacity: clamp01(ie * 1.5), transform: `scale(${interpolate(ie, [0, 1], [1.12, 1])}) translate(${shake}px, ${(1 - ie) * -12}px)`, transformOrigin: "left center" }}>
+                  <span style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, marginTop: 2, display: "flex", alignItems: "center", justifyContent: "center", background: a.soft, border: `1px solid ${a.dim}`, fontFamily: F2.mono, fontWeight: 700, fontSize: 24, color: a.hex }}>!</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontFamily: F2.sans, fontWeight: 600, fontSize: 40, letterSpacing: "-0.02em", lineHeight: 1.18, color: T.text }}>{it.text}</div>
+                    {it.sub ? <div style={{ fontFamily: F2.sans, fontSize: 28, color: T.dim, marginTop: 8, lineHeight: 1.3 }}>{it.sub}</div> : null}
+                  </div>
+                </div>
+              );
+            })}
+            {verdict ? (
+              <div style={{ marginTop: 20, paddingTop: 26, borderTop: `1px solid ${T.borderBright}`, display: "flex", alignItems: "center", gap: 18, opacity: f >= verdictAt ? 1 : 0 }}>
+                <Label>verdict</Label>
+                <span
+                  style={{
+                    fontFamily: F2.sans,
+                    fontWeight: 700,
+                    fontSize: 36,
+                    letterSpacing: "-0.015em",
+                    color: a.hex,
+                    background: a.soft,
+                    border: `2px solid ${a.hex}`,
+                    borderRadius: 14,
+                    padding: "8px 22px",
+                    boxShadow: `0 0 ${34 + 20 * breathe(f, 90)}px -10px ${a.glow}`,
+                    opacity: clamp01(ve * 2),
+                    transform: `scale(${interpolate(ve, [0, 1], [1.6, 1])}) rotate(${interpolate(ve, [0, 1], [-8, -2])}deg)`,
+                    display: "inline-block",
+                  }}
+                >
+                  {verdict}
+                </span>
+              </div>
+            ) : null}
+          </Surface>
+        </div>
+      </Float>
     </Scene>
   );
 };
 
-// ── GetIt — "where to find it": the closing card. The URL types in mono and glows,
-// distribution badges (real marks — GitHub / npm / Homebrew / App Store...) stagger in,
-// optional price chip (REAL price or "free") and a short note.
+// ── GetIt — "where to find it": the closing card. Name + logo, then an address bar where
+// the URL types and ↵ lands; the bar lights up with a travelling beam, real distribution
+// badges stagger in, price chip pops, and the note (the CTA) sits under a live dot.
 export const GetIt: React.FC<{ url: string; name?: string; brand?: string; badges?: string[]; price?: string; note?: string }> = ({ url, name, brand, badges = [], price, note }) => {
   const a = useAccent();
-  const f = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const CPS = url.length > 36 ? 46 : 34; // long URLs type faster so the badges still land inside a 2-3s scene
-  const typed = url.slice(0, Math.max(0, Math.floor(((f - 10) / fps) * CPS)));
-  const done = typed.length >= url.length;
-  const doneF = 10 + (url.length / CPS) * fps;
-  const e = spr(f, fps, 2, { damping: 18 });
+  const { f, fps, sp } = useT();
+  const CPS = url.length > 36 ? 46 : 34;
+  const t = typed(url, f, 12, CPS, fps);
+  const done = t.done;
+  const doneF = t.doneAt;
+  const e = sp(0);
   // never truncate a URL: fit it on one line down to 30px, else wrap it (mono ≈ 0.62em/char)
-  const AVAIL = 680;
+  const AVAIL = 620;
   const oneLine = Math.min(44, Math.floor(AVAIL / (Math.max(url.length, 12) * 0.62)));
   const wrap = oneLine < 30;
-  const urlSize = wrap ? 34 : oneLine;
-  const pulse = done ? 0.85 + 0.15 * Math.sin((f - doneF) / 6) : 0;
+  const urlSize = wrap ? 32 : oneLine;
   const bs = badges.slice(0, 4);
+  const go = sp(doneF, "bouncy");
+  const mark = brand ?? name;
   return (
     <Scene bg="shader">
-      <div style={{ width: "100%", maxWidth: 900, opacity: e, transform: `translateY(${interpolate(e, [0, 1], [40, 0])}px) scale(${interpolate(e, [0, 1], [0.95, 1])})` }}>
-        <Panel glow style={{ padding: "50px 44px 46px", textAlign: "center" }}>
-          {name ? (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 22, marginBottom: 34 }}>
-              {(brand ?? name) && hasLogo(brand ?? name) ? <BrandBox brand={brand ?? name} size={76} /> : null}
-              <span style={{ fontFamily: F2.sans, fontWeight: 700, fontSize: 52, letterSpacing: "-0.03em", color: T.text }}>{name}</span>
-            </div>
-          ) : null}
-          <div style={{ fontFamily: F2.mono, fontSize: 24, letterSpacing: "0.24em", textTransform: "uppercase", color: T.faint, marginBottom: 18 }}>get it at</div>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 18, padding: "20px 34px", borderRadius: 18, background: "#0C0C10", border: `1px solid ${done ? a.dim : T.borderBright}`, boxShadow: done ? `0 0 ${40 * pulse}px -8px ${a.glow}` : "none", maxWidth: "100%" }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke={done ? a.hex : T.faint} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.5 1.5" /><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.5-1.5" /></svg>
-            <span style={{ fontFamily: F2.mono, fontWeight: 600, fontSize: urlSize, lineHeight: 1.3, letterSpacing: "-0.01em", color: done ? a.hex : T.text, textShadow: done ? `0 0 26px ${a.glow}` : "none", whiteSpace: wrap ? "normal" : "nowrap", wordBreak: wrap ? "break-all" : "normal", textAlign: "left", minWidth: 0 }}>
-              {typed}
-              {!done ? <Caret f={f} /> : null}
-            </span>
-          </div>
-          {bs.length || price ? (
-            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 14, marginTop: 34 }}>
-              {bs.map((b, i) => {
-                const be = spr(f, fps, doneF + 4 + i * 6, { damping: 16, stiffness: 170 });
-                return (
-                  <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 12, padding: "10px 20px 10px 14px", borderRadius: 999, background: T.surface, border: `1px solid ${T.borderBright}`, opacity: be, transform: `translateY(${interpolate(be, [0, 1], [16, 0])}px) scale(${interpolate(be, [0, 1], [0.85, 1])})` }}>
-                    {hasLogo(b) ? <Logo name={b} size={28} color="#fff" /> : <span style={{ width: 10, height: 10, borderRadius: 5, background: a.hex, display: "inline-block" }} />}
-                    <span style={{ fontFamily: F2.sans, fontWeight: 600, fontSize: 26, color: T.dim }}>{b}</span>
+      <Float style={{ width: "100%", maxWidth: 900 }} seed={5.3}>
+        <div style={rise(e, 44, 0.94)}>
+          <Surface glow radius={34} style={{ padding: "50px 44px 46px", textAlign: "center" }}>
+            {name ? (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 22, marginBottom: 34 }}>
+                {mark && hasLogo(mark) ? <span style={pop(sp(4, "bouncy"), 0.5)}><LogoTile brand={mark} size={78} glow /></span> : null}
+                <span style={{ fontFamily: F2.sans, fontWeight: 700, fontSize: 54, letterSpacing: "-0.035em", color: T.text }}>
+                  <RevealText text={name} start={6} />
+                </span>
+              </div>
+            ) : null}
+            <Label style={{ marginBottom: 18 }}>get it at</Label>
+            <div style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 16, padding: "18px 18px 18px 26px", borderRadius: 20, background: "#0A0A0E", border: `1px solid ${done ? a.dim : T.borderBright}`, boxShadow: done ? `0 0 ${36 + 16 * breathe(f, 80)}px -10px ${a.glow}` : "none", maxWidth: "100%" }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={done ? a.hex : T.faint} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <rect x="4" y="11" width="16" height="10" rx="2.5" />
+                <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+              </svg>
+              <span style={{ fontFamily: F2.mono, fontWeight: 600, fontSize: urlSize, lineHeight: 1.3, letterSpacing: "-0.01em", color: done ? T.text : T.text, whiteSpace: wrap ? "normal" : "nowrap", wordBreak: wrap ? "break-all" : "normal", textAlign: "left", minWidth: 0 }}>
+                <span style={{ position: "relative", display: "inline-block" }}>
+                  <span style={{ visibility: "hidden" }}>{url}</span>
+                  <span style={{ position: "absolute", left: 0, top: 0, right: wrap ? 0 : undefined, whiteSpace: wrap ? "normal" : "nowrap" }}>
+                    {t.shown}
+                    {!done ? <Caret solid /> : null}
                   </span>
-                );
-              })}
-              {price ? (() => {
-                const pe = spr(f, fps, doneF + 4 + bs.length * 6, { damping: 13, stiffness: 200 });
-                return (
-                  <span style={{ display: "inline-flex", alignItems: "center", padding: "10px 22px", borderRadius: 999, background: a.hex, color: T.bg, fontFamily: F2.mono, fontWeight: 700, fontSize: 25, letterSpacing: "0.06em", boxShadow: `0 0 30px ${a.glow}`, opacity: pe, transform: `scale(${interpolate(pe, [0, 1], [0.7, 1])})` }}>{price}</span>
-                );
-              })() : null}
+                </span>
+              </span>
+              <span style={{ flexShrink: 0, width: 52, height: 52, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", background: done ? a.hex : "rgba(255,255,255,0.06)", boxShadow: done ? `0 0 26px ${a.glow}` : "none", transform: `scale(${done ? interpolate(go, [0, 1], [0.7, 1]) : 1})` }}>
+                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={done ? T.bg : T.faint} strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round" style={{ transform: `translateX(${done ? Math.max(0, Math.sin(((f - doneF) / 40) * Math.PI * 2)) * 3 : 0}px)` }}>
+                  <path d="M5 12h14" />
+                  <path d="M13 6l6 6-6 6" />
+                </svg>
+              </span>
+              {done ? <Beam radius={20} delay={doneF + 4} period={120} /> : null}
+            </div>
+            {bs.length || price ? (
+              <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 14, marginTop: 32 }}>
+                {bs.map((b, i) => (
+                  <span key={i} style={{ ...rise(sp(doneF + 4 + i * 5, "bouncy"), 16, 0.85), display: "inline-block" }}>
+                    <LogoChip brand={b} label={b} />
+                  </span>
+                ))}
+                {price ? (
+                  <span style={{ display: "inline-flex", alignItems: "center", padding: "10px 22px", borderRadius: 999, background: a.hex, color: T.bg, fontFamily: F2.mono, fontWeight: 700, fontSize: 25, letterSpacing: "0.06em", boxShadow: `0 0 30px ${a.glow}`, ...pop(sp(doneF + 6 + bs.length * 5, "bouncy"), 0.6) }}>{price}</span>
+                ) : null}
+              </div>
+            ) : null}
+            <Sheen delay={doneF + 10} every={130} />
+          </Surface>
+          {note ? (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, marginTop: 30, ...focusIn(sp(doneF + 12, "snappy")) }}>
+              <LiveDot size={13} />
+              <span style={{ fontFamily: F2.sans, fontWeight: 600, fontSize: 34, letterSpacing: "-0.015em", color: T.text }}>{note}</span>
             </div>
           ) : null}
-        </Panel>
-        {note ? <div style={{ fontFamily: F2.sans, fontWeight: 500, fontSize: 32, color: T.dim, textAlign: "center", marginTop: 30, opacity: spr(f, fps, doneF + 10, { damping: 20 }) }}>{note}</div> : null}
-      </div>
+        </div>
+      </Float>
     </Scene>
   );
 };
