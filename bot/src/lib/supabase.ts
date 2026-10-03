@@ -4,7 +4,7 @@ import { config } from "../config.js";
 
 // Upload an mp4 to a PUBLIC Supabase Storage bucket and return its public URL
 // (Instagram needs a publicly reachable video_url). Uses the service-role key.
-export async function uploadReel(localPath: string, destName?: string): Promise<string> {
+export async function uploadReel(localPath: string, destName?: string, contentType = "video/mp4"): Promise<string> {
   const { url, serviceKey, bucket } = config.supabase;
   if (!url || !serviceKey) throw new Error("SUPABASE_URL / SUPABASE_SERVICE_KEY not set");
 
@@ -16,7 +16,7 @@ export async function uploadReel(localPath: string, destName?: string): Promise<
     headers: {
       authorization: `Bearer ${serviceKey}`,
       apikey: serviceKey,
-      "content-type": "video/mp4",
+      "content-type": contentType,
       "x-upsert": "true",
     },
     body,

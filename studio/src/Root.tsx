@@ -8,6 +8,7 @@ import { NickReel, NICK_TOTAL } from "./nick/NickReel";
 import { CursorReel, CURSOR_TOTAL } from "./reel_cursor/CursorReel";
 import { AutoReel, type AutoReelData } from "./auto/AutoReel";
 import { Showcase, SHOWCASE_FRAMES } from "./showcase/Showcase";
+import { Thumbnail } from "./auto/Thumbnail";
 import { WorldReel } from "./world/WorldReel";
 import { HereticWorld, type HereticWorldData } from "./world/heretic/HereticWorld";
 import { mockReel } from "./data/mockReel";
@@ -53,6 +54,16 @@ export const RemotionRoot: React.FC = () => {
       durationInFrames={300}
       defaultProps={autoDefaults}
       calculateMetadata={autoMeta}
+    />
+    {/* the cover image: a frame of him + the hook's title (bot renders it as a still) */}
+    <Composition
+      id="Thumbnail"
+      component={Thumbnail}
+      fps={FPS}
+      width={WIDTH}
+      height={HEIGHT}
+      durationInFrames={1}
+      defaultProps={autoDefaults}
     />
     {/* reference: the hand-built Heretic world the camera grammar came from. not used by the bot. */}
     <Composition

@@ -14,6 +14,7 @@ export type Pending = {
   unverifiedIdea?: string; // an idea: research couldn't verify — waiting on "anyway" before writing
   clipPath?: string;
   mp4Path?: string;
+  thumbPath?: string; // the generated cover (set as the Instagram cover on Post)
   caption?: string; // the generated Instagram post caption
   // "script" = we've sent a script and are taking free-text revisions until a clip arrives.
   // "reel"   = a clip was sent (script locked); free text is ignored unless [Edit] was tapped.

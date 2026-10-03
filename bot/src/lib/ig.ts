@@ -72,6 +72,7 @@ export async function publishReel(
   videoUrl: string,
   caption: string,
   hooks: PublishHooks = {},
+  coverUrl?: string, // a public image to use as the reel's cover (the generated thumbnail)
 ): Promise<{ permalink: string; mediaId: string }> {
   if (!token() || !userId()) throw new Error("IG_ACCESS_TOKEN / IG_USER_ID not set");
 
@@ -80,6 +81,7 @@ export async function publishReel(
     media_type: "REELS",
     video_url: videoUrl,
     caption,
+    ...(coverUrl ? { cover_url: coverUrl } : {}),
   });
 
   // 2. poll status until FINISHED (video transcode can take a while)

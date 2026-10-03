@@ -70,6 +70,13 @@ Telegram Bot API server, whisper, cron all installed). Move the repo to the runn
   Instagram insights + the system's own data → a social-media-manager report on Telegram,
   snapshots in `bot/data/analytics/`, and `bot/data/performance.md`, which topic research
   reads.
+- **Proposals:** the analyst's report is ~6 lines; any change it wants arrives as its own
+  Telegram message with Approve/Deny (`bot/src/lib/proposals.ts`). Approve = a minimal edit to
+  VOICE.md / DISCOVERY.md / DESIGN.md or the renderer setting (never code); deny is remembered;
+  replying to the message revises it. State in `bot/data/proposals.json`.
+- **Covers:** every render also makes a thumbnail (`studio/src/auto/Thumbnail.tsx`, rendered by
+  `bot/src/lib/thumbnail.ts`): the best of a few frames of him (model-picked) with the hook's
+  title, shown in Telegram and set as the Instagram `cover_url` on Post.
 - **Model:** every Claude call uses `config.claude.model` (`CLAUDE_MODEL`, default Opus 5.5).
 
 ## Design system (BRAND V2 — replaced the old Nick/terracotta look, 2026-07-01)

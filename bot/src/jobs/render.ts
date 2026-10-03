@@ -10,6 +10,7 @@ import { buildCustomScenes } from "../lib/studio.js";
 import { screenshot } from "../lib/shot.js";
 import { compositionFor, pickStyle } from "../lib/style.js";
 import { LEGACY_BOOST, measureVoice } from "../lib/loudness.js";
+import { renderThumbnail } from "../lib/thumbnail.js";
 
 const exists = (p: string) => stat(p).then(() => true, () => false);
 
@@ -77,7 +78,7 @@ export async function renderReel(opts: {
   script: string;
   topic: string;
   editNote?: string;
-}): Promise<{ mp4: string; planSummary: string; style: string }> {
+}): Promise<{ mp4: string; planSummary: string; style: string; thumb?: string }> {
   const studio = config.studioDir;
   const id = `reel-${Date.now()}`;
 
@@ -210,5 +211,17 @@ export async function renderReel(opts: {
     `accent=${accent}`,
     music ? `music=${music}` : "",
   ].filter(Boolean).join(" | ");
-  return { mp4, planSummary, style };
+  // the cover: never allowed to fail the render
+  const thumb = await renderThumbnail({
+    id,
+    clipPath: opts.clipPath,
+    propsPath,
+    props: JSON.parse(await readFile(propsPath, "utf8")),
+    scenes,
+    totalMs: captions.length ? captions[captions.length - 1].endMs : 0,
+  }).catch((e) => {
+    console.error("thumbnail failed:", e?.message ?? e);
+    return undefined;
+  });
+  return { mp4, planSummary, style, thumb };
 }

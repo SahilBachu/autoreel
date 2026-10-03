@@ -74,9 +74,10 @@ async function makeAndSendReel(ctx: any, chat: string, editNote?: string) {
   try {
     // a Redo passes no editNote but must keep honoring the last [Edit] instruction
     const note = editNote ?? p.lastEditNote;
-    const { mp4, planSummary, style } = await renderReel({ clipPath: p.clipPath, script: p.script, topic: p.topic, editNote: note });
+    const { mp4, planSummary, style, thumb } = await renderReel({ clipPath: p.clipPath, script: p.script, topic: p.topic, editNote: note });
     const caption = await genPostCaption(p.topic, p.script, p.postType); // tool posts lead with the comment CTA
-    state.patch(chat, { mp4Path: mp4, caption, awaitingEdit: false, lastEditNote: note, lastPlan: planSummary });
+    state.patch(chat, { mp4Path: mp4, thumbPath: thumb, caption, awaitingEdit: false, lastEditNote: note, lastPlan: planSummary });
+    if (thumb) await ctx.replyWithPhoto(new InputFile(thumb), { caption: "cover" }).catch(() => {});
     // show the generated IG caption under the reel; [Post] will publish with it.
     // width/height/supports_streaming are REQUIRED with the self-hosted local Bot API server:
     // without them Telegram picks a wrong-aspect player box and displays the reel stretched.
@@ -334,7 +335,7 @@ async function postPending(chat: string) {
       onUploaded: () => set("*Posting…*\nuploaded — sending to Instagram"),
       onProcessing: () => set("*Posting…*\nuploaded, sent — Instagram is processing the reel (transcoding)…"),
       onPublishing: () => set("*Posting…*\nuploaded, sent, processed — publishing…"),
-    });
+    }, p.thumbPath);
     await set(`*Posted:*\n${permalink}\n\nadding it to the site${p.postType === "news" ? " — writing the article" : ""}…`);
     await rememberPost({ p, mediaId, permalink, at: new Date().toISOString() }); // so /retrysite has something to work from
     learnFromPost(p.topic, p.script).catch(() => {}); // approved = strongest signal; learn in bg
