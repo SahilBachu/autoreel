@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 import { REPO_ROOT } from "../config.js";
 import { igGet, listComments } from "../lib/ig.js";
 import { allPosts } from "../lib/posts.js";
-import { claude } from "../lib/claude.js";
+import { claudeJson } from "../lib/claude.js";
+import { proposalHistory, TARGET_HELP, type Proposal } from "../lib/proposals.js";
 import { stripAiTells } from "../lib/voice.js";
 
 // THE ANALYST. Every morning (after the 3am digest) and on /stats: pull the account's real
@@ -262,35 +263,32 @@ function derive(s: Snapshot, past: Snapshot[]) {
 const REPORT_BRIEF = `You are sahil's social media manager and data analyst. His page, @21stcentury.sahil, is a
 young AI-tools / AI-news Instagram account (short talking-head reels with motion graphics, made by
 an automated pipeline he approves in Telegram). Tool reels end "comment TOOL if you want access":
-commenters get a DM with the link, which goes through his link-in-bio site (clicks are counted —
-that number is what he'd eventually show tools to charge for placement). News reels have no CTA.
-Growth levers on Instagram right now: sends/shares per reach (the strongest signal for reaching
-non-followers), watch time and the first-3-second skip rate, saves, and consistent posting.
+commenters get a DM with the link, which goes through his link-in-bio site. News reels have no CTA.
+Growth levers on Instagram right now: shares per reach, watch time and the first-3-second skip
+rate, saves, and consistent posting.
 
-Write today's report for Telegram. PLAIN TEXT (no markdown tables, no #/** syntax); short section
-titles in CAPS on their own line; tight lines; real numbers from the data only — never invent one.
-He'll read it on his phone, so make it scannable and specific. Sections, in order:
+He reads this on his phone every morning. He wants it SHORT and ACTIONABLE, not an essay.
 
-TODAY IN ONE LINE — the single most important thing.
-NUMBERS — followers (and change), yesterday's views/reach/profile visits, 7-day views vs the week
-  before, share of views from non-followers.
-WHAT'S WORKING — patterns backed by numbers (topic, tool vs news, hook style, length, skip rate,
-  watch time, posting hour). Name the reels.
-WHAT ISN'T — same standard. Say plainly when a sample is too small to conclude anything.
-TOP AND BOTTOM — best 3 and worst 2 recent reels: views, skip rate, avg watch, and WHY you think.
-FUNNEL — views → TOOL comments → DMs sent → links delivered → site clicks. Where it leaks.
-HEALTH CHECK — any sign reach is being throttled ("shadowbanned"): non-follower share collapsing,
-  views per reel falling while posting stays steady, sudden drop vs his own median. Be calibrated:
-  a new small account is noisy; say what you see, what it would take to be sure, and what to do.
-DO THIS NEXT — 3 to 5 concrete actions for HIM (recording, hooks, topics, when to post, replying).
-SYSTEM CHANGES — 1 to 3 changes to the automation itself (script length, topic mix, the visual
-  style, captions, CTA) with the evidence behind each.
-PROGRESS — if a previous report is given: which of its recommendations he followed (judge from the
-  new posts) and what moved since. Skip this section on the first report.
+"report": plain text, at most ~8 short lines total:
+  line 1: the numbers in one line (followers and change, yesterday's views, 7-day views vs the
+          week before, newest reel's views + skip rate).
+  then 2-4 lines starting "- " : what you NOTICED that matters, each with its number.
+  then, only if there is one, 1 line starting "you: " : the single thing HE should do differently
+  when recording or posting (not system changes — those are proposals).
+  Say plainly when a sample is too small. Real numbers only. No section titles, no filler.
 
-Keep it human and direct, no hype, no filler. NO em dashes or en dashes anywhere.`;
+"proposals": 0 to 3 changes to the AUTOMATION the system can make itself if he approves —
+  only when the data actually supports one, and never one he already denied or approved (see the
+  history). Each: {"title": "a few words", "why": "the evidence in one line with numbers",
+  "change": "exactly what will change, specific enough to apply as written", "target": one of:
+  ${TARGET_HELP}}. Zero proposals is a fine answer.
 
-export async function runAnalytics(): Promise<{ report: string; notes: string }> {
+"notes": 3 to 6 short lines for the TOPIC RESEARCHER (what topics/types/hooks perform, what to
+  avoid), each starting "- ".
+
+No em dashes or en dashes anywhere. Return ONLY JSON: {"report": "...", "proposals": [...], "notes": [...]}`;
+
+export async function runAnalytics(): Promise<{ report: string; notes: string; proposals: Pick<Proposal, "title" | "why" | "change" | "target">[] }> {
   await mkdir(REPORTS, { recursive: true });
   const past = await history();
   const snap = await collect();
@@ -335,23 +333,33 @@ export async function runAnalytics(): Promise<{ report: string; notes: string }>
     })),
   };
 
+  const asked = proposalHistory();
   const prompt = `${REPORT_BRIEF}
 
 THE DATA (JSON, pulled just now from the Instagram API and this system's own records):
 ${JSON.stringify(data, null, 1)}
-${prevReport ? `\nPREVIOUS REPORT (for the PROGRESS section):\n${prevReport.slice(0, 6000)}` : "\n(This is the first report — no PROGRESS section.)"}
+${prevReport ? `
+YESTERDAY'S REPORT (say what moved, don't repeat it):
+${prevReport.slice(0, 2500)}` : ""}
+${asked ? `
+PROPOSALS ALREADY SENT (status in brackets; never re-propose these):
+${asked}` : ""}`;
 
-After the report, on a line by itself write ===NOTES=== and then 3 to 8 short bullet lines of what
-the TOPIC RESEARCHER should know when picking tomorrow's ideas (what topics/types/hooks perform,
-what to avoid). Plain lines starting with "- ".`;
-
-  const raw = stripAiTells((await claude(prompt, { timeoutMs: 8 * 60_000 })).trim());
-  const [report, notesPart] = raw.split(/^\s*===NOTES===\s*$/m);
-  const notes = (notesPart ?? "").split("\n").map((l) => l.trim()).filter((l) => l.startsWith("- ")).slice(0, 8).join("\n");
+  const out = await claudeJson<{ report?: string; proposals?: Proposal[]; notes?: string[] }>(prompt, { timeoutMs: 8 * 60_000 });
+  const report = stripAiTells(String(out.report ?? "").trim());
+  if (!report) throw new Error("analyst returned an empty report");
+  const notes = (out.notes ?? []).map((l) => stripAiTells(String(l).trim())).filter((l) => l).map((l) => (l.startsWith("- ") ? l : `- ${l}`)).slice(0, 6).join("\n");
+  const proposals = (out.proposals ?? [])
+    .filter((p) => p && p.title && p.change && ["voice", "discovery", "design", "style"].includes(p.target))
+    .slice(0, 3)
+    .map((p) => ({ title: stripAiTells(p.title), why: stripAiTells(p.why ?? ""), change: stripAiTells(p.change), target: p.target }));
   const day = snap.at.slice(0, 10);
-  await writeFile(resolve(REPORTS, `${day}.md`), report.trim() + "\n");
-  if (notes) await writeFile(PERFORMANCE_NOTES, `# what's performing (from the ${day} analytics report)\n\n${notes}\n`);
-  return { report: report.trim(), notes };
+  await writeFile(resolve(REPORTS, `${day}.md`), report + "\n");
+  if (notes) await writeFile(PERFORMANCE_NOTES, `# what's performing (from the ${day} analytics report)
+
+${notes}
+`);
+  return { report, notes, proposals };
 }
 
 /** Telegram caps a message at 4096 chars — split on section breaks. */

@@ -11,6 +11,7 @@ import { postReel } from "./jobs/post.js";
 import { dmStatus, startDmLoop } from "./jobs/dm.js";
 import { setStyleMode, styleStatus } from "./lib/style.js";
 import { chunkForTelegram, runAnalytics } from "./jobs/analytics.js";
+import { applyProposal, findByMessage, loadProposals, reviseProposal, sendProposal, updateProposal } from "./lib/proposals.js";
 import { genPostCaption } from "./lib/caption.js";
 import { drainSiteQueue, pendingSiteJobs, publishWithRetry, startSiteQueue } from "./jobs/site-queue.js";
 import { claude, ClaudeAuthError } from "./lib/claude.js";
@@ -138,10 +139,36 @@ bot.command("dm", (ctx) => ctx.reply(dmStatus()));
 bot.command("stats", async (ctx) => {
   await ctx.reply("pulling your Instagram numbers and writing the report — takes a couple of minutes…");
   try {
-    const { report } = await runAnalytics();
+    const { report, proposals } = await runAnalytics();
     for (const part of chunkForTelegram(report)) await ctx.reply(part);
+    for (const p of proposals) await sendProposal(p).catch(() => {});
   } catch (e: any) {
     await ctx.reply(`couldn't build the report: ${String(e?.message ?? e).slice(0, 300)}`);
+  }
+});
+
+// a proposal from the analyst: Approve applies it, Deny records it (never re-proposed)
+bot.callbackQuery(/^prop:([ad]):(.+)$/, async (ctx) => {
+  await ctx.answerCallbackQuery();
+  const [, act, id] = ctx.match as RegExpMatchArray;
+  const p = loadProposals().find((x) => x.id === id);
+  if (!p || p.status !== "open") return ctx.reply(p ? `that one is already ${p.status}.` : "can't find that proposal.");
+  const msgId = ctx.callbackQuery.message?.message_id;
+  const strip = () => msgId && ctx.api.editMessageReplyMarkup(ctx.chat!.id, msgId, { reply_markup: { inline_keyboard: [] } }).catch(() => {});
+  if (act === "d") {
+    updateProposal(id, { status: "denied", decidedAt: new Date().toISOString() });
+    await strip();
+    return ctx.reply(`denied: ${p.title}. won't suggest it again.`);
+  }
+  await strip();
+  await ctx.reply(`applying: ${p.title}…`);
+  try {
+    const result = await applyProposal(p);
+    updateProposal(id, { status: "approved", decidedAt: new Date().toISOString(), result });
+    await ctx.reply(`done. ${result}`);
+  } catch (e: any) {
+    updateProposal(id, { status: "failed", result: String(e?.message ?? e) });
+    await ctx.reply(`couldn't apply it: ${String(e?.message ?? e).slice(0, 200)}`);
   }
 });
 
@@ -357,6 +384,22 @@ bot.callbackQuery("edit", async (ctx) => {
 // the script — a change request that revises the script in place. Keep going until a clip.
 bot.on("message:text", async (ctx) => {
   const chat = String(ctx.chat.id);
+
+  // a reply to a proposal message = adjust that proposal, then decide again
+  const repliedTo = ctx.message.reply_to_message?.message_id;
+  const prop = repliedTo ? findByMessage(repliedTo) : undefined;
+  if (prop && prop.status === "open") {
+    await ctx.reply("adjusting it…");
+    try {
+      const next = await reviseProposal(prop, ctx.message.text);
+      updateProposal(prop.id, { status: "revised", decidedAt: new Date().toISOString() });
+      if (prop.messageId) await ctx.api.editMessageReplyMarkup(chat, prop.messageId, { reply_markup: { inline_keyboard: [] } }).catch(() => {});
+      await sendProposal(next);
+    } catch (e: any) {
+      await ctx.reply(`couldn't adjust it: ${String(e?.message ?? e).slice(0, 200)}`);
+    }
+    return;
+  }
 
   // digest pick: "1" / "2" / "3", optionally "2 but <change>" — activates that card's script
   // (and its live session), then the normal revise loop takes over.

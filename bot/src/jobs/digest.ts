@@ -1,6 +1,7 @@
 import { buildDigest, formatDigest, sendToChat } from "./discover.js";
 import { ClaudeAuthError } from "../lib/claude.js";
 import { chunkForTelegram, runAnalytics } from "./analytics.js";
+import { sendProposal } from "../lib/proposals.js";
 
 // The 3am job (systemd timer autoreel-digest.timer): analytics report, then research → 3 topic
 // cards with scripts → Telegram. Run manually with: npm run digest
@@ -16,11 +17,13 @@ const WAIT_MS = 5 * 60_000;
 // research reads — so this morning's ideas already know what performed yesterday. A failed
 // report never blocks the ideas.
 try {
-  const { report } = await runAnalytics();
+  const { report, proposals } = await runAnalytics();
   for (const part of chunkForTelegram(`📊 daily report
 
 ${report}`)) await sendToChat(part);
-  console.log("analytics report sent");
+  // each proposed change is its own message: Approve / Deny / reply to adjust / ignore
+  for (const p of proposals) await sendProposal(p).catch((e) => console.error("proposal send failed:", e?.message));
+  console.log(`analytics report sent (${proposals.length} proposal${proposals.length === 1 ? "" : "s"})`);
 } catch (e: any) {
   console.error("analytics failed:", e?.message ?? e);
   if (e instanceof ClaudeAuthError) {
