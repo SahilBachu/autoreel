@@ -9,7 +9,7 @@ export type Scene = any;
 
 export type Beat = { startMs: number; endMs: number; type: string; gist: string };
 export type AudioLib = {
-  music: { file: string; tags?: string[]; use?: string }[];
+  music: { file: string; tags?: string[]; use?: string; lufs?: number }[];
   sfx: { file: string; tags?: string[]; use?: string }[];
 };
 export type Plan = {

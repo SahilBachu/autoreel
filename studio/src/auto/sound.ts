@@ -12,10 +12,11 @@
 //   fps   — composition fps
 //   returns cues: a public/ path, the frame to start on, and a volume (0-1), sorted by frame
 //
-// The brief is LIGHT: a talking-head tech reel where the voice is king. Roughly one cue
-// every 4-5 s, never two on top of each other, nothing on the hook, levels ~20+ dB under
-// the voice. Kit + tuning guide: src/auto/SOUND.md. The kit is public/sfx/v3 (synthesised
-// by public/sfx/v3/make-kit.mjs, every file level-matched to KIT_REF_LUFS).
+// The brief: basic, effective, never overpowering. A talking-head tech reel where the voice
+// is king: roughly one cue every 4-5 s, never two on top of each other, nothing on the hook,
+// cues ~11 dB under the voice. Kit + tuning guide: src/auto/SOUND.md. The kit is
+// public/sfx/v4: real recorded sounds from Mixkit (free license, no attribution), trimmed and
+// level-matched to KIT_REF_LUFS.
 //
 // Pure + deterministic (no Math.random, no clock): same objects in → same cues out.
 
@@ -36,31 +37,33 @@ export type SoundCue = { file: string; frame: number; volume: number; trimBefore
 // where the keys lose ~2 dB and the thump ~8.5 dB (so the thump sits a touch hotter).
 export type SoundId =
   | "whooshRight" | "whooshLeft" | "whooshDown"
-  | "tickA" | "tickB" | "pop" | "keys" | "key" | "confirm" | "thump" | "riser";
+  | "tickA" | "tickB" | "pop" | "keys" | "key" | "confirm" | "thump" | "riser" | "shutter";
 
 export const KIT: { [id in SoundId]: { file: string; hitMs: number; trimDb: number } } = {
-  whooshRight: { file: "sfx/v3/whoosh-air-right.wav", hitMs: 260, trimDb: -2.5 },
-  whooshLeft: { file: "sfx/v3/whoosh-air-left.wav", hitMs: 260, trimDb: -2.5 },
-  whooshDown: { file: "sfx/v3/whoosh-air-down.wav", hitMs: 260, trimDb: -2.5 },
-  tickA: { file: "sfx/v3/tick-a.wav", hitMs: 0, trimDb: -2 },
-  tickB: { file: "sfx/v3/tick-b.wav", hitMs: 0, trimDb: -2.5 },
-  pop: { file: "sfx/v3/pop-soft.wav", hitMs: 0, trimDb: -2 },
-  keys: { file: "sfx/v3/keys-3.wav", hitMs: 0, trimDb: -2 },
-  key: { file: "sfx/v3/key-1.wav", hitMs: 0, trimDb: -1.5 }, // the file is 1.3 LU under the kit ref (single tap, peak-bound)
-  confirm: { file: "sfx/v3/confirm.wav", hitMs: 0, trimDb: -0.5 },
-  thump: { file: "sfx/v3/thump-soft.wav", hitMs: 0, trimDb: 1.5 },
-  riser: { file: "sfx/v3/riser-soft.wav", hitMs: 900, trimDb: -3.5 },
+  whooshRight: { file: "sfx/v4/whoosh-sweep-a.wav", hitMs: 280, trimDb: -2 },
+  whooshLeft: { file: "sfx/v4/whoosh-sweep-b.wav", hitMs: 280, trimDb: -2 },
+  whooshDown: { file: "sfx/v4/whoosh-wind.wav", hitMs: 160, trimDb: -2.5 },
+  tickA: { file: "sfx/v4/click-select.wav", hitMs: 0, trimDb: 0 },
+  tickB: { file: "sfx/v4/click-soft.wav", hitMs: 0, trimDb: -1 },
+  pop: { file: "sfx/v4/pop.wav", hitMs: 0, trimDb: 0 },
+  keys: { file: "sfx/v4/typing.wav", hitMs: 40, trimDb: -1 },
+  key: { file: "sfx/v4/key.wav", hitMs: 0, trimDb: 0 },
+  confirm: { file: "sfx/v4/confirm.wav", hitMs: 0, trimDb: -1.5 },
+  thump: { file: "sfx/v4/bass-hit.wav", hitMs: 30, trimDb: 0 },
+  riser: { file: "sfx/v4/riser.wav", hitMs: 950, trimDb: -3 },
+  shutter: { file: "sfx/v4/shutter.wav", hitMs: 50, trimDb: 1 }, // the file sits 1.5 LU under the ref (peak-limited)
 };
 
 // ── levels ───────────────────────────────────────────────────────────────────
 // volume = 10^((SFX_TARGET_LUFS - KIT_REF_LUFS + trimDb + SFX_MASTER_DB ± jitter) / 20)
-export const KIT_REF_LUFS = -20; // every kit file's max momentary loudness (make-kit.mjs)
-// Where a trim-0 cue peaks (momentary) in the final mix. Calibrated against the current
-// production voice (clip × voiceBoost 2.8 ≈ -5.6 LUFS integrated, -5…-8 short-term) and a
-// music bed around -33 LUFS: measured on the cf reel, cues peak 20-25.6 dB under the voice's
-// short-term loudness and 2.5-6 dB over the bed. If voiceBoost or the voice level changes,
-// move this by the same number of dB (a voice normalised to -14 LUFS → about -36).
-export const SFX_TARGET_LUFS = -28;
+export const KIT_REF_LUFS = -20; // every kit file's max momentary loudness (normalised when the kit was built)
+// Where a trim-0 cue peaks (momentary) in the final mix. The voice is normalised per clip
+// (bot/src/lib/loudness.ts: ≈ -12.6 LUFS at its target, -13 short-term median), so -24 puts
+// cues ~11 dB under his voice and several dB over the music bed (voice -16 LU): clearly there,
+// never on top of him. When the voice can't reach its target (peak-limited), the bot passes
+// sfxGainDb to move every cue down with it. Measured on the cf reel (voice -14.4 short-term):
+// cues peaked 12-15 dB under the voice at -26, so -24 lands them at ~10-13.
+export const SFX_TARGET_LUFS = -24;
 export const SFX_MASTER_DB = 0; // the one knob: -3 = everything quieter
 export const JITTER_DB = 0.75; // deterministic per-cue level variation (± dB), so repeats don't sound pasted
 
@@ -101,7 +104,8 @@ export const MAX_CONFIRMS = 2;
 // stat     — a big number: the low soft thump as it settles
 // result   — the payoff/CTA: the two-note confirm
 // reveal   — a comparison reveal: soft riser into it (max 1 per video, only after a face beat)
-export type Family = "text" | "card" | "typing" | "keypress" | "click" | "steps" | "stat" | "result" | "reveal";
+// capture  — a real screenshot of a site lands: a camera shutter
+export type Family = "text" | "card" | "typing" | "keypress" | "click" | "steps" | "stat" | "result" | "reveal" | "capture";
 
 export const KIND_FAMILY: { [kind: string]: Family } = {
   headline: "text", decrypt: "text", callout: "text", quote: "text", kinetic: "text", highlight: "text",
@@ -113,7 +117,8 @@ export const KIND_FAMILY: { [kind: string]: Family } = {
   getit: "result",
   versus: "reveal", beforeafter: "reveal", split: "reveal",
   // everything else that's a thing landing
-  toolcard: "card", logo: "card", logowall: "card", tweet: "card", browser: "card", screenshot: "card",
+  browser: "capture", screenshot: "capture",
+  toolcard: "card", logo: "card", logowall: "card", tweet: "card",
   phone: "card", pricing: "card", receipt: "card", rating: "card", poll: "card", chat: "card",
   notifications: "card", inbox: "card", bento: "card", dashboard: "card", calendar: "card", table: "card",
   leaderboard: "card", kanban: "card", timeline: "card", waveform: "card", ascii: "card", custom: "card",
@@ -161,7 +166,7 @@ const RESULT_MS = 1000; // getit: URL finishes typing ≈ 10f + len/34 s (refine
 // priorities: who wins a moment when two cues want it
 const PRIO: { [f in Family]: number } & { travel: number; fresh: number; step2: number; entry: number; unknown: number } = {
   // reveal (the riser) outranks the travel whoosh: when it's eligible it IS the move's sound
-  result: 80, stat: 70, typing: 60, steps: 55, reveal: 45, keypress: 45, click: 40, card: 35, text: 0,
+  result: 80, stat: 70, typing: 60, steps: 55, capture: 50, reveal: 45, keypress: 45, click: 40, card: 35, text: 0,
   travel: 40, fresh: 25, step2: 20, entry: 50, unknown: 15,
 };
 
@@ -217,6 +222,9 @@ function candidates(objs: SoundObject[], fps: number): Cand[] {
     // 2. its own moment
     switch (family) {
       case "text":
+        break;
+      case "capture":
+        add("shutter", o.from + F(CARD_MS + 150), PRIO.capture, "shutter");
         break;
       case "card":
         add("pop", o.from + F(CARD_MS), i === 0 ? PRIO.entry : known ? PRIO.card : PRIO.unknown, "pop");

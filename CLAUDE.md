@@ -64,8 +64,9 @@ Telegram Bot API server, whisper, cron all installed). Move the repo to the runn
   `studio/src/auto/scenes.tsx` (+ `v2-*.tsx`, `v3-*.tsx`). `studio/src/auto/kit.tsx` is the
   shared vocabulary for every component and for render-time bespoke `custom` ones (see the
   kit section of COMPONENTS.md).
-- **Sound:** `studio/src/auto/sound.ts` + `public/sfx/v3/`; voice gain per clip in
-  `bot/src/lib/loudness.ts`.
+- **Sound:** `studio/src/auto/sound.ts` + `public/sfx/v4/` (Mixkit SFX); music beds by mood in
+  `public/music/` (manifest carries each track's `lufs`); voice gain per clip and the
+  music/SFX levels relative to it in `bot/src/lib/loudness.ts`; bed shaping in `auto/bed.ts`.
 - **Analytics:** `bot/src/jobs/analytics.ts` runs before the 3am digest and on `/stats`:
   Instagram insights + the system's own data → a social-media-manager report on Telegram,
   snapshots in `bot/data/analytics/`, and `bot/data/performance.md`, which topic research

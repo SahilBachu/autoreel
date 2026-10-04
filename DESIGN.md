@@ -54,15 +54,22 @@ grain + vignette. Nothing decorative without a job.
 ## audio
 
 - **Voice gain is measured per clip** (`bot/src/lib/loudness.ts`): speech to about -16 dBFS
-  RMS, peaks capped at -1 dBFS. The old fixed 2.8x boost hard-clipped his phone-down
-  recordings. Music and SFX scale by the same ratio, so the balance stays put.
-- Music: ONE lofi bed per video, chosen by the director from the tagged options in
-  `studio/public/audio-manifest.json` (drop new mp3s in — auto-included).
-- SFX (world renderer): a custom synthesised kit in `studio/public/sfx/v3/`, placed by the
-  sound policy in `studio/src/auto/sound.ts` from the camera's real arrivals — soft air
-  whoosh on travel, key taps when something types, ticks on steps, a low thump on a big
-  number, a confirm on the payoff. LIGHT: nothing in the first second, ≤2 cues per 4s, ≤3 per
-  12s. Tuning: `SFX_MASTER_DB` in sound.ts; details in `studio/src/auto/SOUND.md`.
+  RMS (≈ -12.6 LUFS), peaks capped at -1 dBFS. The old fixed 2.8x boost hard-clipped his
+  phone-down recordings.
+- **Everything else is set relative to that voice** (`mixLevels`): the music bed ~16 dB under
+  it, SFX peaks ~11 dB under it (so a few dB over the bed). Basic and effective: you hear
+  them, they never compete with him.
+- Music: ONE bed per video, chosen by the director by mood from the tagged tracks in
+  `studio/public/audio-manifest.json` — lofi/chill, upbeat tech, dark/serious, hip-hop beats
+  (mostly from mixkit.co, free license, no attribution). Each entry carries its measured
+  `lufs`, which sets its level; `studio/src/auto/bed.ts` fades it in/out and lifts it ~4 dB in
+  real pauses. New mp3s dropped in are auto-included (assumed -14 LUFS until measured).
+- SFX (world renderer): real recorded sounds in `studio/public/sfx/v4/` (Mixkit), placed by
+  the sound policy in `studio/src/auto/sound.ts` from the camera's real arrivals — whoosh on
+  travel, typing when something types, clicks on steps, a camera shutter on a real
+  screenshot, a bass hit on a big number, a confirm tone on the payoff. Nothing in the first
+  second, ≤2 cues per 4s, ≤3 per 12s. Tuning: `SFX_MASTER_DB` in sound.ts; details in
+  `studio/src/auto/SOUND.md`.
 
 ## learned (auto-updated from sahil's video edits — safe to edit or delete)
 

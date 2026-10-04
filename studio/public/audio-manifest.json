@@ -1,45 +1,616 @@
 {
-  "_readme": [
-    "Handpicked audio library. Drop files in public/sfx and public/music, then add an",
-    "entry here describing each one. The render/director step reads this so Claude can",
-    "place the RIGHT sound at the RIGHT moment (SFX on cuts/emphasis, music as a bed",
-    "ducked under the voice). 'tags' + 'use' guide the choice; 'file' is relative to public/.",
-    "SFX = the v3 kit (public/sfx/v3, synthesised by make-kit.mjs there): soft, airy UI sounds",
-    "for a talking-head reel — felt more than heard. Every file is level-matched to -20 LUFS",
-    "(max momentary), so 'volume' is the recommended <Audio volume> in the current mix",
-    "(voice x2.8, bed 0.32): cues land ~20-25 dB under the voice. 'hitMs' = where the sound",
-    "lands inside the file (start the cue that much before the moment). WorldReel places these",
-    "itself via src/auto/sound.ts; see src/auto/SOUND.md. 'sfx_legacy' = the old stock files,",
-    "kept only so older renders/props still resolve — hot and generic, don't pick them."
-  ],
-  "sfx": [
-    { "file": "sfx/v3/whoosh-air-down.wav",  "tags": ["transition", "air", "soft", "whoosh"], "use": "soft filtered-air swish (0.67s, peaks at 0.26s) — a camera move / scene change, centred; darkens as it lands", "volume": 0.3, "hitMs": 260 },
-    { "file": "sfx/v3/whoosh-air-right.wav", "tags": ["transition", "air", "soft", "whoosh"], "use": "same air swish panned in from the right — camera travelling right / content entering from the right", "volume": 0.3, "hitMs": 260 },
-    { "file": "sfx/v3/whoosh-air-left.wav",  "tags": ["transition", "air", "soft", "whoosh"], "use": "same air swish panned in from the left — camera travelling left / content entering from the left", "volume": 0.3, "hitMs": 260 },
-    { "file": "sfx/v3/tick-a.wav",           "tags": ["ui", "tick", "check", "subtle"],       "use": "tiny glassy UI tick (0.16s) — a checkmark landing, a step completing, a toggle flipping, a cursor click", "volume": 0.316, "hitMs": 0 },
-    { "file": "sfx/v3/tick-b.wav",           "tags": ["ui", "tick", "check", "subtle"],       "use": "the same tick two semitones up — the NEXT check/step right after tick-a (never the same sample twice in a row)", "volume": 0.299, "hitMs": 0 },
-    { "file": "sfx/v3/pop-soft.wav",         "tags": ["appear", "pop", "soft", "ui"],         "use": "round soft bloop (0.3s) — a card/object arriving on screen when there's no camera move to carry it", "volume": 0.316, "hitMs": 0 },
-    { "file": "sfx/v3/keys-3.wav",           "tags": ["typing", "keys", "code", "soft"],      "use": "three soft low-profile key taps (0.42s) — ONCE as a terminal/code/prompt starts typing; never loop it into a typing track", "volume": 0.316, "hitMs": 0 },
-    { "file": "sfx/v3/key-1.wav",            "tags": ["keys", "press", "shortcut", "soft"],   "use": "one soft key press + release (0.22s) — a keyboard shortcut / kbd moment", "volume": 0.335, "hitMs": 0 },
-    { "file": "sfx/v3/confirm.wav",          "tags": ["result", "success", "chime", "gentle"], "use": "gentle two-note rising chime, D5→A5 (0.7s) — the payoff: the link/result lands, 'get it here', done", "volume": 0.376, "hitMs": 0 },
-    { "file": "sfx/v3/thump-soft.wav",       "tags": ["emphasis", "impact", "low", "soft"],   "use": "low felt thump with a soft knock (0.55s) — a big number settling, a stat, a one-word punch; not a cinematic boom", "volume": 0.473, "hitMs": 0 },
-    { "file": "sfx/v3/riser-soft.wav",       "tags": ["build", "tension", "air", "reveal"],   "use": "0.9s filtered-air rise that stops ON the hit — into a reveal/comparison after a pause; at most one per video", "volume": 0.266, "hitMs": 900 }
-  ],
-  "sfx_legacy": [
-    { "file": "sfx/whoosh.mp3",   "tags": ["legacy", "transition"], "use": "LEGACY stock whoosh (5.6s file, ~1.1s lead silence, -14.8 LUFS) — kept for old renders only" },
-    { "file": "sfx/click.mp3",    "tags": ["legacy", "ui"],         "use": "LEGACY stock click — kept for old renders only" },
-    { "file": "sfx/pop.mp3",      "tags": ["legacy", "appear"],     "use": "LEGACY stock pop (4.9s file) — kept for old renders only" },
-    { "file": "sfx/riser.mp3",    "tags": ["legacy", "build"],      "use": "LEGACY stock riser (-7.4 LUFS, ~1.8s lead silence) — kept for old renders only" },
-    { "file": "sfx/keyboard.mp3", "tags": ["legacy", "typing"],     "use": "LEGACY stock typing loop (4.8s) — kept for old renders only" },
-    { "file": "sfx/thud.mp3",     "tags": ["legacy", "impact"],     "use": "LEGACY stock thud — brick-walled (-0.8 LUFS, DC offset); kept for old renders only, never use" }
-  ],
-  "music": [
-    { "file": "music/rosewater.mp3",   "tags": ["calm", "lofi", "warm"],                        "use": "default bed for dry/relaxed scripts" },
-    { "file": "music/lofi-drift.mp3",  "tags": ["lofi", "floaty", "airy", "low-energy"],         "use": "drifting, spacious pads — cold-open / futuristic / research-frontier scripts; stays out of the way" },
-    { "file": "music/lofi-dusk.mp3",   "tags": ["lofi", "moody", "dark", "cinematic"],           "use": "darker evening mood — drama, bans, layoffs, 'something changed' scripts; pairs with red/violet accents" },
-    { "file": "music/lofi-mellow.mp3", "tags": ["lofi", "soft", "neutral", "mid-tempo"],         "use": "safe neutral bed — explainers, tool walkthroughs, anything that shouldn't editorialize the mood" },
-    { "file": "music/lofi-rainy.mp3",  "tags": ["lofi", "rain", "cozy", "introspective", "slow"], "use": "rainy-window cozy — reflective / 'here's what I actually think' scripts; slowest of the set" },
-    { "file": "music/lofi-study.mp3",  "tags": ["lofi", "focus", "steady", "productive"],        "use": "study-beats focus loop — install / setup / how-to / 'watch it work' tool demos; steady pulse keeps typing beats moving" },
-    { "file": "music/lofi-warmth.mp3", "tags": ["lofi", "warm", "upbeat", "optimistic"],         "use": "warmest + most upbeat of the set — wins, launches, 'this is great' recommendations; pairs with green/orange accents" }
-  ]
+ "_readme": [
+  "Handpicked audio library. Drop files in public/sfx and public/music, then add an entry here",
+  "describing each one. The director picks the music bed by mood from 'tags' + 'use'; 'file' is",
+  "relative to public/. MUSIC: 'lufs' = the file's measured integrated loudness — the bot sets",
+  "the bed's level from it so every track lands ~16 dB under the normalised voice (bot/src/lib/",
+  "loudness.ts mixLevels; studio/src/auto/bed.ts shapes it over time). Measure a new file with",
+  "`ffmpeg -i x.mp3 -af ebur128 -f null -` (the I: line); unmeasured files are assumed -14.",
+  "Tracks with 'source: mixkit' are from mixkit.co (Mixkit License: free for commercial and social",
+  "use, no attribution), trimmed to <=100 s with a fade, slow intros cut so the groove starts at 0.",
+  "SFX = the v4 kit (public/sfx/v4): real recorded sounds from mixkit.co (same license), trimmed and",
+  "level-matched to -20 LUFS max-momentary. WorldReel places them itself via src/auto/sound.ts",
+  "(see src/auto/SOUND.md); 'volume' is the level for the v2 renderer's director-placed cues",
+  "(~11 dB under the voice). 'hitMs' = where the sound lands inside the file. 'sfx_legacy' =",
+  "older kits kept only so older props still resolve; don't pick them."
+ ],
+ "sfx": [
+  {
+   "file": "sfx/v4/whoosh-sweep-a.wav",
+   "tags": [
+    "transition",
+    "whoosh",
+    "sweep"
+   ],
+   "use": "clean fast air sweep (0.75s, peaks at 0.28s) — a cut / scene change / something sliding in",
+   "volume": 0.501,
+   "hitMs": 280
+  },
+  {
+   "file": "sfx/v4/whoosh-sweep-b.wav",
+   "tags": [
+    "transition",
+    "whoosh",
+    "sweep"
+   ],
+   "use": "a shorter, slightly brighter sweep (0.6s, peaks at 0.28s) — the same job as sweep-a, for variety",
+   "volume": 0.501,
+   "hitMs": 280
+  },
+  {
+   "file": "sfx/v4/whoosh-wind.wav",
+   "tags": [
+    "transition",
+    "whoosh",
+    "short"
+   ],
+   "use": "very short wind swoosh (0.45s, peaks at 0.16s) — a quick snap between two things",
+   "volume": 0.473,
+   "hitMs": 160
+  },
+  {
+   "file": "sfx/v4/click-select.wav",
+   "tags": [
+    "ui",
+    "click",
+    "check"
+   ],
+   "use": "modern UI select click — a checkmark, a step completing, a toggle, a cursor click",
+   "volume": 0.631,
+   "hitMs": 0
+  },
+  {
+   "file": "sfx/v4/click-soft.wav",
+   "tags": [
+    "ui",
+    "click",
+    "check"
+   ],
+   "use": "softer UI click — the NEXT check/step right after click-select",
+   "volume": 0.563,
+   "hitMs": 0
+  },
+  {
+   "file": "sfx/v4/pop.wav",
+   "tags": [
+    "appear",
+    "pop",
+    "ui"
+   ],
+   "use": "round pop — a card / logo / object appearing",
+   "volume": 0.631,
+   "hitMs": 0
+  },
+  {
+   "file": "sfx/v4/typing.wav",
+   "tags": [
+    "typing",
+    "keys",
+    "code"
+   ],
+   "use": "a few keyboard taps (0.85s) — ONCE as a terminal/code/prompt starts typing",
+   "volume": 0.563,
+   "hitMs": 40
+  },
+  {
+   "file": "sfx/v4/key.wav",
+   "tags": [
+    "keys",
+    "press",
+    "shortcut"
+   ],
+   "use": "one key click — a keyboard shortcut / kbd moment",
+   "volume": 0.631,
+   "hitMs": 0
+  },
+  {
+   "file": "sfx/v4/confirm.wav",
+   "tags": [
+    "result",
+    "success",
+    "chime"
+   ],
+   "use": "short confirmation tone — the payoff: the link/result lands, 'get it here', done",
+   "volume": 0.531,
+   "hitMs": 0
+  },
+  {
+   "file": "sfx/v4/bass-hit.wav",
+   "tags": [
+    "emphasis",
+    "impact",
+    "low"
+   ],
+   "use": "short bass hit — a big number landing, a stat, a one-word punch",
+   "volume": 0.631,
+   "hitMs": 30
+  },
+  {
+   "file": "sfx/v4/riser.wav",
+   "tags": [
+    "build",
+    "tension",
+    "reveal"
+   ],
+   "use": "a 1s sweep that builds into a hit (lands at 0.95s) — into a reveal/comparison; at most one per video",
+   "volume": 0.447,
+   "hitMs": 950
+  },
+  {
+   "file": "sfx/v4/shutter.wav",
+   "tags": [
+    "capture",
+    "camera",
+    "screenshot"
+   ],
+   "use": "digital camera shutter — a real screenshot of a site/post appearing",
+   "volume": 0.708,
+   "hitMs": 50
+  }
+ ],
+ "sfx_legacy": [
+  {
+   "file": "sfx/v3/whoosh-air-down.wav",
+   "tags": [
+    "legacy",
+    "transition",
+    "air",
+    "soft",
+    "whoosh"
+   ],
+   "use": "soft filtered-air swish (0.67s, peaks at 0.26s) — a camera move / scene change, centred; darkens as it lands",
+   "hitMs": 260
+  },
+  {
+   "file": "sfx/v3/whoosh-air-right.wav",
+   "tags": [
+    "legacy",
+    "transition",
+    "air",
+    "soft",
+    "whoosh"
+   ],
+   "use": "same air swish panned in from the right — camera travelling right / content entering from the right",
+   "hitMs": 260
+  },
+  {
+   "file": "sfx/v3/whoosh-air-left.wav",
+   "tags": [
+    "legacy",
+    "transition",
+    "air",
+    "soft",
+    "whoosh"
+   ],
+   "use": "same air swish panned in from the left — camera travelling left / content entering from the left",
+   "hitMs": 260
+  },
+  {
+   "file": "sfx/v3/tick-a.wav",
+   "tags": [
+    "legacy",
+    "ui",
+    "tick",
+    "check",
+    "subtle"
+   ],
+   "use": "tiny glassy UI tick (0.16s) — a checkmark landing, a step completing, a toggle flipping, a cursor click",
+   "hitMs": 0
+  },
+  {
+   "file": "sfx/v3/tick-b.wav",
+   "tags": [
+    "legacy",
+    "ui",
+    "tick",
+    "check",
+    "subtle"
+   ],
+   "use": "the same tick two semitones up — the NEXT check/step right after tick-a (never the same sample twice in a row)",
+   "hitMs": 0
+  },
+  {
+   "file": "sfx/v3/pop-soft.wav",
+   "tags": [
+    "legacy",
+    "appear",
+    "pop",
+    "soft",
+    "ui"
+   ],
+   "use": "round soft bloop (0.3s) — a card/object arriving on screen when there's no camera move to carry it",
+   "hitMs": 0
+  },
+  {
+   "file": "sfx/v3/keys-3.wav",
+   "tags": [
+    "legacy",
+    "typing",
+    "keys",
+    "code",
+    "soft"
+   ],
+   "use": "three soft low-profile key taps (0.42s) — ONCE as a terminal/code/prompt starts typing; never loop it into a typing track",
+   "hitMs": 0
+  },
+  {
+   "file": "sfx/v3/key-1.wav",
+   "tags": [
+    "legacy",
+    "keys",
+    "press",
+    "shortcut",
+    "soft"
+   ],
+   "use": "one soft key press + release (0.22s) — a keyboard shortcut / kbd moment",
+   "hitMs": 0
+  },
+  {
+   "file": "sfx/v3/confirm.wav",
+   "tags": [
+    "legacy",
+    "result",
+    "success",
+    "chime",
+    "gentle"
+   ],
+   "use": "gentle two-note rising chime, D5→A5 (0.7s) — the payoff: the link/result lands, 'get it here', done",
+   "hitMs": 0
+  },
+  {
+   "file": "sfx/v3/thump-soft.wav",
+   "tags": [
+    "legacy",
+    "emphasis",
+    "impact",
+    "low",
+    "soft"
+   ],
+   "use": "low felt thump with a soft knock (0.55s) — a big number settling, a stat, a one-word punch; not a cinematic boom",
+   "hitMs": 0
+  },
+  {
+   "file": "sfx/v3/riser-soft.wav",
+   "tags": [
+    "legacy",
+    "build",
+    "tension",
+    "air",
+    "reveal"
+   ],
+   "use": "0.9s filtered-air rise that stops ON the hit — into a reveal/comparison after a pause; at most one per video",
+   "hitMs": 900
+  },
+  {
+   "file": "sfx/whoosh.mp3",
+   "tags": [
+    "legacy",
+    "transition"
+   ],
+   "use": "LEGACY stock whoosh (5.6s file, ~1.1s lead silence, -14.8 LUFS) — kept for old renders only"
+  },
+  {
+   "file": "sfx/click.mp3",
+   "tags": [
+    "legacy",
+    "ui"
+   ],
+   "use": "LEGACY stock click — kept for old renders only"
+  },
+  {
+   "file": "sfx/pop.mp3",
+   "tags": [
+    "legacy",
+    "appear"
+   ],
+   "use": "LEGACY stock pop (4.9s file) — kept for old renders only"
+  },
+  {
+   "file": "sfx/riser.mp3",
+   "tags": [
+    "legacy",
+    "build"
+   ],
+   "use": "LEGACY stock riser (-7.4 LUFS, ~1.8s lead silence) — kept for old renders only"
+  },
+  {
+   "file": "sfx/keyboard.mp3",
+   "tags": [
+    "legacy",
+    "typing"
+   ],
+   "use": "LEGACY stock typing loop (4.8s) — kept for old renders only"
+  },
+  {
+   "file": "sfx/thud.mp3",
+   "tags": [
+    "legacy",
+    "impact"
+   ],
+   "use": "LEGACY stock thud — brick-walled (-0.8 LUFS, DC offset); kept for old renders only, never use"
+  }
+ ],
+ "music": [
+  {
+   "file": "music/rosewater.mp3",
+   "tags": [
+    "calm",
+    "lofi",
+    "warm"
+   ],
+   "use": "default bed for dry/relaxed scripts",
+   "lufs": -11.9
+  },
+  {
+   "file": "music/lofi-drift.mp3",
+   "tags": [
+    "lofi",
+    "floaty",
+    "airy",
+    "low-energy"
+   ],
+   "use": "drifting, spacious pads — cold-open / futuristic / research-frontier scripts; stays out of the way",
+   "lufs": -23.5
+  },
+  {
+   "file": "music/lofi-dusk.mp3",
+   "tags": [
+    "lofi",
+    "moody",
+    "dark",
+    "cinematic"
+   ],
+   "use": "darker evening mood — drama, bans, layoffs, 'something changed' scripts; pairs with red/violet accents",
+   "lufs": -23.1
+  },
+  {
+   "file": "music/lofi-mellow.mp3",
+   "tags": [
+    "lofi",
+    "soft",
+    "neutral",
+    "mid-tempo"
+   ],
+   "use": "safe neutral bed — explainers, tool walkthroughs, anything that shouldn't editorialize the mood",
+   "lufs": -23.1
+  },
+  {
+   "file": "music/lofi-rainy.mp3",
+   "tags": [
+    "lofi",
+    "rain",
+    "cozy",
+    "introspective",
+    "slow"
+   ],
+   "use": "rainy-window cozy — reflective / 'here's what I actually think' scripts; slowest of the set",
+   "lufs": -23.6
+  },
+  {
+   "file": "music/lofi-study.mp3",
+   "tags": [
+    "lofi",
+    "focus",
+    "steady",
+    "productive"
+   ],
+   "use": "study-beats focus loop — install / setup / how-to / 'watch it work' tool demos; steady pulse keeps typing beats moving",
+   "lufs": -23.2
+  },
+  {
+   "file": "music/lofi-warmth.mp3",
+   "tags": [
+    "lofi",
+    "warm",
+    "upbeat",
+    "optimistic"
+   ],
+   "use": "warmest + most upbeat of the set — wins, launches, 'this is great' recommendations; pairs with green/orange accents",
+   "lufs": -23.5
+  },
+  {
+   "file": "music/tech-hazy-after-hours.mp3",
+   "tags": [
+    "tech",
+    "electronica",
+    "upbeat",
+    "driving"
+   ],
+   "use": "modern electronica with a steady drive — launches, big tool drops, 'this changes things' energy",
+   "lufs": -8.8,
+   "source": "mixkit"
+  },
+  {
+   "file": "music/tech-pop-track.mp3",
+   "tags": [
+    "tech",
+    "electronic",
+    "bright",
+    "upbeat"
+   ],
+   "use": "bright electronic pop — fun tool demos, 'look what this does' scripts",
+   "lufs": -11.3,
+   "source": "mixkit"
+  },
+  {
+   "file": "music/tech-infinity.mp3",
+   "tags": [
+    "tech",
+    "corporate",
+    "uplifting",
+    "clean"
+   ],
+   "use": "clean uplifting corporate electronic — product announcements, company news, neutral-positive",
+   "lufs": -12.6,
+   "source": "mixkit"
+  },
+  {
+   "file": "music/tech-better-times.mp3",
+   "tags": [
+    "tech",
+    "synthpop",
+    "optimistic",
+    "warm"
+   ],
+   "use": "optimistic synthpop — wins, good news, 'the future is here' takes",
+   "lufs": -12.7,
+   "source": "mixkit"
+  },
+  {
+   "file": "music/tech-tides-turning.mp3",
+   "tags": [
+    "tech",
+    "electropop",
+    "building",
+    "hopeful"
+   ],
+   "use": "electropop that builds gently — 'something is shifting' stories, trend explainers",
+   "lufs": -13.4,
+   "source": "mixkit"
+  },
+  {
+   "file": "music/chill-digital-clouds.mp3",
+   "tags": [
+    "chill",
+    "electronic",
+    "airy",
+    "calm"
+   ],
+   "use": "airy chill electronic — research, AI concepts, calm explainers",
+   "lufs": -13.6,
+   "source": "mixkit"
+  },
+  {
+   "file": "music/chill-serene-view.mp3",
+   "tags": [
+    "chill",
+    "calm",
+    "soft",
+    "steady"
+   ],
+   "use": "soft steady chillout — thoughtful takes, tutorials that need a calm bed",
+   "lufs": -15.2,
+   "source": "mixkit"
+  },
+  {
+   "file": "music/chill-sleepy-cat.mp3",
+   "tags": [
+    "chill",
+    "lofi",
+    "cozy",
+    "relaxed"
+   ],
+   "use": "cozy relaxed chillout — easy tool tips, low-stakes recommendations",
+   "lufs": -11.4,
+   "source": "mixkit"
+  },
+  {
+   "file": "music/lofi-tape.mp3",
+   "tags": [
+    "lofi",
+    "beat",
+    "focused",
+    "steady"
+   ],
+   "use": "lofi beat with a steady pulse — how-tos, setup walkthroughs, 'watch it work'",
+   "lufs": -9.9,
+   "source": "mixkit"
+  },
+  {
+   "file": "music/lofi-night.mp3",
+   "tags": [
+    "lofi",
+    "mellow",
+    "night",
+    "smooth"
+   ],
+   "use": "smooth late-night lofi — reflective scripts, personal takes",
+   "lufs": -10.8,
+   "source": "mixkit"
+  },
+  {
+   "file": "music/chill-dim-the-lights.mp3",
+   "tags": [
+    "chill",
+    "groove",
+    "smooth",
+    "confident"
+   ],
+   "use": "smooth confident groove — productivity tools, workflow scripts",
+   "lufs": -10.6,
+   "source": "mixkit"
+  },
+  {
+   "file": "music/dark-cyberpunk-city.mp3",
+   "tags": [
+    "dark",
+    "ambient",
+    "futuristic",
+    "tense"
+   ],
+   "use": "futuristic dark ambient — AI risk, security, leaks, 'this is getting wild'",
+   "lufs": -11.3,
+   "source": "mixkit"
+  },
+  {
+   "file": "music/dark-kodama-night.mp3",
+   "tags": [
+    "dark",
+    "electronic",
+    "night",
+    "mysterious"
+   ],
+   "use": "mysterious night electronic — investigations, hidden features, deep dives",
+   "lufs": -9.7,
+   "source": "mixkit"
+  },
+  {
+   "file": "music/dark-slow-rain.mp3",
+   "tags": [
+    "dark",
+    "electronica",
+    "moody",
+    "serious"
+   ],
+   "use": "moody electronica — serious news: layoffs, bans, lawsuits, big model drama",
+   "lufs": -10.0,
+   "source": "mixkit"
+  },
+  {
+   "file": "music/dark-scifi-score.mp3",
+   "tags": [
+    "dark",
+    "cinematic",
+    "scifi",
+    "epic"
+   ],
+   "use": "sci-fi score feel — frontier research, AGI talk, huge model releases",
+   "lufs": -12.3,
+   "source": "mixkit"
+  },
+  {
+   "file": "music/beat-sweet-september.mp3",
+   "tags": [
+    "hiphop",
+    "lofi",
+    "beat",
+    "laid-back"
+   ],
+   "use": "laid-back lofi hip-hop beat — casual tool finds, 'you need to try this'",
+   "lufs": -13.2,
+   "source": "mixkit"
+  },
+  {
+   "file": "music/beat-hip-hop.mp3",
+   "tags": [
+    "hiphop",
+    "beat",
+    "confident",
+    "punchy"
+   ],
+   "use": "confident hip-hop beat — hype tools, money/side-hustle angles, bold claims",
+   "lufs": -12.2,
+   "source": "mixkit"
+  }
+ ]
 }

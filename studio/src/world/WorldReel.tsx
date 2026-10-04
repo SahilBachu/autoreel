@@ -6,6 +6,7 @@ import { useGeistFonts } from "../auto/fonts2";
 import { SceneBody, SceneBoundary, sceneRenderable } from "../auto/scenes";
 import { planTitle, TitleOverlay } from "../auto/title";
 import { soundCues, type SoundCue } from "../auto/sound";
+import { bedCurve } from "../auto/bed";
 import type { AutoReelData } from "../auto/AutoReel";
 import { ANCHOR, layoutWorld, type WorldObject } from "./layout";
 import { at, buildTrack, LEAD, planBeats, TAIL, TRAVEL, type Beat } from "./camera";
@@ -140,6 +141,7 @@ export const WorldReel: React.FC<AutoReelData> = ({ videoSrc, captions, scenes: 
   }, [beats, objs, fps, durationInFrames]);
 
   const sfxGain = Math.pow(10, (sfxGainDb ?? 0) / 20);
+  const bed = useMemo(() => bedCurve(words, fps, durationInFrames), [words, fps, durationInFrames]);
   const op = at(track.op, frame);
   const cx = at(track.x, frame);
   const cy = at(track.y, frame);
@@ -235,7 +237,7 @@ export const WorldReel: React.FC<AutoReelData> = ({ videoSrc, captions, scenes: 
         ) : null}
 
         {/* audio */}
-        {music ? <Audio src={asset(music)} volume={musicVolume ?? 0.32} loop /> : null}
+        {music ? <Audio src={asset(music)} volume={(fr) => (musicVolume ?? 0.32) * (bed[Math.min(bed.length - 1, Math.max(0, fr))] ?? 1)} loop /> : null}
         {cues.length
           ? cues.map((c, i) => (
               <Sequence key={`cue${i}`} from={Math.max(0, Math.round(c.frame))} layout="none">

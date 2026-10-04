@@ -8,11 +8,11 @@ import { readFile } from "node:fs/promises";
 // Now: read the 16 kHz mono WAV that whisper already gets, measure the speech level (RMS over
 // 50 ms windows, gated so silences between sentences don't drag it down) and the true sample
 // peak, and pick the gain that lands the speech at TARGET_RMS_DB — capped so the loudest peak
-// stays under PEAK_CEILING. Music and SFX are scaled by the same ratio relative to the old 2.8x,
-// so the mix balance he has approved stays exactly as it was; only the clipping goes.
+// stays under PEAK_CEILING. Music and SFX are then set RELATIVE to that voice (mixLevels below),
+// so every reel gets the same balance whatever the track or the recording.
 
-export const LEGACY_BOOST = 2.8; // the old fixed voice boost — the balance reference
-const TARGET_RMS_DB = -16; // speech level after gain (dBFS, gated RMS) — lands the mix near -14 LUFS, where IG reels sit
+export const LEGACY_BOOST = 2.8; // the old fixed voice boost — the fallback when measuring fails
+export const TARGET_RMS_DB = -16; // speech level after gain (dBFS, gated RMS) — lands the mix near -14 LUFS, where IG reels sit
 const PEAK_CEILING = 0.89; // -1 dBFS
 const GATE_DB = -45; // windows quieter than this are pauses, not speech
 const MIN_GAIN = 0.35;
@@ -74,4 +74,21 @@ export async function measureVoice(wavPath: string): Promise<VoiceLevel | undefi
   const byPeak = PEAK_CEILING / peak;
   const gain = Math.max(MIN_GAIN, Math.min(MAX_GAIN, byLevel, byPeak));
   return { rmsDb: Math.round(rmsDb * 10) / 10, peak: Math.round(peak * 1000) / 1000, gain: Math.round(gain * 100) / 100 };
+}
+
+// THE MIX, relative to the normalised voice. On his clips integrated loudness reads 3.4 dB above
+// this gated RMS (three clips, all within 0.1 dB), so a voice at TARGET_RMS_DB is ≈ -12.6 LUFS;
+// most clips are peak-limited a dB or two below that. The bed sits BED_UNDER_VOICE_DB under it (bed.ts lifts it a little in pauses);
+// the SFX policy (studio/src/auto/sound.ts) is calibrated to that same voice, so it only needs
+// sfxGainDb when the voice couldn't reach its target (peak-limited → quieter → everything
+// follows it down).
+export const VOICE_LUFS = TARGET_RMS_DB + 3.4;
+export const BED_UNDER_VOICE_DB = 16;
+const DEFAULT_TRACK_LUFS = -14; // an unmeasured track: typical for a mastered stock bed
+
+export function mixLevels(level: VoiceLevel | undefined, trackLufs?: number): { musicVolume: number; sfxGainDb: number } {
+  const offsetDb = level ? level.rmsDb + 20 * Math.log10(level.gain) - TARGET_RMS_DB : 0;
+  const bedLufs = VOICE_LUFS + offsetDb - BED_UNDER_VOICE_DB;
+  const musicVolume = Math.min(1, Math.pow(10, (bedLufs - (trackLufs ?? DEFAULT_TRACK_LUFS)) / 20));
+  return { musicVolume: Math.round(musicVolume * 1000) / 1000, sfxGainDb: Math.round(Math.min(0, offsetDb) * 10) / 10 };
 }

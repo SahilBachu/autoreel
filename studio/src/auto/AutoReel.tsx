@@ -14,6 +14,7 @@ import { Caption2 } from "./fx";
 import { useGeistFonts } from "./fonts2";
 import { SceneBody, SceneBoundary, type Scene } from "./scenes";
 import { planTitle, TitleOverlay } from "./title";
+import { bedCurve } from "./bed";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AutoReel v2 — dark + one bright accent per video. The director emits `scenes`
@@ -32,7 +33,7 @@ export type AutoReelData = {
   music?: string;
   sfx?: { file: string; atMs: number; trimBeforeMs?: number; volume?: number }[];
   voiceBoost?: number;
-  /** music bed level (default 0.32). The bot measures voice gain per clip and passes this so the mix balance holds. */
+  /** music bed base level (default 0.32). The bot sets it from the track's loudness so the bed sits a fixed distance under the normalised voice. */
   musicVolume?: number;
   /** gain applied to every sound effect, in dB (default 0): volume × 10^(sfxGainDb/20). */
   sfxGainDb?: number;
@@ -56,10 +57,11 @@ const Fade: React.FC<{ durF: number; fadeIn: boolean; fadeOut: boolean; children
 };
 
 export const AutoReel: React.FC<AutoReelData> = ({ videoSrc, captions, scenes: planned, accent, music, sfx, voiceBoost, musicVolume, sfxGainDb, title, titleKicker, titleEmphasis }) => {
-  const { fps } = useVideoConfig();
+  const { fps, durationInFrames } = useVideoConfig();
   const frame = useCurrentFrame();
   const f = (ms: number) => Math.round((ms / 1000) * fps);
   useGeistFonts();
+  const bed = React.useMemo(() => bedCurve(captions ?? [], fps, durationInFrames), [captions, fps, durationInFrames]);
   const { title: tp, scenes } = planTitle(planned ?? [], { title, titleKicker, titleEmphasis }, captions ?? []);
 
   return (
@@ -101,8 +103,8 @@ export const AutoReel: React.FC<AutoReelData> = ({ videoSrc, captions, scenes: p
           });
         })()}
 
-        {/* lofi bed leads; SFX stay subtle */}
-        {music ? <Audio src={asset(music)} volume={musicVolume ?? 0.32} loop /> : null}
+        {/* the bed sits under the voice (lifts a little in pauses, see bed.ts); SFX stay subtle */}
+        {music ? <Audio src={asset(music)} volume={(fr) => (musicVolume ?? 0.32) * (bed[Math.min(bed.length - 1, Math.max(0, fr))] ?? 1)} loop /> : null}
         {(sfx ?? []).map((s, i) => (
           <Sequence key={`sfx${i}`} from={f(s.atMs)} durationInFrames={Math.round(1.6 * fps)} layout="none">
             <Audio src={asset(s.file)} volume={(s.volume ?? 0.16) * Math.pow(10, (sfxGainDb ?? 0) / 20)} trimBefore={f(s.trimBeforeMs ?? 0)} />
