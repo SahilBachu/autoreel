@@ -2,7 +2,7 @@
 import Base from "../layouts/Base.astro";
 import Identity from "../components/Identity.astro";
 import PostBlock from "../components/PostBlock.astro";
-import { listPosts, type Post } from "../lib/db";
+import { listPosts, hostOf, type Post } from "../lib/db";
 import { site, instagramUrl } from "../config";
 
 let posts: Post[] = [];
@@ -13,6 +13,13 @@ try {
   console.error("[feed] listPosts failed", e);
   failed = true;
 }
+
+// search: filtered on the server for ?q= (shareable links, works without JS), then live in the
+// browser as you type. Every word has to appear somewhere in the post's title, blurb or link host.
+const haystack = (p: Post) => [p.title, p.blurb, p.type, hostOf(p.tool_url)].filter(Boolean).join(" ").toLowerCase();
+const q = (Astro.url.searchParams.get("q") ?? "").trim().slice(0, 80);
+const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+const matches = (p: Post) => terms.every((t) => haystack(p).includes(t));
 ---
 
 <Base>
@@ -21,11 +28,19 @@ try {
   {failed && <p class="empty">Couldn't load posts just now. Try again in a moment.</p>}
   {!failed && posts.length === 0 && <p class="empty">Nothing here yet.</p>}
 
+  {posts.length > 0 && (
+    <form class="search" role="search" action="/" method="get">
+      <svg class="icon" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><circle cx="7" cy="7" r="4.75" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <input id="q" name="q" type="search" value={q} placeholder="Search tools and posts" aria-label="Search tools and posts" autocomplete="off" enterkeyhint="search" spellcheck="false" />
+    </form>
+  )}
+
   <ol class="feed">
     {posts.map((post) => (
-      <li><PostBlock post={post} /></li>
+      <li data-search={haystack(post)} hidden={!matches(post)}><PostBlock post={post} /></li>
     ))}
   </ol>
+  <p class="empty" id="nomatch" hidden={!posts.length || posts.some(matches)}>No posts match that search.</p>
 
   <footer>
     <a class="kicker" href={instagramUrl} rel="noopener">instagram.com/{site.handle}</a>
@@ -33,7 +48,84 @@ try {
   </footer>
 </Base>
 
+<script>
+  const input = document.getElementById("q") as HTMLInputElement | null;
+  const items = Array.from(document.querySelectorAll<HTMLLIElement>(".feed > li"));
+  const none = document.getElementById("nomatch");
+  function apply() {
+    if (!input) return;
+    const terms = input.value.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    let shown = 0;
+    for (const li of items) {
+      const hit = terms.every((t) => (li.dataset.search ?? "").includes(t));
+      li.hidden = !hit;
+      if (hit) shown++;
+    }
+    if (none) none.hidden = shown > 0 || !items.length;
+    const url = new URL(location.href);
+    if (input.value.trim()) url.searchParams.set("q", input.value.trim());
+    else url.searchParams.delete("q");
+    history.replaceState(null, "", url);
+  }
+  input?.addEventListener("input", apply);
+  input?.closest("form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    apply();
+    input.blur();
+  });
+</script>
+
 <style>
+  .search {
+    position: relative;
+    margin: 0 0 14px;
+  }
+  .search .icon {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--faint);
+    pointer-events: none;
+  }
+  .search input {
+    width: 100%;
+    height: 46px;
+    padding: 0 16px 0 40px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    color: var(--text);
+    font: 500 16px/1 var(--sans); /* 16px: iOS doesn't zoom the page on focus */
+    letter-spacing: -0.01em;
+    outline: none;
+    transition: border-color 160ms ease, background 160ms ease;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  .search input::placeholder {
+    color: var(--faint);
+  }
+  .search input:hover {
+    border-color: var(--border-bright);
+  }
+  .search input:focus {
+    border-color: var(--accent-dim);
+    background: var(--surface2);
+  }
+  .search input::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    background: var(--faint);
+    mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><path d='M4 4l8 8M12 4l-8 8' stroke='black' stroke-width='1.8' stroke-linecap='round'/></svg>") center / contain no-repeat;
+  }
+  .feed > li[hidden] {
+    display: none;
+  }
   .feed {
     list-style: none;
     margin: 0;
