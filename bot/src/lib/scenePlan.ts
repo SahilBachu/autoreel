@@ -32,7 +32,7 @@ const KIND_FIELDS: Record<string, string[]> = {
   notifications: ["items"], checklist: ["items"], kbd: ["keys"], tweet: ["text"],
   terminal: ["lines"], code: ["lines"], logo: ["name"], logowall: ["brands"],
   versus: ["a", "b"], browser: ["url"], screenshot: ["url"], phone: ["url"],
-  ascii: [], custom: ["name", "spec"],
+  ascii: [], custom: ["name", "spec"], clawd: ["brief"],
   // app-ui group (v2-apps.tsx)
   command: ["query", "results"], diff: ["lines"], pricing: ["tiers"],
   leaderboard: ["rows"], progress: ["label", "percent"], toggles: ["items"],
@@ -233,12 +233,30 @@ HARD RULES:
   exactly what to show and how it animates.
 `;
 
+// the Clawd experiment (lib/clawd.ts): a hand-painted cartoon of the Claude Code mascot acting
+// out a line, made per shot at render time with the ClaudeAnimationBase kit
+const CLAWD_BLOCK = `
+hand-painted cartoon (EXPERIMENT ON for this reel — use it):
+- {"kind":"clawd","brief":"Clawd sees a bill fly in, it unrolls to the floor, Clawd's eyes go wide and it faints backwards"}
+  (Clawd, Claude Code's little terracotta mascot, in a hand-painted watercolour-cartoon card,
+  ACTING OUT the line he's saying: the event + Clawd's reaction, in one or two sentences. No text
+  in it, so the brief is pure action: props, a take, an emotion change (shocked, smug, crushed,
+  furious, celebrating, typing frantically, sweating, starstruck). When the story is about
+  Claude/Anthropic, Clawd IS Claude; otherwise Clawd is "the AI" or the viewer reacting. Other
+  companies/people only as simple painted props or creatures, never logos or real faces.)
+  For THIS reel use 2-3 of them, spread out (one soon after the hook, one mid-video, one near
+  the end), each 3-7 s on the line it illustrates, never two in a row. Put them on the funny or
+  emotional beats (a shocking number, a ban, a win, a fail, "it just works"); keep the factual
+  beats for screenshots/stats/data. Don't use one for the opening hook card or the final CTA.
+`;
+
 export async function planCutaways(args: {
   topic: string;
   words: Word[];
   editNote?: string;
   audio?: AudioLib;
   style?: PlanStyle;
+  clawd?: boolean; // the Clawd cartoon experiment is on for this reel (lib/clawd.ts)
 }): Promise<Plan> {
   const { topic, words, editNote, audio } = args;
   const style: PlanStyle = args.style ?? "v2";
@@ -286,7 +304,7 @@ ${style === "world" ? WORLD_RULES(totalMs) : V2_RULES(totalMs)}- PREFER REAL SCR
   chatgpt.com) — they hit bot-walls and get dropped.
 - Captions are added automatically — never include them.
 
-${sceneCatalog(MAX_CUSTOM)}
+${sceneCatalog(MAX_CUSTOM)}${args.clawd ? CLAWD_BLOCK : ""}
 ALSO CHOOSE the video's ACCENT color to fit the topic's vibe:
 blue (trust/infra) · cyan (futuristic) · green (money/win) · orange (energy) · red (drama/ban)
 · pink (fun/chaos) · violet (research/frontier).

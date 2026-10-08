@@ -122,7 +122,7 @@ export const KIND_FAMILY: { [kind: string]: Family } = {
   phone: "card", pricing: "card", receipt: "card", rating: "card", poll: "card", chat: "card",
   notifications: "card", inbox: "card", bento: "card", dashboard: "card", calendar: "card", table: "card",
   leaderboard: "card", kanban: "card", timeline: "card", waveform: "card", ascii: "card", custom: "card",
-  stack: "card", catch: "card", linechart: "card", barchart: "card", donut: "card", ticker: "card", diff: "card",
+  stack: "card", catch: "card", clawd: "card", linechart: "card", barchart: "card", donut: "card", ticker: "card", diff: "card",
 };
 
 // kinds this module has never heard of: guess from the name, first match wins; no match →

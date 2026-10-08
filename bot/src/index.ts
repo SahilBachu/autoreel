@@ -10,6 +10,7 @@ import { renderReel } from "./jobs/render.js";
 import { postReel } from "./jobs/post.js";
 import { dmStatus, startDmLoop } from "./jobs/dm.js";
 import { setStyleMode, styleStatus } from "./lib/style.js";
+import { clawdEnabled, setClawd } from "./lib/clawd.js";
 import { chunkForTelegram, runAnalytics } from "./jobs/analytics.js";
 import { applyProposal, findByMessage, loadProposals, reviseProposal, sendProposal, updateProposal } from "./lib/proposals.js";
 import { genPostCaption } from "./lib/caption.js";
@@ -110,6 +111,7 @@ const HELP = [
   "/forget — reset learned preferences",
   "/dm — comment→DM autoresponder status",
   "/stats — your Instagram numbers + what to do next (also every morning)",
+  "/clawd — hand-painted Clawd cartoon moments in the next reel (`/clawd on|off`)",
   "/style — which renderer videos use (alternating by default; `/style v2` pins it)",
   "/retrysite — force the site retry now (it already retries on its own)",
   "/help — this list",
@@ -186,6 +188,18 @@ ${styleStatus()}`);
 
 ${styleStatus()}`);
   return ctx.reply(styleStatus());
+});
+
+// the Clawd cartoon experiment (lib/clawd.ts): on for the next reel, off again once one is posted
+bot.command("clawd", async (ctx) => {
+  const arg = ctx.match?.toString().trim().toLowerCase();
+  if (arg === "on" || arg === "off") await setClawd(arg === "on");
+  const on = await clawdEnabled();
+  return ctx.reply(
+    on
+      ? "Clawd experiment ON: the next reel gets 2-3 hand-painted Clawd cartoon moments (ClaudeAnimationBase). It switches itself off after that reel is posted. /clawd off to cancel."
+      : "Clawd experiment off. /clawd on to put 2-3 Clawd cartoon moments in the next reel.",
+  );
 });
 
 // the reel published but the site row didn't — rewrite the copy and insert it
@@ -338,6 +352,11 @@ async function postPending(chat: string) {
     }, p.thumbPath);
     await set(`*Posted:*\n${permalink}\n\nadding it to the site${p.postType === "news" ? " — writing the article" : ""}…`);
     await rememberPost({ p, mediaId, permalink, at: new Date().toISOString() }); // so /retrysite has something to work from
+    // the Clawd experiment is one reel long: once a reel that used it is out, switch it off
+    if (/\bclawd\b/.test(p.lastPlan ?? "") && (await clawdEnabled())) {
+      await setClawd(false);
+      await bot.api.sendMessage(chat, "That was the Clawd experiment reel. Clawd is off again; /clawd on to keep using it.").catch(() => {});
+    }
     learnFromPost(p.topic, p.script).catch(() => {}); // approved = strongest signal; learn in bg
     state.clear(chat); // the reel is done regardless of what the site does next
 

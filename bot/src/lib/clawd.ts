@@ -1,0 +1,145 @@
+import { spawn } from "node:child_process";
+import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import { claude } from "./claude.js";
+import { config, REPO_ROOT } from "../config.js";
+
+// CLAWD SHOTS (experiment): hand-painted cartoon moments of Clawd, the Claude Code mascot, made
+// with the vendored ClaudeAnimationBase kit in clawd/ (p5.js + p5.brush in headless Chrome). The
+// director plans a few `clawd` scenes ({brief}); for each one Opus writes a shot from the kit's
+// guide, looks at its own contact sheets, fixes, and the kit renders a square MP4 that plays in a
+// card over him (studio ClawdCard). A shot that fails is dropped, never the reel.
+//
+// Switched on per reel by bot/data/experiments.json ({"clawd": true}); `/clawd on|off` in
+// Telegram, and it switches itself off after a reel that used it is posted.
+
+const KIT = resolve(REPO_ROOT, "clawd");
+const FLAGS = resolve(REPO_ROOT, "bot/data/experiments.json");
+const SIZE = 720; // square canvas: ~0.2 s/frame on the runner's software GL (1920x1080 watercolour: 30-50 s)
+const GL = process.platform === "linux" ? ["--soft-gl"] : []; // the runner has no GPU
+const TOOLS = ["Read", "Write", "Edit", "Glob", "Grep", "Bash(node shot.mjs:*)"];
+
+type Word = { text: string; startMs: number; endMs: number };
+
+async function flags(): Promise<Record<string, unknown>> {
+  try {
+    return JSON.parse(await readFile(FLAGS, "utf8"));
+  } catch {
+    return {};
+  }
+}
+export async function clawdEnabled(): Promise<boolean> {
+  return (await flags()).clawd === true;
+}
+export async function setClawd(on: boolean): Promise<void> {
+  await writeFile(FLAGS, JSON.stringify({ ...(await flags()), clawd: on }, null, 2));
+}
+
+function run(cmd: string, args: string[], cwd: string, timeoutMs: number): Promise<{ ok: boolean; out: string }> {
+  return new Promise((res) => {
+    const p = spawn(cmd, args, { cwd, shell: process.platform === "win32" });
+    let out = "";
+    const timer = setTimeout(() => p.kill("SIGKILL"), timeoutMs);
+    p.stdout.on("data", (d) => (out += d));
+    p.stderr.on("data", (d) => (out += d));
+    p.on("error", (e) => res({ ok: false, out: String(e) }));
+    p.on("close", (code) => {
+      clearTimeout(timer);
+      res({ ok: code === 0, out: out.slice(-1500) });
+    });
+  });
+}
+
+const page = (dur: number) => `<!doctype html>
+<html><head><meta charset="utf-8"><title>clawd shot</title>
+<style>html,body{margin:0;background:#1b1820}#out{width:${SIZE}px;height:${SIZE}px}.p5Canvas{display:none!important}</style>
+<script src="../../node_modules/p5/lib/p5.min.js"></script>
+<script src="../../node_modules/p5.brush/dist/p5.brush.js"></script>
+</head><body>
+<canvas id="out" width="${SIZE}" height="${SIZE}"></canvas>
+<input id="scrub" type="range" min="0" max="${dur}" step="0.0417" value="0" hidden><span id="tt" hidden></span>
+<script src="config.js"></script>
+<script src="../../src/core.js"></script>
+<script src="../../src/clawd.js"></script>
+<script src="../../src/timeline.js"></script>
+<script src="scene.js"></script>
+</body></html>
+`;
+
+// keep a few days of jobs for debugging, no more
+async function pruneJobs() {
+  const dir = resolve(KIT, "jobs");
+  try {
+    for (const name of await readdir(dir)) {
+      const st = await stat(resolve(dir, name));
+      if (Date.now() - st.mtimeMs > 3 * 86_400_000) await rm(resolve(dir, name), { recursive: true, force: true });
+    }
+  } catch {
+    /* no jobs yet */
+  }
+}
+
+async function buildOne(s: any, k: number, videoId: string, topic: string, words: Word[]): Promise<any | undefined> {
+  const dur = Math.round(Math.max(2.5, Math.min(8, (s.endMs - s.startMs) / 1000 + 0.5)) * 10) / 10;
+  const job = `jobs/${videoId}-${k}`;
+  const dir = resolve(KIT, job);
+  await rm(dir, { recursive: true, force: true });
+  await mkdir(resolve(dir, "out"), { recursive: true });
+  await writeFile(resolve(dir, "config.js"), `const PROJECT = { duration: ${dur}, bpm: 110, offset: 0, w: ${SIZE}, h: ${SIZE} };\n`);
+  await writeFile(resolve(dir, "studio.html"), page(dur));
+
+  const line = words.filter((w) => w.endMs > s.startMs - 300 && w.startMs < s.endMs).map((w) => w.text).join(" ");
+  const prompt = `You are animating ONE short hand-painted Clawd shot for an Instagram reel (cwd = the kit, clawd/).
+
+Read these first, in order: REEL.md (what a reel shot is, and the speed rules: they override the
+guide), ANIMATION_GUIDE.md (the kit's rules, principles and full API), docs/emotions.jpg and
+docs/views.jpg (the model sheets). Open src/clawd.js / src/core.js only when you need a detail.
+
+The reel's topic: "${topic}"
+While this shot is on screen he says: "${line}"
+What the director wants Clawd to do: ${s.brief}
+Length: ${dur} s. Canvas: ${SIZE}x${SIZE} (W and H are set from config.js).
+
+Write ${job}/scene.js — the ONLY file you create or edit — as an IIFE ending in shots([...]).
+Then look at it: \`node shot.mjs ${job} ${GL.join(" ")} --sheet=<5-6 times across the shot> --cols=6 --w=240 --out=out/sheet.jpg\`
+and \`node shot.mjs ${job} ${GL.join(" ")} --strip=0:0.6 --cols=8 --w=160 --out=out/strip.jpg\`, then Read the images.
+Fix what's wrong (does the event read in the first ~1.5 s? Clawd big and clear? no text? opens with
+a paint-in, ends on a held alive pose, no fill/brushWipe?) and look again. Two or three passes is
+plenty. Reply DONE when the shot is good.`;
+
+  await claude(prompt, { tools: TOOLS, cwd: KIT, timeoutMs: 14 * 60_000 });
+  if (!existsSync(resolve(dir, "scene.js"))) throw new Error("no scene.js written");
+
+  const r = await run("node", ["shot.mjs", job, ...GL, "--clip", "--out=out/clip.mp4"], KIT, 12 * 60_000);
+  const clip = resolve(dir, "out/clip.mp4");
+  if (!r.ok || !existsSync(clip) || (await stat(clip)).size < 10_000) throw new Error(`render failed: ${r.out.slice(-300)}`);
+  const rel = `generated/clawd-${videoId}-${k}.mp4`;
+  await copyFile(clip, resolve(config.studioDir, "public", rel));
+  return { ...s, src: rel, durMs: dur * 1000 };
+}
+
+/** Builds every `clawd` scene in the plan (in parallel). Not enabled, or a shot fails → that scene is dropped. */
+export async function buildClawdScenes(scenes: any[], videoId: string, opts: { topic: string; words: Word[] }): Promise<any[]> {
+  const shots = scenes.filter((s) => s.kind === "clawd" && typeof s.brief === "string" && s.brief.trim());
+  if (!shots.length || !(await clawdEnabled())) return scenes.filter((s) => s.kind !== "clawd");
+  await pruneJobs();
+  if (!existsSync(resolve(KIT, "node_modules/p5.brush"))) {
+    const r = await run("npm", ["ci", "--silent"], KIT, 5 * 60_000);
+    if (!r.ok) {
+      console.error("clawd: npm ci failed, dropping clawd scenes:", r.out);
+      return scenes.filter((s) => s.kind !== "clawd");
+    }
+  }
+  await mkdir(resolve(config.studioDir, "public/generated"), { recursive: true });
+  const built = await Promise.all(
+    shots.map((s, k) =>
+      buildOne(s, k, videoId, opts.topic, opts.words).catch((e) => {
+        console.error(`clawd shot ${k} dropped:`, (e as Error).message);
+        return undefined;
+      }),
+    ),
+  );
+  const byScene = new Map(shots.map((s, k) => [s, built[k]]));
+  return scenes.flatMap((s) => (s.kind !== "clawd" ? [s] : byScene.get(s) ? [byScene.get(s)] : []));
+}
