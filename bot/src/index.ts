@@ -190,6 +190,18 @@ ${styleStatus()}`);
   return ctx.reply(styleStatus());
 });
 
+// After a post: "post another?" with the morning's other cards. No answer needed. A number picks
+// one (the normal digest pick); a plain "yes" gets the list again with "which one?".
+let anotherOffer: { at: number; lines: string[] } | null = null;
+async function offerAnother(chat: string, postedTopic: string) {
+  const digest = await loadDigest(24);
+  const rest = (digest?.cards ?? []).filter((c) => c.topic !== postedTopic);
+  if (!rest.length) return;
+  const lines = rest.map((c) => `${c.n}) [${c.type ?? "news"}] ${c.topic}`);
+  anotherOffer = { at: Date.now(), lines };
+  await bot.api.sendMessage(chat, `post another? no need to answer. reply ${rest.map((c) => c.n).join(" or ")} for that script:\n\n${lines.join("\n")}`);
+}
+
 // the Clawd cartoon experiment (lib/clawd.ts): on for the next reel, off again once one is posted
 bot.command("clawd", async (ctx) => {
   const arg = ctx.match?.toString().trim().toLowerCase();
@@ -366,6 +378,7 @@ async function postPending(chat: string) {
     else if (r.queued)
       await set(`*Posted:*\n${permalink}\n\n_site: couldn't add it yet (${String(r.error).slice(0, 120)}). I'll keep retrying in the background and tell you when it lands._`);
     else await set(`*Posted:*\n${permalink}\n\n_site: ${String(r.error).slice(0, 160)} — retrying won't fix that one. /retrysite once it's sorted._`);
+    await offerAnother(chat, p.topic).catch(() => {});
   } catch (e: any) {
     state.patch(chat, { posting: false });
     await set(`*Post failed:* ${e.message}\nTap Post again to retry, or Redo.`);
@@ -421,6 +434,12 @@ bot.on("message:text", async (ctx) => {
     return;
   }
 
+  // "post another?" answered with a yes instead of a number: show the options again
+  if (anotherOffer && Date.now() - anotherOffer.at < 18 * 3600_000 && !state.get(chat)?.script &&
+      /^\s*(y|ya|yes|yeah|yep|yup|sure|ok|okay|another|go|let'?s go|do it)\b[\s!.]*$/i.test(ctx.message.text)) {
+    return ctx.reply(`which one? reply the number:\n\n${anotherOffer.lines.join("\n")}`);
+  }
+
   // digest pick: "1" / "2" / "3", optionally "2 but <change>" — activates that card's script
   // (and its live session), then the normal revise loop takes over.
   const pick = ctx.message.text.match(/^\s*([1-3])\b[\s.,:-]*(?:but\s+(.+))?\s*$/is);
@@ -428,6 +447,7 @@ bot.on("message:text", async (ctx) => {
     const digest = await loadDigest();
     const card = digest?.cards.find((c) => c.n === Number(pick[1]));
     if (card) {
+      anotherOffer = null;
       markPicked(card.topic).catch(() => {}); // future research treats this story as done
       try {
         // an unverified queued topic has no script — picking it = "write it from my description anyway"
