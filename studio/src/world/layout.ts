@@ -34,7 +34,7 @@ export const OBJECT_H: Record<string, number> = {
   toolcard: 700, install: 660, runlog: 560, beforeafter: 460, catch: 560, getit: 620,
   // v3 kinds
   flow: 430, cursor: 560, highlight: 930, json: 620, stack: 660, kinetic: 370, split: 420, logoorbit: 860, repo: 510,
-  custom: 1060, clawd: 740,
+  custom: 1060, clawd: 740, painted: 740,
 };
 /** any kind not in the table (new components land here before they're measured) —
  *  a mid-size card: parks at full zoom (1.04) and spans y265→1055 on screen. */

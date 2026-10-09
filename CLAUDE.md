@@ -78,12 +78,12 @@ Telegram Bot API server, whisper, cron all installed). Move the repo to the runn
 - **Covers:** every render also makes a thumbnail (`studio/src/auto/Thumbnail.tsx`, rendered by
   `bot/src/lib/thumbnail.ts`): the best of a few frames of him (model-picked) with the hook's
   title, shown in Telegram and set as the Instagram `cover_url` on Post.
-- **Clawd experiment (2026-10-08):** `/clawd on` puts 2-3 hand-painted Clawd cartoon moments in
-  the next reel; it turns itself off once that reel is posted. Kit = ClaudeAnimationBase (MIT),
-  vendored in `clawd/` (read `clawd/REEL.md`); `bot/src/lib/clawd.ts` has Opus write + self-review
-  one p5.brush shot per `clawd` scene, renders a 720² MP4 (no watercolour `fill`: the runner has no
-  GPU), and `studio/src/auto/clawd-card.tsx` plays it on a paper card. Flag in
-  `bot/data/experiments.json`.
+- **Hand-painted shots (since 2026-10-09, always on):** the director may add 1-2 `painted`
+  scenes per reel ({brief, clawd}): with Clawd (the Claude Code mascot) when the line is about
+  Claude doing something, without him otherwise. Kit = ClaudeAnimationBase (MIT), vendored in
+  `clawd/` (read `clawd/REEL.md`); `bot/src/lib/clawd.ts` has Opus write + self-review one
+  p5.brush shot per scene and renders a 720² 12 fps MP4 (Mesa llvmpipe on the runner, ~2 min a
+  shot; no watercolour `fill`); `studio/src/auto/clawd-card.tsx` plays it on a paper card.
 - **Model:** every Claude call uses `config.claude.model` (`CLAUDE_MODEL`, default Opus 5.5).
 
 ## Design system (BRAND V2 — replaced the old Nick/terracotta look, 2026-07-01)

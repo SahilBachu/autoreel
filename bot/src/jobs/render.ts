@@ -10,7 +10,7 @@ import { buildCustomScenes } from "../lib/studio.js";
 import { screenshot } from "../lib/shot.js";
 import { compositionFor, pickStyle } from "../lib/style.js";
 import { LEGACY_BOOST, measureVoice, mixLevels } from "../lib/loudness.js";
-import { buildClawdScenes, clawdEnabled } from "../lib/clawd.js";
+import { buildPaintedScenes } from "../lib/clawd.js";
 import { renderThumbnail } from "../lib/thumbnail.js";
 
 const exists = (p: string) => stat(p).then(() => true, () => false);
@@ -128,12 +128,11 @@ export async function renderReel(opts: {
   const audio = await audioLib(studio);
   // style first: the director's timing rules depend on whether scenes cover him or float over him
   const style = pickStyle(opts.topic);
-  const clawdOn = await clawdEnabled();
-  const plan = await planCutaways({ topic: opts.topic, words: captions, editNote: opts.editNote, audio, style, clawd: clawdOn });
+  const plan = await planCutaways({ topic: opts.topic, words: captions, editNote: opts.editNote, audio, style });
   await writeFile(resolve(studio, "out", `${id}.plan.json`), JSON.stringify(plan, null, 2)).catch(() => {});
   const customBuilt = await buildCustomScenes(plan.scenes, id, compositionFor(style));
-  // Clawd cartoon shots (experiment, lib/clawd.ts): written + rendered per shot; failures drop out
-  const planned = await buildClawdScenes(customBuilt, id, { topic: opts.topic, words: captions });
+  // hand-painted animation shots (lib/clawd.ts): written + rendered per shot; failures drop out
+  const planned = await buildPaintedScenes(customBuilt, id, { topic: opts.topic, words: captions });
 
   // 2b. resolve any real screenshots (Playwright) for "screenshot" scenes (and optional "logo"
   // art). Failed fetches: drop a screenshot scene, or keep a logo scene without the image.

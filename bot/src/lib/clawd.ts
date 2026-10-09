@@ -1,21 +1,19 @@
 import { spawn } from "node:child_process";
-import { copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { claude } from "./claude.js";
 import { config, REPO_ROOT } from "../config.js";
 
-// CLAWD SHOTS (experiment): hand-painted cartoon moments of Clawd, the Claude Code mascot, made
-// with the vendored ClaudeAnimationBase kit in clawd/ (p5.js + p5.brush in headless Chrome). The
-// director plans a few `clawd` scenes ({brief}); for each one Opus writes a shot from the kit's
+// HAND-PAINTED SHOTS: short watercolour-cartoon moments made with the vendored
+// ClaudeAnimationBase kit in clawd/ (p5.js + p5.brush in headless Chrome). The director plans 1-2
+// `painted` scenes ({brief, clawd}): with Clawd, the Claude Code mascot, when the line is about
+// Claude doing something, without him otherwise. For each one Opus writes a shot from the kit's
 // guide, looks at its own contact sheets, fixes, and the kit renders a square MP4 that plays in a
-// card over him (studio ClawdCard). A shot that fails is dropped, never the reel.
-//
-// Switched on per reel by bot/data/experiments.json ({"clawd": true}); `/clawd on|off` in
-// Telegram, and it switches itself off after a reel that used it is posted.
+// card over him (studio ClawdCard). A shot that fails is dropped, never the reel. (`clawd` is the
+// older kind name for a Clawd shot and still works.)
 
 const KIT = resolve(REPO_ROOT, "clawd");
-const FLAGS = resolve(REPO_ROOT, "bot/data/experiments.json");
 const SIZE = 720; // square canvas
 const FPS = 12; // hand-drawn "on twos" (the kit's linework already boils at 12): half the frames to render
 // The runner has no GPU. Chrome's own software GL (SwiftShader, --soft-gl) measured ~10 s/frame
@@ -25,20 +23,6 @@ const GL = process.platform === "linux" ? ["--gpu-angle=gl-egl"] : [];
 const TOOLS = ["Read", "Write", "Edit", "Glob", "Grep", "Bash(node shot.mjs:*)"];
 
 type Word = { text: string; startMs: number; endMs: number };
-
-async function flags(): Promise<Record<string, unknown>> {
-  try {
-    return JSON.parse(await readFile(FLAGS, "utf8"));
-  } catch {
-    return {};
-  }
-}
-export async function clawdEnabled(): Promise<boolean> {
-  return (await flags()).clawd === true;
-}
-export async function setClawd(on: boolean): Promise<void> {
-  await writeFile(FLAGS, JSON.stringify({ ...(await flags()), clawd: on }, null, 2));
-}
 
 function run(cmd: string, args: string[], cwd: string, timeoutMs: number): Promise<{ ok: boolean; out: string }> {
   return new Promise((res) => {
@@ -103,7 +87,11 @@ async function buildOne(s: any, k: number, videoId: string, topic: string, words
   await writeFile(resolve(dir, "studio.html"), page(dur));
 
   const line = words.filter((w) => w.endMs > s.startMs - 300 && w.startMs < s.endMs).map((w) => w.text).join(" ");
-  const prompt = `You are animating ONE short hand-painted Clawd shot for an Instagram reel (cwd = the kit, clawd/).
+  const withClawd = s.kind === "clawd" || s.clawd === true || s.clawd === "true";
+  const cast = withClawd
+    ? "Clawd is the star of this shot (here Clawd IS Claude / the AI doing the thing)."
+    : 'NO Clawd in this shot. Animate the objects, or simple characters you design in the same medium (see "shots without Clawd" in REEL.md).';
+  const prompt = `You are animating ONE short hand-painted shot for an Instagram reel (cwd = the kit, clawd/).
 
 Read these first, in order: REEL.md (what a reel shot is, and the speed rules: they override the
 guide), ANIMATION_GUIDE.md (the kit's rules, principles and full API), docs/emotions.jpg and
@@ -111,13 +99,14 @@ docs/views.jpg (the model sheets). Open src/clawd.js / src/core.js only when you
 
 The reel's topic: "${topic}"
 While this shot is on screen he says: "${line}"
-What the director wants Clawd to do: ${s.brief}
+What the director wants: ${s.brief}
+${cast}
 Length: ${dur} s. Canvas: ${SIZE}x${SIZE} (W and H are set from config.js).
 
 Write ${job}/scene.js — the ONLY file you create or edit — as an IIFE ending in shots([...]).
 Then look at it: \`node shot.mjs ${job} ${GL.join(" ")} --sheet=<5-6 times across the shot> --cols=6 --w=240 --out=out/sheet.jpg\`
 and \`node shot.mjs ${job} ${GL.join(" ")} --strip=0:0.6 --cols=8 --w=160 --out=out/strip.jpg\`, then Read the images.
-Fix what's wrong (does the event read in the first ~1.5 s? Clawd big and clear, filling the square?
+Fix what's wrong (does the event read in the first ~1.5 s? the subject big and clear, filling the square?
 no text? opens with a paint-in, ends on a held alive pose, no fill/brushWipe?) and look again.
 Renders here are slow (~2 s a frame), so keep it to two looks, three at most. Reply DONE when the
 shot is good.`;
@@ -142,27 +131,29 @@ shot is good.`;
   return { ...s, src: rel, durMs: dur * 1000 };
 }
 
-/** Builds every `clawd` scene in the plan (in parallel). Not enabled, or a shot fails → that scene is dropped. */
-export async function buildClawdScenes(scenes: any[], videoId: string, opts: { topic: string; words: Word[] }): Promise<any[]> {
-  const shots = scenes.filter((s) => s.kind === "clawd" && typeof s.brief === "string" && s.brief.trim());
-  if (!shots.length || !(await clawdEnabled())) return scenes.filter((s) => s.kind !== "clawd");
+const isPainted = (s: any) => s.kind === "painted" || s.kind === "clawd";
+
+/** Builds every hand-painted scene in the plan (in parallel). A shot that fails is dropped. */
+export async function buildPaintedScenes(scenes: any[], videoId: string, opts: { topic: string; words: Word[] }): Promise<any[]> {
+  const shots = scenes.filter((s) => isPainted(s) && typeof s.brief === "string" && s.brief.trim());
+  if (!shots.length) return scenes.filter((s) => !isPainted(s));
   await pruneJobs();
   if (!existsSync(resolve(KIT, "node_modules/p5.brush"))) {
     const r = await run("npm", ["ci", "--silent"], KIT, 5 * 60_000);
     if (!r.ok) {
-      console.error("clawd: npm ci failed, dropping clawd scenes:", r.out);
-      return scenes.filter((s) => s.kind !== "clawd");
+      console.error("painted: npm ci failed, dropping painted scenes:", r.out);
+      return scenes.filter((s) => !isPainted(s));
     }
   }
   await mkdir(resolve(config.studioDir, "public/generated"), { recursive: true });
   const built = await Promise.all(
     shots.map((s, k) =>
       buildOne(s, k, videoId, opts.topic, opts.words).catch((e) => {
-        console.error(`clawd shot ${k} dropped:`, (e as Error).message);
+        console.error(`painted shot ${k} dropped:`, (e as Error).message);
         return undefined;
       }),
     ),
   );
   const byScene = new Map(shots.map((s, k) => [s, built[k]]));
-  return scenes.flatMap((s) => (s.kind !== "clawd" ? [s] : byScene.get(s) ? [byScene.get(s)] : []));
+  return scenes.flatMap((s) => (!isPainted(s) ? [s] : byScene.get(s) ? [byScene.get(s)] : []));
 }

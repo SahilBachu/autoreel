@@ -4,8 +4,8 @@ import { useAccent } from "./theme";
 import { Scene } from "./fx";
 import { rise, useT } from "./kit";
 
-// ── ClawdCard — the Clawd experiment (bot/src/lib/clawd.ts). A hand-painted cartoon shot of
-// Clawd (rendered by the ClaudeAnimationBase kit in clawd/, square, 24 fps) on a paper card that
+// ── ClawdCard — a hand-painted shot (bot/src/lib/clawd.ts; `painted`/`clawd` kinds), with or
+// without Clawd (rendered by the ClaudeAnimationBase kit in clawd/, square, 12 fps) on a paper card that
 // floats over him like a sticker: it rises in tilted, settles, and the cartoon plays from the
 // first frame (the shot paints itself in while the card arrives). If the camera lingers past the
 // end of the clip, the last frame holds (shots end on a held pose by design).

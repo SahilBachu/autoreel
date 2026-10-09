@@ -1,4 +1,4 @@
-# Clawd shots inside a reel
+# Hand-painted shots inside a reel (with or without Clawd)
 
 The kit here is [ClaudeAnimationBase](https://github.com/JohnHeibel/ClaudeAnimationBase) (MIT,
 John Heibel), vendored with one change: `src/core.js` reads the canvas size from `PROJECT.w/h`.
@@ -25,10 +25,28 @@ when a shot goes into one of sahil's reels (`bot/src/lib/clawd.ts` builds them).
   a good picture, not mid-wipe.
 - **No text** (rule 2 applies even more here: the reel already has captions). Marks and emotes
   only. Props stand for things: a laptop, a bill, a padlock, a trophy, a rocket, a server rack.
-- **Who Clawd is here**: the mascot of Claude Code. When the story is about Claude/Anthropic,
-  Clawd is Claude. When it isn't, Clawd is "the AI" or the viewer's stand-in, reacting to the news.
-  Other companies or people can appear as simple painted props or creatures — never logos, never
-  likenesses of real people.
+- **Who Clawd is here**: the mascot of Claude Code. A shot has Clawd only when the brief says so —
+  usually because the line is about Claude / Claude Code doing something, and then Clawd IS
+  Claude, doing it. Other companies or people can appear as simple painted props or creatures —
+  never logos, never likenesses of real people.
+
+## Shots without Clawd
+
+Most briefs that aren't about Claude come without Clawd. Same medium, same rules (brush strokes,
+flat 2D, boil, no text, something happens, paint-in, held ending) — just a different star:
+
+- **Objects that act.** The thing the line is about, alive: a game cartridge that pops open, a
+  file that wakes up and stretches, a laptop that sprouts arms and types, a stack of tabs that
+  collapses into one. Give it a face (two slit eyes like Clawd's work for anything) when the shot
+  needs a reaction; leave it faceless when the motion alone tells it.
+- **A simple character of your own** when the line needs someone: a little robot, a game sprite,
+  a blob creature, a bird. Design it from few outlines (one body shape, stubby limbs, eyes),
+  paint it with `paint()`/`inkLine()`, and give it the same acting: anticipation, takes, squash,
+  `spring()` settles. `jump()`, `take()`, `kf()` and `arcPt()` work for anything, not just Clawd.
+- **A transformation** reads best: before → the change → after, with the change on a beat and a
+  held after. ("Raw video clip → it gets cut into neat reels" is a strip that slices itself into
+  three cards.)
+- Keep one subject and one palette; don't fill the frame with clutter to make up for no Clawd.
 
 ## Speed: the runner has no GPU
 

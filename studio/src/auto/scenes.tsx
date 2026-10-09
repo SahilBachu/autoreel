@@ -31,14 +31,14 @@ export type Scene = { kind: string; startMs: number; endMs: number } & Record<st
 // invents (or a typo) has no renderer; treating it as drawable used to give the world a dimmed,
 // empty beat where an object should be.
 const KNOWN_KINDS = new Set([
-  "ascii", "barchart", "beforeafter", "bento", "browser", "calendar", "callout", "catch", "clawd", "chat", "checklist", "code", "command", "cursor", "custom", "dashboard", "decrypt", "diff", "donut", "flow", "getit", "headline", "highlight", "inbox", "install", "json", "kanban", "kbd", "kinetic", "leaderboard", "linechart", "logo", "logoorbit", "logowall", "notifications", "phone", "poll", "pricing", "progress", "prompt", "quote", "rating", "receipt", "repo", "runlog", "screenshot", "search", "split", "stack", "stat", "statrow", "table", "terminal", "ticker", "timeline", "toggles", "toolcard", "tweet", "versus", "waveform",
+  "ascii", "barchart", "beforeafter", "bento", "browser", "calendar", "callout", "catch", "clawd", "chat", "checklist", "code", "command", "cursor", "custom", "dashboard", "decrypt", "diff", "donut", "flow", "getit", "headline", "highlight", "inbox", "install", "json", "kanban", "kbd", "kinetic", "leaderboard", "linechart", "logo", "logoorbit", "logowall", "notifications", "painted", "phone", "poll", "pricing", "progress", "prompt", "quote", "rating", "receipt", "repo", "runlog", "screenshot", "search", "split", "stack", "stat", "statrow", "table", "terminal", "ticker", "timeline", "toggles", "toolcard", "tweet", "versus", "waveform",
 ]);
 
 /** true when the plan can actually draw this scene (a `custom` needs its generated component). */
 export const sceneRenderable = (s: Scene) => {
   if (!KNOWN_KINDS.has(s.kind)) return false;
   if (s.kind === "custom") return Boolean(s.name && GENERATED[s.name]);
-  if (s.kind === "browser" || s.kind === "screenshot" || s.kind === "highlight" || s.kind === "clawd") return Boolean(s.src);
+  if (s.kind === "browser" || s.kind === "screenshot" || s.kind === "highlight" || s.kind === "clawd" || s.kind === "painted") return Boolean(s.src);
   return true;
 };
 
@@ -115,7 +115,8 @@ const SceneKind: React.FC<{ s: Scene }> = ({ s }) => {
     case "browser":
     case "screenshot": // legacy alias
       return s.src ? <Browser src={s.src} label={s.label} /> : null;
-    case "clawd":
+    case "painted":
+    case "clawd": // older name for a painted shot with Clawd
       return s.src ? <ClawdCard src={s.src} durMs={s.durMs} /> : null;
     case "phone":
       return <Phone src={s.src} label={s.label} />;
