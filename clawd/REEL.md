@@ -32,14 +32,19 @@ when a shot goes into one of sahil's reels (`bot/src/lib/clawd.ts` builds them).
 
 ## Speed: the runner has no GPU
 
-The reel renders on an old laptop with software WebGL. Measured there: flat `wash` + `inkLine`
-shots at 720×720 run ~0.15–0.25 s/frame; anything with watercolour `fill` runs 30–50 s/frame.
+The reel renders on an old laptop with software GL (Mesa llvmpipe): ~1.5–2.5 s per frame for a
+720×720 shot, and the final clip renders at **12 fps** ("on twos", like hand-drawn animation; the
+linework already boils at 12). Design for that:
 
-- **Never use `fill`** (watercolour fills, `bleed`, `tex`, `border`). Use `wash` (with `washOp` for
-  soft layers) and `ink`. `hatch` sparingly. `glow()` is fine.
+- A fast move still needs 3+ frames (a quarter second) to read at 12 fps.
+- **Never use `fill`** (watercolour fills, `bleed`, `tex`, `border`): far slower, and it muddies
+  on this renderer. Use `wash` (with `washOp` for soft layers) and `ink`. `hatch` sparingly.
+  `glow()` is fine.
 - **Don't call `brushWipe()`** — it paints with `fill`. For a wipe, paint your own strokes with
   `wash` only (a few fat `ribbon()` strokes sweeping across).
 - Keep shapes in the low hundreds per frame.
+- Review renders are slow too, so look with small sheets (5–6 frames) and short strips, not dozens
+  of frames. The ms/frame the sheet prints leaves out the GPU wait; don't trust it as a speed.
 
 ## Files
 
@@ -51,4 +56,4 @@ node ../../render.mjs --sheet=0.2,0.8,1.5,2.5,3.5 --cols=5 --w=240 --out=out/she
 node ../../render.mjs --strip=0:0.6 --cols=8 --w=180 --out=out/strip.jpg                 # the opening
 ```
 
-Add `--soft-gl` on Linux. The bot renders the final MP4 itself.
+Add `--gpu-angle=gl-egl` on Linux (the runner). The bot renders the final MP4 itself.

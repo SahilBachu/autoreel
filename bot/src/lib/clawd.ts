@@ -16,8 +16,12 @@ import { config, REPO_ROOT } from "../config.js";
 
 const KIT = resolve(REPO_ROOT, "clawd");
 const FLAGS = resolve(REPO_ROOT, "bot/data/experiments.json");
-const SIZE = 720; // square canvas: ~0.2 s/frame on the runner's software GL (1920x1080 watercolour: 30-50 s)
-const GL = process.platform === "linux" ? ["--soft-gl"] : []; // the runner has no GPU
+const SIZE = 720; // square canvas
+const FPS = 12; // hand-drawn "on twos" (the kit's linework already boils at 12): half the frames to render
+// The runner has no GPU. Chrome's own software GL (SwiftShader, --soft-gl) measured ~10 s/frame
+// there; ANGLE on Mesa's llvmpipe (--gpu-angle=gl-egl) ~2.3 s/frame for a busy 720px shot, so a
+// 4 s shot renders in ~2 min. Elsewhere the kit's default (a real GPU) is used.
+const GL = process.platform === "linux" ? ["--gpu-angle=gl-egl"] : [];
 const TOOLS = ["Read", "Write", "Edit", "Glob", "Grep", "Bash(node shot.mjs:*)"];
 
 type Word = { text: string; startMs: number; endMs: number };
@@ -38,9 +42,18 @@ export async function setClawd(on: boolean): Promise<void> {
 
 function run(cmd: string, args: string[], cwd: string, timeoutMs: number): Promise<{ ok: boolean; out: string }> {
   return new Promise((res) => {
-    const p = spawn(cmd, args, { cwd, shell: process.platform === "win32" });
+    const win = process.platform === "win32";
+    // its own process group, so a timeout takes the headless Chrome down with it
+    const p = spawn(cmd, args, { cwd, shell: win, detached: !win });
     let out = "";
-    const timer = setTimeout(() => p.kill("SIGKILL"), timeoutMs);
+    const timer = setTimeout(() => {
+      try {
+        if (!win && p.pid) process.kill(-p.pid, "SIGKILL");
+        else p.kill("SIGKILL");
+      } catch {
+        /* already gone */
+      }
+    }, timeoutMs);
     p.stdout.on("data", (d) => (out += d));
     p.stderr.on("data", (d) => (out += d));
     p.on("error", (e) => res({ ok: false, out: String(e) }));
@@ -104,14 +117,24 @@ Length: ${dur} s. Canvas: ${SIZE}x${SIZE} (W and H are set from config.js).
 Write ${job}/scene.js — the ONLY file you create or edit — as an IIFE ending in shots([...]).
 Then look at it: \`node shot.mjs ${job} ${GL.join(" ")} --sheet=<5-6 times across the shot> --cols=6 --w=240 --out=out/sheet.jpg\`
 and \`node shot.mjs ${job} ${GL.join(" ")} --strip=0:0.6 --cols=8 --w=160 --out=out/strip.jpg\`, then Read the images.
-Fix what's wrong (does the event read in the first ~1.5 s? Clawd big and clear? no text? opens with
-a paint-in, ends on a held alive pose, no fill/brushWipe?) and look again. Two or three passes is
-plenty. Reply DONE when the shot is good.`;
+Fix what's wrong (does the event read in the first ~1.5 s? Clawd big and clear, filling the square?
+no text? opens with a paint-in, ends on a held alive pose, no fill/brushWipe?) and look again.
+Renders here are slow (~2 s a frame), so keep it to two looks, three at most. Reply DONE when the
+shot is good.`;
 
-  await claude(prompt, { tools: TOOLS, cwd: KIT, timeoutMs: 14 * 60_000 });
+  try {
+    await claude(prompt, { tools: TOOLS, cwd: KIT, timeoutMs: 16 * 60_000 });
+  } catch (e) {
+    // out of time while still polishing: a written shot is usually fine, so render it anyway
+    if (!existsSync(resolve(dir, "scene.js"))) throw e;
+    console.error(`clawd shot ${k}: ${(e as Error).message}; rendering the scene.js it wrote`);
+  } finally {
+    // a killed session can leave its review renders (and their Chrome) running
+    if (process.platform !== "win32") await run("pkill", ["-TERM", "-f", `shot.mjs ${job} `], KIT, 10_000);
+  }
   if (!existsSync(resolve(dir, "scene.js"))) throw new Error("no scene.js written");
 
-  const r = await run("node", ["shot.mjs", job, ...GL, "--clip", "--out=out/clip.mp4"], KIT, 12 * 60_000);
+  const r = await run("node", ["shot.mjs", job, ...GL, "--clip", `--fps=${FPS}`, "--out=out/clip.mp4"], KIT, 12 * 60_000);
   const clip = resolve(dir, "out/clip.mp4");
   if (!r.ok || !existsSync(clip) || (await stat(clip)).size < 10_000) throw new Error(`render failed: ${r.out.slice(-300)}`);
   const rel = `generated/clawd-${videoId}-${k}.mp4`;
