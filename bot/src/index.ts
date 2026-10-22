@@ -1,4 +1,5 @@
-import { Bot, InlineKeyboard, InputFile } from "grammy";
+import { Bot, GrammyError, InlineKeyboard, InputFile } from "grammy";
+import { readFileSync, writeFileSync } from "node:fs";
 import { mkdir, readdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { homedir } from "node:os";
@@ -30,6 +31,28 @@ import {
 // self-hosted Bot API server = big-file support
 const bot = new Bot(config.telegram.token, {
   client: { apiRoot: config.telegram.apiRoot },
+});
+
+// Never handle the same Telegram update twice. Telegram re-delivers an update until a later
+// getUpdates confirms it, so a crash between handling and confirming replayed it on the next
+// start — that's how he got the same reply twice. The last few hundred ids are kept on disk.
+const SEEN_FILE = resolve(REPO_ROOT, "bot/data/seen-updates.json");
+let seenUpdates: number[] = [];
+try {
+  seenUpdates = JSON.parse(readFileSync(SEEN_FILE, "utf8"));
+} catch {
+  /* first run */
+}
+bot.use(async (ctx, next) => {
+  const id = ctx.update.update_id;
+  if (seenUpdates.includes(id)) return console.log(`skipping update ${id}: already handled`);
+  seenUpdates = [...seenUpdates.slice(-400), id];
+  try {
+    writeFileSync(SEEN_FILE, JSON.stringify(seenUpdates));
+  } catch {
+    /* data dir missing — dedupe stays in memory */
+  }
+  await next();
 });
 
 // The local Bot API server runs in Docker and writes received files under its container
@@ -492,7 +515,36 @@ bot.on("message:text", async (ctx) => {
 });
 
 bot.catch((err) => console.error("bot error", err));
-bot.start({ onStart: (me) => console.log(`@${me.username} running`) });
+
+// Long polling that survives a 409 Conflict ("terminated by other getUpdates request"). grammY
+// treats it as fatal and the process died; systemd restarted it 5s later into the same
+// conflict, ~18,000 times over 9 days (Oct 2026), and every restart dropped in-flight work: DM
+// ticks cut short, replies sent twice. Now: wait out the other poll and carry on in-process.
+async function startPolling() {
+  let conflicts = 0;
+  for (;;) {
+    try {
+      await bot.start({
+        onStart: (me) => {
+          console.log(`@${me.username} running`);
+          conflicts = 0;
+        },
+      });
+      return; // bot.stop() was called
+    } catch (e) {
+      if (!(e instanceof GrammyError) || e.error_code !== 409) throw e;
+      conflicts++;
+      console.error(`getUpdates 409 conflict #${conflicts}: another poll is open; retrying in 35s`);
+      if (conflicts === 20)
+        await bot.api.sendMessage(config.telegram.chatId, "⚠️ something else keeps polling this bot's token (Telegram 409 Conflict, 20 times in a row). Replies may be slow until it stops. If it keeps happening, revoke the token in BotFather and put the new one in .env.").catch(() => {});
+      await new Promise((r) => setTimeout(r, 35_000));
+    }
+  }
+}
+startPolling().catch((e) => {
+  console.error("polling stopped:", e);
+  process.exit(1);
+});
 startDmLoop(); // no-op unless DM_AUTORESPONDER=on
 startSiteQueue(); // retries any site row that didn't make it, across restarts
 

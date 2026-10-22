@@ -88,6 +88,20 @@ export async function allPosts(): Promise<ReelPost[]> {
 }
 
 /** Every published row (any type) from the last N days — the deleted-reel sweep checks these. */
+/** Tool AND news posts on Instagram from the last `days`, newest first — every reel whose
+ *  comments the DM autoresponder answers (news posts carry a comment CTA in the caption). */
+export async function recentPostsWithMedia(days = 30): Promise<ReelPost[]> {
+  const { url, headers } = rest();
+  const u = new URL(url);
+  u.searchParams.set("select", "id,slug,type,title,tool_url,ig_media_id,published_at");
+  u.searchParams.set("ig_media_id", "not.is.null");
+  u.searchParams.set("published_at", `gte.${new Date(Date.now() - days * 864e5).toISOString()}`);
+  u.searchParams.set("order", "published_at.desc");
+  const r = await fetch(u, { headers, signal: AbortSignal.timeout(20_000) });
+  if (!r.ok) throw new Error(`reel_posts read failed: ${r.status} ${(await r.text()).slice(0, 200)}`);
+  return (await r.json()) as ReelPost[];
+}
+
 export async function postsWithMedia(days = 60): Promise<ReelPost[]> {
   const { url, headers } = rest();
   const u = new URL(url);

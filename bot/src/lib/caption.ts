@@ -4,9 +4,9 @@ import { captionStrategy, KEYWORDS, hashtagPalette } from "./growth.js";
 import { captionBlock } from "./learn.js";
 
 // The Instagram POST caption (the description under the reel): dry voice + SEO/keyword
-// optimized for reach. First line = hook + real keyword (tool posts: the comment-TOOL CTA
-// comes first); body weaves keywords; exactly 5 hashtags (1 broad + 2 mid + 2 niche). See
-// growth.ts for the strategy + banks. Type defaults to news = the old no-CTA behaviour.
+// optimized for reach. First line = the comment CTA (TOOL for tools, NEWS for news: the DM
+// autoresponder sends the link / the article), then hook + real keyword; body weaves keywords;
+// exactly 5 hashtags (1 broad + 2 mid + 2 niche). See growth.ts for the strategy + banks.
 export async function genPostCaption(topic: string, script: string, type: PostType = "news"): Promise<string> {
   const prompt = `${voiceSection("## rules")}
 

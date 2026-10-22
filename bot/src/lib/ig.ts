@@ -114,8 +114,17 @@ export type IgComment = { id: string; text: string; timestamp: string; username?
 /** Comments on one of OUR media objects. Standard Access — this is the poll that replaces
  *  the comments webhook. */
 export async function listComments(mediaId: string): Promise<IgComment[]> {
-  const j = await igGet(`${mediaId}/comments`, { fields: "id,text,timestamp,username,from", limit: "50" });
-  return ((j.data ?? []) as any[]).map((c) => ({
+  // every page, not just the first 50: on a reel with lots of comments the newest "TOOL"s were
+  // on page 2+ and never got an answer (capped at 6 pages = 300 comments)
+  const raw: any[] = [];
+  let j = await igGet(`${mediaId}/comments`, { fields: "id,text,timestamp,username,from", limit: "50" });
+  for (let page = 0; ; page++) {
+    raw.push(...((j.data ?? []) as any[]));
+    const after = j.paging?.cursors?.after;
+    if (!j.paging?.next || !after || page >= 5) break;
+    j = await igGet(`${mediaId}/comments`, { fields: "id,text,timestamp,username,from", limit: "50", after });
+  }
+  return raw.map((c) => ({
     id: String(c.id),
     text: String(c.text ?? ""),
     timestamp: String(c.timestamp ?? ""),
@@ -178,7 +187,9 @@ export async function conversationWith(igsid: string): Promise<IgMessage[]> {
   const j = await igGet("me/conversations", {
     platform: "instagram",
     user_id: igsid,
-    fields: "id,updated_time,messages{id,from,created_time,message}",
+    // limit the nested messages: the unbounded version failed on long threads with
+    // "Please reduce the amount of data you're asking for" and that person never got the link
+    fields: "id,updated_time,messages.limit(10){id,from,created_time,message}",
   });
   const conv = (j.data ?? [])[0];
   if (!conv) return [];
@@ -192,6 +203,29 @@ export async function conversationWith(igsid: string): Promise<IgMessage[]> {
     fromId: m.from?.id ? String(m.from.id) : undefined,
     createdTime: String(m.created_time ?? ""),
     text: m.message,
+  }));
+}
+
+export type IgThread = { id: string; updatedTime: string; people: { id: string; username?: string }[]; messages: IgMessage[] };
+
+/** Our most recently active DM threads, each with its last few messages (newest first). Used to
+ *  find people who were asked to follow, replied, and never got their link. */
+export async function recentThreads(limit = 25): Promise<IgThread[]> {
+  const j = await igGet("me/conversations", {
+    platform: "instagram",
+    fields: "id,updated_time,participants,messages.limit(6){id,from,created_time,message}",
+    limit: String(limit),
+  });
+  return ((j.data ?? []) as any[]).map((c) => ({
+    id: String(c.id),
+    updatedTime: String(c.updated_time ?? ""),
+    people: ((c.participants?.data ?? []) as any[]).map((p) => ({ id: String(p.id), username: p.username })),
+    messages: ((c.messages?.data ?? []) as any[]).map((m) => ({
+      id: String(m.id),
+      fromId: m.from?.id ? String(m.from.id) : undefined,
+      createdTime: String(m.created_time ?? ""),
+      text: m.message,
+    })),
   }));
 }
 

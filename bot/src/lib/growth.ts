@@ -44,9 +44,9 @@ export const KEYWORDS = [
 ];
 
 // The caption strategy, distilled for the prompt. Growth WITHOUT selling out the voice.
-// Branches on post type: a TOOL post opens with the comment CTA (the DM autoresponder keys
-// off "TOOL" comments — that's the whole funnel), then runs the same SEO strategy. A NEWS
-// post keeps the no-CTA rule: sends are engineered, never asked for.
+// Branches on post type: a TOOL post opens with "comment TOOL", a NEWS post with "comment NEWS"
+// (the DM autoresponder answers both: the tool link, or the full story on the site). The CTA
+// lives only in the caption — he never says it in a news reel. Sends are engineered, never asked for.
 export function captionStrategy(type: PostType): string {
   const tool = type === "tool";
   return `
@@ -56,7 +56,11 @@ ${tool
   the word TOOL uppercase; the autoresponder listens for it). This is the ONE allowed CTA and
   it goes first so it survives the "...more" fold.
 - LINE TWO = the hook AND the primary keyword.`
-  : `- FIRST LINE = the hook AND the primary keyword.`} It's the SEO title (indexed by IG + Google)
+  : `- LINE ONE, before anything else: the comment CTA — "comment NEWS for the full story" (or a
+  close variant: "comment NEWS and i'll send you the full breakdown"; keep the word NEWS
+  uppercase; the autoresponder listens for it and DMs the article). This is the ONE allowed CTA
+  and it goes first so it survives the "...more" fold.
+- LINE TWO = the hook AND the primary keyword.`} It's the SEO title (indexed by IG + Google)
   and the scroll-stopper. Lead with the real model/tool/company name (e.g. "Sonnet 5",
   "Claude Code", "Cursor") in the most hooking true line you can write.
 - NAME REAL THINGS. Use exact proper nouns and category terms people actually search
@@ -69,7 +73,7 @@ ${tool
 - ENGINEER THE SEND, don't ask for it. End on a relatable-pain line or a hot take that begs to
   be DM'd to a coworker. Sends are the #1 reach lever. ${tool
     ? `Apart from the line-one TOOL CTA, NO other CTAs ("follow/like/share")`
-    : `NO CTAs ("follow/like/comment/share")`},
+    : `Apart from the line-one NEWS CTA, NO other CTAs ("follow/like/share")`},
   no hype, no "this changes everything", no emoji-bait. Match VOICE.md's register: human and
   plain-spoken first, funny only when it comes naturally from the material — never a bit.
 - Keep it SHORT: 1–3 punchy lines + the factual line. It dies with length.

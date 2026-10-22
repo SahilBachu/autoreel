@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { config, REPO_ROOT } from "../config.js";
-import { conversationWith, followsUs, igGet, listComments, listConversations, me, replyToComment, sendMessage, sendPrivateReply, type IgError, type QuickReply } from "../lib/ig.js";
-import { deletePostBySlug, postsWithMedia, publicLinkFor, recentToolPosts } from "../lib/posts.js";
+import { conversationWith, followsUs, igGet, listComments, listConversations, me, recentThreads, replyToComment, sendMessage, sendPrivateReply, type IgError, type QuickReply } from "../lib/ig.js";
+import { deletePostBySlug, postsWithMedia, postUrl, publicLinkFor, recentPostsWithMedia, recentToolPosts, type ReelPost } from "../lib/posts.js";
 import { sendToChat } from "./discover.js";
 
 // The comment -> DM funnel. Someone comments "TOOL" on a tool reel; they get the link in
@@ -24,8 +24,11 @@ type Pending = { igsid: string; slug: string; commentId: string; title: string; 
 type DmState = {
   handled: Record<string, string>; // commentId -> when we replied (never reply twice)
   pending: Record<string, Pending>; // igsid -> waiting on their reply
+  retries?: Record<string, number>; // commentId -> failed attempts on a transient error
+  asked?: Record<string, { slug: string; at: string }>; // commenter username -> the reel they asked on (rescue)
+  sentTo?: Record<string, string>; // igsid -> when they got their link (rescue never double-sends)
   check?: { at: string; ok: boolean; note?: string };
-  stats: { dm1: number; dm2: number; nudges: number; lastTick?: string; lastError?: string; lastSweep?: string };
+  stats: { dm1: number; dm2: number; nudges: number; rescued?: number; lastTick?: string; lastError?: string; lastSweep?: string; lastRescue?: string };
 };
 
 const FILE = resolve(REPO_ROOT, "bot/data/dm-state.json");
@@ -51,7 +54,7 @@ function save(s: DmState) {
 // show the button: typing anything does exactly what tapping does.
 const FOLLOWED: QuickReply[] = [{ title: "I've followed", payload: "FOLLOWED" }];
 const copy = {
-  askFollow: () => `hi! please make sure you're following and i'll send you the tool. (reply with anything after following to get the link)`,
+  askFollow: () => `hi! please make sure you're following and i'll send you the link. (reply with anything after following to get it)`,
   link: (title: string, link: string) => `here you go — ${title}: ${link}`,
   intro: (title: string, link: string) => `hi! here's ${title}: ${link}`,
   nudge: () => `looks like you're not following yet — follow, then tap the button (or reply with anything) and i'll send it right over.`,
@@ -60,10 +63,21 @@ const copy = {
 };
 const MAX_NUDGES = 2; // strict gate: stop after this many "not following yet"s
 
+// the caption asks tool reels for TOOL and news reels for NEWS; either word (or LINK, or a
+// plural) on any reel gets that reel's link — people don't read captions carefully
 function keywordRe(): RegExp {
-  const k = (config.dm.keyword || "TOOL").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`\\b${k}\\b`, "i");
+  const words = [config.dm.keyword || "TOOL", "TOOL", "NEWS", "LINK"].map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return new RegExp(`\\b(${[...new Set(words)].join("|")})s?\\b`, "i");
 }
+
+// what a commenter on this reel gets: the tool (through /go/ so clicks count), or the article
+const linkFor = (post: ReelPost) => (post.type === "news" ? postUrl(post.slug, "news") : publicLinkFor(post));
+
+// Meta errors that will never succeed on retry: already replied (2534025-ish), comment gone /
+// no such object (100), the person blocks messages (551), permission (10, 200). Anything else —
+// a timeout, "fetch failed", code 1/2/4/17 rate limits — is retried on later ticks.
+const isPermanent = (e: IgError) => [10, 100, 200, 551].includes(e.code ?? -1) || e.subcode === 2534025;
+const MAX_RETRIES = 6;
 
 // "User consent is required to access user profile" — they haven't messaged us yet. Not an
 // error, just "not yet". Anything else IS an error and should surface.
@@ -119,6 +133,10 @@ export async function dmTick(): Promise<void> {
     }
     await pollComments(s, now);
     await pollReplies(s, now);
+    if (!s.stats.lastRescue || now - new Date(s.stats.lastRescue).getTime() > 20 * 60_000) {
+      await rescueStuck(s, now);
+      s.stats.lastRescue = new Date().toISOString();
+    }
     s.stats.lastTick = new Date().toISOString();
     s.stats.lastError = undefined;
   } catch (e: any) {
@@ -128,6 +146,9 @@ export async function dmTick(): Promise<void> {
   // housekeeping — handled ids older than 14d, pending older than 7d (private-reply window)
   for (const [id, ts] of Object.entries(s.handled)) if (now - new Date(ts).getTime() > 14 * DAY) delete s.handled[id];
   for (const [id, p] of Object.entries(s.pending)) if (now - new Date(p.dm1At).getTime() > 7 * DAY) delete s.pending[id];
+  for (const [u, a] of Object.entries(s.asked ?? {})) if (now - new Date(a.at).getTime() > 7 * DAY) delete s.asked![u];
+  for (const [id, ts] of Object.entries(s.sentTo ?? {})) if (now - new Date(ts).getTime() > 30 * DAY) delete s.sentTo![id];
+  for (const id of Object.keys(s.retries ?? {})) if (s.handled[id]) delete s.retries![id];
   save(s);
 }
 
@@ -159,10 +180,12 @@ async function sweepDeletedReels() {
 
 async function pollComments(s: DmState, now: number) {
   const re = keywordRe();
-  const posts = await recentToolPosts(7);
+  // a month back, not a week: reels keep getting found (and commented on) for weeks. Meta's limit
+  // is 7 days from the COMMENT, which the timestamp check below enforces.
+  const posts = await recentPostsWithMedia(30);
   for (const post of posts) {
-    if (!post.ig_media_id || !post.tool_url) continue;
-    const link = publicLinkFor(post);
+    if (!post.ig_media_id || (post.type === "tool" && !post.tool_url)) continue;
+    const link = linkFor(post);
     const comments = await listComments(post.ig_media_id).catch((e: any) => {
       console.error(`dm: comments on ${post.slug}:`, e.message);
       return [];
@@ -180,16 +203,23 @@ async function pollComments(s: DmState, now: number) {
         s.handled[c.id] = new Date().toISOString();
         s.stats.dm1++;
         console.log(`dm#1 -> @${c.username ?? "?"} for ${post.slug} (${gate}${gate !== "off" ? `, button ${buttons ? "on" : "rejected"}` : ""})`);
-        // the public "sent, check your DMs" — best effort, never blocks the DM
-        const pub = copy.commentReplies[s.stats.dm1 % copy.commentReplies.length];
-        await replyToComment(c.id, pub).catch((e: any) => console.error(`comment reply failed on ${c.id}:`, e.message));
         if (gate !== "off" && igsid) {
           s.pending[igsid] = { igsid, slug: post.slug, commentId: c.id, title: post.title, link, dm1At: s.handled[c.id], lastOursAt: s.handled[c.id] };
         }
+        if (gate !== "off" && c.username) (s.asked ??= {})[c.username] = { slug: post.slug, at: s.handled[c.id] };
+        if (gate === "off" && igsid) (s.sentTo ??= {})[igsid] = s.handled[c.id];
+        // saved NOW, not at the end of the tick: a tick cut short used to forget who it had
+        // asked, so their "followed" reply went unanswered
+        save(s);
+        // the public "sent, check your DMs" — best effort, never blocks the DM
+        const pub = copy.commentReplies[s.stats.dm1 % copy.commentReplies.length];
+        await replyToComment(c.id, pub).catch((e: any) => console.error(`comment reply failed on ${c.id}:`, e.message));
       } catch (e: any) {
-        // already replied / comment gone / commenter blocks DMs — all permanent. Don't retry forever.
-        s.handled[c.id] = new Date().toISOString();
-        console.error(`dm#1 failed for comment ${c.id}:`, e.message);
+        const tries = ((s.retries ??= {})[c.id] ?? 0) + 1;
+        s.retries[c.id] = tries;
+        if (isPermanent(e) || tries >= MAX_RETRIES) s.handled[c.id] = new Date().toISOString(); // give up on this one
+        save(s);
+        console.error(`dm#1 failed for comment ${c.id} (try ${tries}${s.handled[c.id] ? ", giving up" : ", will retry"}):`, e.message);
       }
     }
   }
@@ -218,6 +248,8 @@ async function pollReplies(s: DmState, now: number) {
       await sendMessage(p.igsid, copy.link(p.title, p.link));
       s.stats.dm2++;
       delete s.pending[p.igsid];
+      (s.sentTo ??= {})[p.igsid] = new Date().toISOString();
+      save(s);
       console.log(`dm#2 link -> ${p.igsid} for ${p.slug}`);
     };
 
@@ -236,6 +268,62 @@ async function pollReplies(s: DmState, now: number) {
   }
 }
 
+// RESCUE: people we asked to follow who replied but never got their link. Until Oct 2026 the bot
+// crash-looped and forgot who it had asked, so their "followed" went unanswered. Every 20 min,
+// look at recent DM threads: our last word is the follow ask (or a nudge), they answered after
+// it, no link since, and they answered inside Meta's 24h messaging window -> put them back on the
+// waiting list, and pollReplies does the rest (follow check, link, or nudge) on the next tick.
+const ASK_RE = /make sure you're following|not following yet/i;
+const LINK_RE = /here you go|here's .+: https?:\/\//i;
+async function rescueStuck(s: DmState, now: number) {
+  let threads;
+  try {
+    threads = await recentThreads(25);
+  } catch (e: any) {
+    console.error("dm rescue: threads:", e.message);
+    return;
+  }
+  let posts: ReelPost[] | undefined;
+  const commentsBy = new Map<string, { post: ReelPost; commentId: string }>(); // username -> their keyword comment
+  const re = keywordRe();
+  for (const t of threads) {
+    const them = t.people.find((p) => !isOurs(p.id, p.username));
+    if (!them || s.pending[them.id] || s.sentTo?.[them.id]) continue;
+    const msgs = t.messages; // newest first
+    const askIdx = msgs.findIndex((m) => isOurs(m.fromId) && ASK_RE.test(m.text ?? ""));
+    if (askIdx <= 0) continue; // never asked, or our ask is the newest message (they haven't answered)
+    const after = msgs.slice(0, askIdx);
+    if (after.some((m) => isOurs(m.fromId) && LINK_RE.test(m.text ?? ""))) continue; // already got it
+    const reply = after.find((m) => !isOurs(m.fromId));
+    if (!reply || now - new Date(reply.createdTime).getTime() > 23 * 3600_000) continue; // outside the 24h window
+
+    // which reel were they asking about?
+    let slug = them.username ? s.asked?.[them.username]?.slug : undefined;
+    let commentId = "";
+    posts ??= await recentPostsWithMedia(30).catch(() => []);
+    if (!slug && them.username) {
+      if (!commentsBy.size)
+        for (const post of posts) {
+          if (!post.ig_media_id) continue;
+          for (const c of await listComments(post.ig_media_id).catch(() => []))
+            if (c.username && re.test(c.text) && !commentsBy.has(c.username)) commentsBy.set(c.username, { post, commentId: c.id });
+        }
+      const hit = commentsBy.get(them.username);
+      if (hit) ({ slug, commentId } = { slug: hit.post.slug, commentId: hit.commentId });
+    }
+    const post = posts.find((p) => p.slug === slug);
+    if (!post) {
+      console.error(`dm rescue: @${them.username ?? them.id} replied but I can't tell which reel they want`);
+      continue;
+    }
+    const askedAt = msgs[askIdx].createdTime;
+    s.pending[them.id] = { igsid: them.id, slug: post.slug, commentId, title: post.title, link: linkFor(post), dm1At: askedAt, lastOursAt: askedAt };
+    s.stats.rescued = (s.stats.rescued ?? 0) + 1;
+    console.log(`dm rescue: @${them.username ?? them.id} answered the follow ask for ${post.slug} and never got the link — back on the list`);
+  }
+  save(s);
+}
+
 // /dm in Telegram
 export function dmStatus(): string {
   const s = load();
@@ -243,7 +331,7 @@ export function dmStatus(): string {
   return [
     `DM autoresponder: ${enabled ? "on" : "OFF"} · gate=${gate} · keyword=${keyword} · every ${pollMinutes}m`,
     s.check ? `last check: ${s.check.ok ? "ok" : "FAILED — " + s.check.note} (${s.check.at.slice(0, 16)})` : "not checked yet",
-    `sent: ${s.stats.dm1} first DMs · ${s.stats.dm2} links · ${s.stats.nudges} nudges`,
+    `sent: ${s.stats.dm1} first DMs · ${s.stats.dm2} links · ${s.stats.nudges} nudges${s.stats.rescued ? ` · ${s.stats.rescued} rescued` : ""}`,
     `waiting on a reply: ${Object.keys(s.pending).length}`,
     s.stats.lastTick ? `last tick: ${s.stats.lastTick.slice(0, 16)}` : "",
     s.stats.lastError ? `last error: ${s.stats.lastError}` : "",
