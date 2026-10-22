@@ -52,16 +52,31 @@ Prefer things with a real signal (a creator covered it, a top post, a repo gaini
 Show HN with discussion) and prefer things showing up in more than one place. Say where you saw
 it in the card's "source".
 
-Aim for about a 50/50 mix of news and tool posts, not tool-first. Pick a tool only when it has a
-security or money stake, or a paradox a story can resolve; otherwise prefer a news story with a twist.
+Aim for about a 50/50 mix of news and tool posts, not tool-first. For tool posts, prefer tools whose
+result can be shown on screen in one shot (a picture, video, design or animation it makes, or a search
+that jumps to the exact moment). Skip CLIs, infra and invisible back-end tools unless there's a
+security or money stake. If no tool clears that bar, prefer a news story with a twist.
 
 **Who it's for (sahil, 2026-10-08):** people who use AI but aren't necessarily developers. The
 tools that are working are ones an everyday person can use and have fun with: animation, video,
-images, music, game mods, making something without code (ClaudeAnimationBase, universal-modder,
-SCM). So a tool a normal person can try in a few minutes also passes the bar above, as long as
-it's genuinely new and people are talking about it. Technical and developer stories are still
-always welcome; between two equal picks, prefer the one a less technical viewer gets something
-out of.
+images, music, design, making something without code. So a tool a normal person can try in a few
+minutes also passes the bar above, as long as it's genuinely new and people are talking about it.
+Technical and developer stories are still always welcome; between two equal picks, prefer the one
+a less technical viewer gets something out of.
+
+**The numbers behind that (Instagram insights, 2026-10-22):**
+- visible, everyday-creative results: PhotoCraft, a free Photoshop clone built with Claude (2,855
+  views, 37 saves) · ClaudeAnimationBase, watercolour cartoons from one prompt (2,339, 72 saves, 45
+  shares) · SCM, find the exact second your dog jumped in the pool (2,050) · Kombai Gallery,
+  20,000 free designs for your coding agent (1,557, 50 saves)
+- security drama with a real-world victim: GitLost (20,830) · Claude Code used to breach five
+  South Korean banks (2,184, 20 shares)
+- the flops are plumbing and stats: cf CLI (262), TinyFish agent logins (279), REA app
+  reverse-engineering (192), Claude Code mods for PC games (260; game mods are NOT a proven win),
+  auto-mode prompt-injection stats (194), GLM exploit cost (204), Dario asks the industry to slow
+  down (192)
+- three or more reels a week is when the page moves: 5 reels on Oct 7-9 averaged ~2,300 views;
+  the one-a-week stretch after it got 192-246.
 
 ## skip
 

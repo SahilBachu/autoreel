@@ -521,18 +521,22 @@ bot.catch((err) => console.error("bot error", err));
 // conflict, ~18,000 times over 9 days (Oct 2026), and every restart dropped in-flight work: DM
 // ticks cut short, replies sent twice. Now: wait out the other poll and carry on in-process.
 async function startPolling() {
+  // (Oct 2026: the other poller was a duplicate user-level systemd unit starting a second copy of
+  // this bot at every boot. If the alert below fires, look for another copy first.)
   let conflicts = 0;
+  let startedAt = 0;
   for (;;) {
     try {
       await bot.start({
         onStart: (me) => {
           console.log(`@${me.username} running`);
-          conflicts = 0;
+          startedAt = Date.now();
         },
       });
       return; // bot.stop() was called
     } catch (e) {
       if (!(e instanceof GrammyError) || e.error_code !== 409) throw e;
+      if (Date.now() - startedAt > 10 * 60_000) conflicts = 0; // a lone conflict after a long clean run
       conflicts++;
       console.error(`getUpdates 409 conflict #${conflicts}: another poll is open; retrying in 35s`);
       if (conflicts === 20)
