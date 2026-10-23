@@ -256,6 +256,33 @@ bot.command("discover", async (ctx) => {
   }
 });
 
+// Activate card n of the newest digest (with an optional change), replacing whatever script was
+// open. Shared by the chat ("2 but shorter") and the trigger inbox ("pick 2 but shorter").
+async function pickCard(ctx: any, chat: string, n: number, change?: string): Promise<boolean> {
+  const digest = await loadDigest();
+  const card = digest?.cards.find((c) => c.n === n);
+  if (!card) return false;
+  anotherOffer = null;
+  markPicked(card.topic).catch(() => {}); // future research treats this story as done
+  try {
+    // an unverified queued topic has no script — picking it = "write it from my description anyway"
+    let idea: Idea = card;
+    if (card.unverified) {
+      await ctx.reply("writing it from your description alone (nothing invented)…");
+      idea = await generateIdea(card.topic, { fromDescriptionOnly: true });
+    }
+    if (change) {
+      await ctx.reply(`picked #${n} — reworking it…`);
+      const r = await reviseScript(idea.topic, idea.script, change, idea.sessionId);
+      idea = { ...idea, script: r.script, sessionId: r.sessionId ?? idea.sessionId };
+    }
+    await activateIdea(ctx, chat, idea);
+  } catch (e: any) {
+    await ctx.reply(`couldn't pull that one up: ${e.message}`);
+  }
+  return true;
+}
+
 // a fresh script landed (idea / idea: / digest pick / "anyway") -> activate it + show it
 async function activateIdea(ctx: any, chat: string, idea: Idea) {
   // a digest Card carries whyNow/links rather than a pre-built context string — same thing
@@ -264,6 +291,7 @@ async function activateIdea(ctx: any, chat: string, idea: Idea) {
     topic: idea.topic,
     script: idea.script,
     stage: "script",
+    startedAt: Date.now(),
     scriptSessionId: idea.sessionId,
     postType: idea.type,
     toolUrl: idea.toolUrl,
@@ -444,32 +472,20 @@ bot.on("message:text", async (ctx) => {
     return ctx.reply(`which one? reply the number:\n\n${anotherOffer.lines.join("\n")}`);
   }
 
-  // digest pick: "1" / "2" / "3", optionally "2 but <change>" — activates that card's script
-  // (and its live session), then the normal revise loop takes over.
-  const pick = ctx.message.text.match(/^\s*([1-3])\b[\s.,:-]*(?:but\s+(.+))?\s*$/is);
+  // digest pick: "1" / "2" / "3", optionally with a change ("2 but shorter", "1 slightly shorter").
+  // A number followed by words used to need "but"; "1 slightly shorter" was read as a revision
+  // of whatever script was still open, so yesterday's unfinished script got edited instead of
+  // today's #1. Now a pick wins whenever the digest is newer than the open script; only while
+  // he's working on a script he picked from THIS digest does "2 lines shorter" stay a revision.
+  const pick = ctx.message.text.match(/^\s*([1-3])(?![\d%.,]\d)\b[\s.,:)-]*(?:but\s+)?(.*)$/is);
   if (pick) {
+    const open = state.get(chat);
     const digest = await loadDigest();
-    const card = digest?.cards.find((c) => c.n === Number(pick[1]));
-    if (card) {
-      anotherOffer = null;
-      markPicked(card.topic).catch(() => {}); // future research treats this story as done
-      try {
-        // an unverified queued topic has no script — picking it = "write it from my description anyway"
-        let idea: Idea = card;
-        if (card.unverified) {
-          await ctx.reply("writing it from your description alone (nothing invented)…");
-          idea = await generateIdea(card.topic, { fromDescriptionOnly: true });
-        }
-        if (pick[2]) {
-          await ctx.reply("picked — reworking it…");
-          const r = await reviseScript(idea.topic, idea.script, pick[2], idea.sessionId);
-          idea = { ...idea, script: r.script, sessionId: r.sessionId ?? idea.sessionId };
-        }
-        await activateIdea(ctx, chat, idea);
-      } catch (e: any) {
-        await ctx.reply(`couldn't pull that one up: ${e.message}`);
-      }
-      return;
+    const digestAt = digest ? new Date(digest.ts).getTime() : 0;
+    const openAt = open?.script ? open.startedAt ?? 0 : 0;
+    const bare = !pick[2].trim();
+    if (digest && (bare || !open?.script || digestAt > openAt)) {
+      if (await pickCard(ctx, chat, Number(pick[1]), pick[2].trim() || undefined)) return;
     }
   }
 
@@ -597,7 +613,11 @@ setInterval(async () => {
       await ctx.reply("researching something…");
       await generateIdea().then((i) => activateIdea(ctx, chat, i)).catch((e) => ctx.reply(`couldn't come up with one: ${e.message}`));
     } else if (/^\/?retrysite$/i.test(text)) await retrySite(ctx);
+    else if (/^pick\s+[1-3]\b/i.test(text)) {
+      const [, n, change] = text.match(/^pick\s+([1-3])\b\s*(?:but\s+)?(.*)$/is)!;
+      if (!(await pickCard(ctx, chat, Number(n), change.trim() || undefined))) await ctx.reply(`no card ${n} in today's digest.`);
+    }
     else if (/^\/?post$/i.test(text)) await postPending(chat);
-    else console.error(`trigger: ignored "${text.slice(0, 60)}" (only "idea:/news:/tool: …", "idea" or "retrysite")`);
+    else console.error(`trigger: ignored "${text.slice(0, 60)}" (only "idea:/news:/tool: …", "idea", "pick N [change]", "retrysite" or "post")`);
   }
 }, 5000);

@@ -19,6 +19,7 @@ export type Pending = {
   // "script" = we've sent a script and are taking free-text revisions until a clip arrives.
   // "reel"   = a clip was sent (script locked); free text is ignored unless [Edit] was tapped.
   stage?: "script" | "reel";
+  startedAt?: number; // when this script became the open one (a newer digest pick replaces it)
   scriptSessionId?: string; // claude session for the script back-and-forth (resumed on revisions)
   awaitingEdit?: boolean;
   posting?: boolean; // a publish is in flight — guards against double-taps on [Post]
