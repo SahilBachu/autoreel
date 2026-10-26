@@ -107,6 +107,56 @@ export async function publishReel(
   return { permalink: permalink as string, mediaId: String(mediaId) };
 }
 
+/** poll a container until Instagram has processed it (or failed / expired) */
+async function waitForContainer(id: string, minutes = 5): Promise<void> {
+  const deadline = Date.now() + minutes * 60_000;
+  for (;;) {
+    const { status_code, status } = await igGet(id, { fields: "status_code,status" });
+    if (status_code === "FINISHED") return;
+    if (status_code === "ERROR" || status_code === "EXPIRED") throw new Error(`Instagram rejected the media (${status_code}${status ? `: ${status}` : ""})`);
+    if (Date.now() > deadline) throw new Error("IG container timeout");
+    await sleep(4000);
+  }
+}
+
+/**
+ * Re-share a post to the story: the same video (stories take up to 60 s) or one image (a
+ * carousel's cover, padded to 9:16). No stickers, music or links: the API can't add them, and
+ * sahil just wants the post itself. Returns the story's media id.
+ */
+export async function publishStory(media: { videoUrl?: string; imageUrl?: string }): Promise<string> {
+  if (!token() || !userId()) throw new Error("IG_ACCESS_TOKEN / IG_USER_ID not set");
+  const { id } = await igPost(`${userId()}/media`, {
+    media_type: "STORIES",
+    ...(media.videoUrl ? { video_url: media.videoUrl } : { image_url: media.imageUrl! }),
+  });
+  await waitForContainer(id, media.videoUrl ? 5 : 2);
+  const { id: storyId } = await igPost(`${userId()}/media_publish`, { creation_id: id });
+  return String(storyId);
+}
+
+/**
+ * Publish a carousel from PUBLIC image URLs (JPEG, all the same 4:5 aspect: Instagram crops every
+ * slide to the first one's). Children first, then the parent with the caption, then publish.
+ */
+export async function publishCarousel(imageUrls: string[], caption: string, hooks: PublishHooks = {}): Promise<{ permalink: string; mediaId: string }> {
+  if (!token() || !userId()) throw new Error("IG_ACCESS_TOKEN / IG_USER_ID not set");
+  if (imageUrls.length < 2) throw new Error("a carousel needs at least 2 slides");
+  const children: string[] = [];
+  for (const url of imageUrls.slice(0, 20)) {
+    const { id } = await igPost(`${userId()}/media`, { image_url: url, is_carousel_item: "true" });
+    children.push(String(id));
+  }
+  hooks.onProcessing?.();
+  for (const c of children) await waitForContainer(c, 3);
+  const { id: parent } = await igPost(`${userId()}/media`, { media_type: "CAROUSEL", children: children.join(","), caption });
+  await waitForContainer(parent, 3);
+  hooks.onPublishing?.();
+  const { id: mediaId } = await igPost(`${userId()}/media_publish`, { creation_id: parent });
+  const { permalink } = await igGet(mediaId, { fields: "permalink" });
+  return { permalink: permalink as string, mediaId: String(mediaId) };
+}
+
 // ---- messaging (the comment -> DM funnel) ----------------------------------------
 
 export type IgComment = { id: string; text: string; timestamp: string; username?: string; fromId?: string };

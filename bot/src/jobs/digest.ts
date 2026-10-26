@@ -1,4 +1,4 @@
-import { buildDigest, formatDigest, sendToChat } from "./discover.js";
+import { buildDigest, digestKeyboard, formatDigest, sendToChat } from "./discover.js";
 import { ClaudeAuthError } from "../lib/claude.js";
 import { chunkForTelegram, runAnalytics } from "./analytics.js";
 import { sendProposal } from "../lib/proposals.js";
@@ -45,7 +45,7 @@ if (new Date().getDay() === 1 && (process.env.DM_FOLLOW_GATE || "strict") === "s
 for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
   try {
     const digest = await buildDigest(3);
-    await sendToChat(formatDigest(digest));
+    await sendToChat(formatDigest(digest), { reply_markup: digestKeyboard(digest) });
     console.log(`digest sent: ${digest.cards.map((c) => c.topic).join(" | ")}`);
     process.exit(0);
   } catch (e: any) {

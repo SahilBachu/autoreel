@@ -15,6 +15,7 @@ export const dispatchSample: DispatchProps = {
       deck: "The company behind Cash App trained a voice AI on nothing but human conversation. No text at all.",
       image: "carousel/dessa-headline.png",
       imageCaption: "block.xyz/dessa · Block's own words, Oct 2026",
+      imageAspect: 4.8,
     },
     {
       type: "points",

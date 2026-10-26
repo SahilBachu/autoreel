@@ -350,7 +350,7 @@ export async function loadDigest(maxAgeHours = 36): Promise<Digest | null> {
 }
 
 export function formatDigest(d: Digest): string {
-  const parts = [`morning drop — reply 1, 2 or 3 to pick (or "2 but shorter hook"). anything else works too.`];
+  const parts = [`morning drop — tap a number to pick (or reply "2 but shorter hook"), or skip. anything else works too.`];
   for (const c of d.cards) {
     parts.push(
       [
@@ -372,11 +372,16 @@ export function formatDigest(d: Digest): string {
 }
 
 // send a plain message through the local bot api (used by the 3am timer, outside grammy)
-export async function sendToChat(text: string): Promise<void> {
+export async function sendToChat(text: string, extra: Record<string, unknown> = {}): Promise<void> {
   const url = `${config.telegram.apiRoot}/bot${config.telegram.token}/sendMessage`;
   await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ chat_id: config.telegram.chatId, text }),
+    body: JSON.stringify({ chat_id: config.telegram.chatId, text, ...extra }),
   });
+}
+
+/** [1] [2] [3] [skip] under the morning drop (skip offers the news card as a carousel) */
+export function digestKeyboard(d: Digest) {
+  return { inline_keyboard: [[...d.cards.map((c) => ({ text: String(c.n), callback_data: `pick:${c.n}` })), { text: "skip", callback_data: "pick:skip" }]] };
 }

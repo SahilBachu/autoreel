@@ -6,9 +6,10 @@ import { homedir } from "node:os";
 import { config, REPO_ROOT } from "./config.js";
 import { state } from "./state.js";
 import { generateIdea, reviseScript, type Idea } from "./jobs/idea.js";
-import { buildDigest, formatDigest, foundContext, loadDigest, markPicked, type Found } from "./jobs/discover.js";
+import { buildDigest, digestKeyboard, formatDigest, foundContext, loadDigest, markPicked, type Card, type Found } from "./jobs/discover.js";
+import { makeCarousel } from "./lib/carousel.js";
 import { renderReel } from "./jobs/render.js";
-import { postReel } from "./jobs/post.js";
+import { postCarousel, postReel } from "./jobs/post.js";
 import { dmStatus, startDmLoop } from "./jobs/dm.js";
 import { setStyleMode, styleStatus } from "./lib/style.js";
 import { chunkForTelegram, runAnalytics } from "./jobs/analytics.js";
@@ -223,6 +224,99 @@ async function offerAnother(chat: string, postedTopic: string) {
   await bot.api.sendMessage(chat, `post another? no need to answer. reply ${rest.map((c) => c.n).join(" or ")} for that script:\n\n${lines.join("\n")}`);
 }
 
+// ── The Dispatch: news cards as carousels ──────────────────────────────────────────
+// The digest's [1] [2] [3] [skip] buttons. A number = the normal pick. Skip = "post the news card
+// as a carousel instead?" (unless that story already went out as a reel).
+bot.callbackQuery(/^pick:([1-3])$/, async (ctx) => {
+  await ctx.answerCallbackQuery();
+  const chat = String(ctx.chat!.id);
+  if (!(await pickCard(ctx, chat, Number(ctx.match[1])))) await ctx.reply("that card isn't in today's digest anymore.");
+});
+
+bot.callbackQuery("pick:skip", async (ctx) => {
+  await ctx.answerCallbackQuery();
+  await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } }).catch(() => {});
+  const d = await loadDigest(24);
+  let postedTopic = "";
+  try {
+    const last: LastPost = JSON.parse(await readFile(LAST_POST, "utf8"));
+    if (Date.now() - new Date(last.at).getTime() < 24 * 3600_000) postedTopic = last.p.topic;
+  } catch {
+    /* nothing posted yet */
+  }
+  const news = (d?.cards ?? []).filter((c) => c.type === "news" && !c.unverified && c.topic !== postedTopic);
+  if (!news.length) return ctx.reply("skipped. (no news card left to turn into a carousel today)");
+  const kb = new InlineKeyboard();
+  for (const c of news) kb.text(news.length === 1 ? "yes, make it" : `#${c.n}`, `car:yes:${c.n}`);
+  kb.text("no", "car:no");
+  await ctx.reply(
+    news.length === 1 ? `skipped. want to post the news one as a carousel instead?
+
+#${news[0].n}: ${news[0].topic}` : `skipped. post one of the news cards as a carousel instead?
+
+${news.map((c) => `#${c.n}: ${c.topic}`).join("\n")}`,
+    { reply_markup: kb },
+  );
+});
+
+bot.callbackQuery(/^car:yes:(\d)$/, async (ctx) => {
+  await ctx.answerCallbackQuery();
+  await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } }).catch(() => {});
+  const chat = String(ctx.chat!.id);
+  const card = (await loadDigest(36))?.cards.find((c) => c.n === Number(ctx.match[1]));
+  if (!card) return ctx.reply("couldn't find that card anymore.");
+  markPicked(card.topic).catch(() => {});
+  await makeAndSendCarousel(ctx, chat, card);
+});
+
+bot.callbackQuery("car:no", async (ctx) => {
+  await ctx.answerCallbackQuery();
+  await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } }).catch(() => {});
+  await ctx.reply("ok, nothing today.");
+});
+
+/** write + render the carousel (or rework it: `note` = an [Edit]; a second call = a [Redo]) and preview it */
+async function makeAndSendCarousel(ctx: any, chat: string, card: Card, note?: string) {
+  const p = state.get(chat);
+  const prev = p?.kind === "carousel" && p.carousel && p.carousel.card.topic === card.topic ? (p.carousel as any) : undefined;
+  await ctx.reply(note ? "reworking the carousel…" : prev ? "writing a fresh version…" : "making the carousel. takes a few minutes.");
+  try {
+    const c = await makeCarousel(card, { note, prev });
+    const caption = await genPostCaption(card.topic, c.text, "news"); // opens with "comment NEWS…"
+    state.set(chat, { topic: card.topic, script: c.text, postType: "news", context: foundContext(card), kind: "carousel", carousel: { ...c, card }, caption, stage: "reel" });
+    await ctx.replyWithMediaGroup(c.slides.slice(0, 10).map((s) => ({ type: "photo" as const, media: new InputFile(s) })));
+    await ctx.reply(`The Dispatch № ${c.issue} · ${c.slides.length} slides\n\ncaption:\n${caption}`, { reply_markup: approveKeyboard });
+  } catch (e: any) {
+    await ctx.reply(`couldn't make the carousel: ${String(e?.message ?? e).slice(0, 300)}`);
+  }
+}
+
+// [Post] for a carousel: upload the slides, publish, story the cover, site row + article
+async function postCarouselPending(chat: string) {
+  const p = state.get(chat);
+  if (!p?.carousel) return bot.api.sendMessage(chat, "Nothing to post yet.");
+  if (p.posting) return bot.api.sendMessage(chat, "already posting that one — hang tight.");
+  state.patch(chat, { posting: true });
+  const msg = await bot.api.sendMessage(chat, "*Posting…*\nuploading the slides", { parse_mode: "Markdown" });
+  const set = (t: string) => bot.api.editMessageText(chat, msg.message_id, t, { parse_mode: "Markdown" }).catch(() => {});
+  try {
+    const { permalink, mediaId, story } = await postCarousel(p.carousel.slides, p.caption ?? p.topic, {
+      onUploaded: () => set("*Posting…*\nslides uploaded, sending to Instagram"),
+      onProcessing: () => set("*Posting…*\nInstagram is processing the slides…"),
+      onPublishing: () => set("*Posting…*\npublishing…"),
+    });
+    await set(`*Posted:*\n${permalink}${story ? "\n(+ story)" : ""}\n\nadding it to the site, writing the article…`);
+    await rememberPost({ p, mediaId, permalink, at: new Date().toISOString() });
+    state.clear(chat);
+    const r = await publishWithRetry(p, mediaId, permalink, (note) => set(`*Posted:*\n${permalink}\n\n_${note}_`));
+    if (r.url) await set(`*Posted:*\n${permalink}${story ? "\n(+ story)" : ""}\n\n*On the site:*\n${r.url}`);
+    else await set(`*Posted:*\n${permalink}\n\n_site: ${String(r.error).slice(0, 160)}${r.queued ? " (retrying in the background)" : ""}_`);
+  } catch (e: any) {
+    state.patch(chat, { posting: false });
+    await set(`*Post failed:* ${e.message}\nTap Post again to retry, or Redo.`);
+  }
+}
+
 // the reel published but the site row didn't — rewrite the copy and insert it
 bot.command("retrysite", (ctx) => retrySite(ctx));
 
@@ -250,7 +344,7 @@ bot.command("discover", async (ctx) => {
   await ctx.reply("researching what the AI world is talking about — takes a few minutes…");
   try {
     const digest = await buildDigest(3);
-    await ctx.reply(formatDigest(digest));
+    await ctx.reply(formatDigest(digest), { reply_markup: digestKeyboard(digest) });
   } catch (e: any) {
     await ctx.reply(`discovery failed: ${e.message}`);
   }
@@ -385,6 +479,7 @@ bot.callbackQuery("post", async (ctx) => {
 // a double post.
 async function postPending(chat: string) {
   const p = state.get(chat);
+  if (p?.kind === "carousel") return postCarouselPending(chat);
   if (!p?.mp4Path) return bot.api.sendMessage(chat, "Nothing to post yet — send a clip first.");
   if (p.posting) return bot.api.sendMessage(chat, "already posting that one — hang tight.");
   state.patch(chat, { posting: true });
@@ -394,7 +489,7 @@ async function postPending(chat: string) {
   const set = (t: string) => bot.api.editMessageText(chat, msg.message_id, t, { parse_mode: "Markdown" }).catch(() => {});
 
   try {
-    const { permalink, mediaId } = await postReel(p.mp4Path, p.caption ?? p.script.split("\n")[0], {
+    const { permalink, mediaId, story } = await postReel(p.mp4Path, p.caption ?? p.script.split("\n")[0], {
       onUploaded: () => set("*Posting…*\nuploaded — sending to Instagram"),
       onProcessing: () => set("*Posting…*\nuploaded, sent — Instagram is processing the reel (transcoding)…"),
       onPublishing: () => set("*Posting…*\nuploaded, sent, processed — publishing…"),
@@ -406,7 +501,7 @@ async function postPending(chat: string) {
 
     // the site row — a failure here must never read as a failed post, and it retries itself
     const r = await publishWithRetry(p, mediaId, permalink, (note) => set(`*Posted:*\n${permalink}\n\n_${note}_`));
-    if (r.url) await set(`*Posted:*\n${permalink}\n\n*On the site:*\n${r.url}`);
+    if (r.url) await set(`*Posted:*\n${permalink}${story ? "\n(+ story)" : ""}\n\n*On the site:*\n${r.url}`);
     else if (r.queued)
       await set(`*Posted:*\n${permalink}\n\n_site: couldn't add it yet (${String(r.error).slice(0, 120)}). I'll keep retrying in the background and tell you when it lands._`);
     else await set(`*Posted:*\n${permalink}\n\n_site: ${String(r.error).slice(0, 160)} — retrying won't fix that one. /retrysite once it's sorted._`);
@@ -435,6 +530,7 @@ bot.callbackQuery("redo", async (ctx) => {
   await ctx.answerCallbackQuery();
   const chat = String(ctx.chat!.id);
   const p = state.get(chat);
+  if (p?.kind === "carousel" && p.carousel) return makeAndSendCarousel(ctx, chat, p.carousel.card as Card);
   learnFromRedo(p?.topic ?? "", p?.lastPlan); // they rejected that take — log WHICH plan
   await makeAndSendReel(ctx, chat); // re-renders with the last edit note still applied
 });
@@ -506,6 +602,10 @@ bot.on("message:text", async (ctx) => {
     return;
   }
 
+  if (p.awaitingEdit && p.kind === "carousel" && p.carousel) {
+    await makeAndSendCarousel(ctx, chat, p.carousel.card as Card, ctx.message.text);
+    return;
+  }
   if (p.awaitingEdit) {
     learnFromEdit(p.topic, ctx.message.text); // how they like the motion graphics
     await makeAndSendReel(ctx, chat, ctx.message.text); // reel-level edit, re-render

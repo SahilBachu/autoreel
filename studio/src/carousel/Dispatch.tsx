@@ -37,7 +37,7 @@ export const INK_PAIRS: Record<string, { a: string; b: string; name: string }> =
 };
 
 export type Slide =
-  | { type: "cover"; kicker: string; headline: string; deck: string; image?: string; imageCaption?: string }
+  | { type: "cover"; kicker: string; headline: string; deck: string; image?: string; imageCaption?: string; imageAspect?: number }
   | { type: "points"; title: string; points: string[] }
   | { type: "diagram"; title: string; flows: { label: string; steps: string[]; highlight?: boolean }[]; note?: string }
   | { type: "stat"; value: string; label: string; sub?: string }
@@ -185,7 +185,7 @@ const Masthead: React.FC<{ issue: number; date: string; n: number; total: number
 // every non-cover slide: the title at the top, the content centred in the room that's left
 const Body: React.FC<{ title?: React.ReactNode; children: React.ReactNode; top?: number }> = ({ title, children, top = 186 }) => (
   <div style={{ position: "absolute", left: 72, right: 72, top, bottom: 200, display: "flex", flexDirection: "column" }}>
-    {title}
+    {title ? <div style={{ marginBottom: 40 }}>{title}</div> : null}
     <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}>{children}</div>
   </div>
 );
@@ -193,13 +193,15 @@ const Body: React.FC<{ title?: React.ReactNode; children: React.ReactNode; top?:
 // ── slides ───────────────────────────────────────────────────────────────────
 // The cover's picture is a "clipping": a halftoned crop of the real source (a page, a post), on
 // a slip of lighter paper, taped down at an angle and running off the right edge into slide 2.
-const Clipping: React.FC<{ src: string; caption?: string }> = ({ src, caption }) => {
+const Clipping: React.FC<{ src: string; caption?: string; aspect?: number }> = ({ src, caption, aspect = 4.8 }) => {
   const ink = useInk();
+  // the crop keeps its shape: a wide headline strip stays a strip, a tall screenshot gets taller
+  const h = Math.round(Math.max(150, Math.min(380, 1010 / aspect)));
   return (
-    <div style={{ position: "relative", marginTop: 50, marginRight: -250, rotate: "-2.2deg" }}>
+    <div style={{ position: "relative", marginTop: 54, marginRight: -130, rotate: "-2deg" }}>
       <div style={{ background: "#FBF8F0", padding: "26px 28px 20px", boxShadow: "0 2px 0 rgba(60,40,20,0.08)" }}>
-        <div style={{ position: "relative", height: 300 }}>
-          <Halftone src={src} ink={ink.b} w={1180} h={300} cell={6} angle={15} contrast={1.5} />
+        <div style={{ position: "relative", height: h + 10 }}>
+          <Halftone src={src} ink={ink.b} w={1010} h={h} cell={6} angle={15} contrast={1.5} />
         </div>
         {caption ? <InkLayer color={ink.b} style={{ ...T.mono(18), marginTop: 14 }}>{caption}</InkLayer> : null}
       </div>
@@ -222,7 +224,7 @@ const Cover: React.FC<{ s: Extract<Slide, { type: "cover" }> }> = ({ s }) => {
         <InkLayer color={ink.b} reg={[2, -1]} style={{ ...T.deck(52), marginTop: 34, maxWidth: 900 }}>
           {s.deck}
         </InkLayer>
-        {s.image ? <Clipping src={s.image} caption={s.imageCaption} /> : null}
+        {s.image ? <Clipping src={s.image} caption={s.imageCaption} aspect={s.imageAspect} /> : null}
       </div>
       <InkLayer color={ink.a} style={{ position: "absolute", right: 30, top: 560, ...T.mono(26), writingMode: "vertical-rl" }}>swipe →</InkLayer>
     </>
@@ -263,15 +265,15 @@ const Diagram: React.FC<{ s: Extract<Slide, { type: "diagram" }> }> = ({ s }) =>
               <InkLayer color={c} style={{ ...T.mono(26), marginBottom: 18, minHeight: 64 }}>{f.label}</InkLayer>
               {f.steps.map((st, j) => (
                 <React.Fragment key={j}>
-                  <InkLayer color={c} style={{ border: `6px solid ${c}`, padding: "16px 20px", textAlign: "center", ...T.sub(46), background: f.highlight && j === 1 ? `${c}2A` : "transparent" }}>{st}</InkLayer>
-                  {j < f.steps.length - 1 ? <InkLayer color={c} style={{ ...T.head(54), textAlign: "center", lineHeight: 1.1 }}>↓</InkLayer> : null}
+                  <InkLayer color={c} style={{ border: `6px solid ${c}`, padding: "12px 18px", textAlign: "center", ...T.sub(40), background: f.highlight && j === 1 ? `${c}2A` : "transparent" }}>{st}</InkLayer>
+                  {j < f.steps.length - 1 ? <InkLayer color={c} style={{ ...T.head(44), textAlign: "center", lineHeight: 1.05 }}>↓</InkLayer> : null}
                 </React.Fragment>
               ))}
             </div>
           );
         })}
       </div>
-      {s.note ? <InkLayer color={ink.b} style={{ ...T.deck(46), marginTop: 50 }}>{s.note}</InkLayer> : null}
+      {s.note ? <InkLayer color={ink.b} style={{ ...T.deck(42), marginTop: 40 }}>{s.note}</InkLayer> : null}
     </Body>
   );
 };
