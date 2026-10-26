@@ -9,15 +9,46 @@
     "https://www.notebookcheck.net/Apple-s-2-000-foldable-iPhone-reportedly-cracks-within-hours-as-owners-report-display-failures.1432971.0.html"
   ],
   "lines": [
-    { "scene": "hook", "text": "Apple's *two-thousand-dollar* foldable iPhone has barely been out, and screens are already *cracking*." },
-    { "scene": "inside", "text": "To see why, you have to look *inside* the fold." },
-    { "scene": "layers", "text": "The inner screen isn't one sheet of glass. Apple says it's *ten* ultra-thin layers: a polymer cover, glass, the display itself, more glass, and a *titanium* plate." },
-    { "scene": "bend", "text": "Every time you close it, that stack bends into a tight curve. The outer layers have to travel *farther* than the inner ones, so Apple glues them with an adhesive that lets them *slide*." },
-    { "scene": "hinge", "text": "Under all of that is the *hinge*. The repair experts at iFixit rebuilt it in 3D from *CT scans*, and they have three suspects." },
-    { "scene": "s1", "text": "Suspect one: the breaks cluster where a *gap* for a cable meets the hinge's central support. Several hard edges meet on one line, so every fold, the stress lands in the *same spot*." },
-    { "scene": "s2", "text": "Suspect two: curved rails that guide the fold may *lift* above the flat plates as it closes, and one of those rails lines up with the *damage*." },
-    { "scene": "s3", "text": "Suspect three is simpler. A speck of *dust* trapped in the fold, pressed into the screen every single time you close it." },
-    { "scene": "unknown", "text": "Apple hasn't said which it is. iFixit even says some cracks might be a broken *connection*, not broken glass." },
-    { "scene": "end", "text": "So if you just spent two grand on one, maybe close it *gently*. And send this to the friend who *pre-ordered*." }
-  ]
+    {
+      "scene": "hook",
+      "text": "Apple's *two-thousand-dollar* foldable iPhone just came out, and screens are already *cracking*."
+    },
+    {
+      "scene": "inside",
+      "text": "To see why, look *inside* the fold."
+    },
+    {
+      "scene": "layers",
+      "text": "The screen is *ten* ultra-thin layers: a polymer cover, glass, the display, more glass, and a *titanium* plate."
+    },
+    {
+      "scene": "bend",
+      "text": "When it closes, the outer layers travel *farther*, so an adhesive lets them *slide*."
+    },
+    {
+      "scene": "hinge",
+      "text": "Under it sits the *hinge*. iFixit rebuilt it from *CT scans*, and found three suspects."
+    },
+    {
+      "scene": "s1",
+      "text": "One: the cracks sit where a cable *gap* meets the hinge, so stress hits the *same spot* every fold."
+    },
+    {
+      "scene": "s2",
+      "text": "Two: curved rails may *lift* as it closes, right where the *damage* is."
+    },
+    {
+      "scene": "s3",
+      "text": "Three: a speck of *dust*, pressed into the screen every close."
+    },
+    {
+      "scene": "unknown",
+      "text": "Apple hasn't said. Some cracks might just be a broken *connection*."
+    },
+    {
+      "scene": "end",
+      "text": "So close it *gently*, and send this to the friend who *pre-ordered*."
+    }
+  ],
+  "model": "eleven_flash_v2_5"
 }

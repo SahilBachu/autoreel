@@ -33,6 +33,15 @@ ${report}`)) await sendToChat(part);
   await sendToChat(`(couldn't build today's analytics report: ${String(e?.message ?? e).slice(0, 200)})`).catch(() => {});
 }
 
+// Mondays: the standing reminder sahil asked for (Oct 2026). Meta's spam policy lists "requiring
+// users to … follow … to gain access to content" as not allowed, which is what the strict DM gate
+// does; he chose to keep it for now and be reminded weekly.
+if (new Date().getDay() === 1 && (process.env.DM_FOLLOW_GATE || "strict") === "strict") {
+  await sendToChat(
+    "weekly reminder: the DM follow gate is still on strict. Meta's spam rules don't allow requiring a follow to get content, so it's a risk to the DM feature (usually a warning or a DM limit first, not an instant ban). Switching to soft = ask once, send the link either way. Set DM_FOLLOW_GATE=soft in .env when you're ready.",
+  ).catch(() => {});
+}
+
 for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
   try {
     const digest = await buildDigest(3);

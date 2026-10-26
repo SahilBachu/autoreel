@@ -132,7 +132,7 @@ export const DuoExplainer: React.FC = () => {
           <StackShot
             m={{
               explode: at("layers", "ten") - cut1,
-              names: [at("layers", "cover"), at("layers", "glass", 1), at("layers", "display"), at("layers", "glass", 2), at("layers", "titanium")].map((x) => x - cut1),
+              names: [at("layers", "cover"), at("layers", "glass", 0), at("layers", "display"), at("layers", "glass", 1), at("layers", "titanium")].map((x) => x - cut1),
               bend: F(L("bend").startMs) - cut1,
               farther: at("bend", "farther") - cut1,
               slide: at("bend", "slide") - cut1,

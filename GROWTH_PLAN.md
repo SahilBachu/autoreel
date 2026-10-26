@@ -26,7 +26,7 @@ centres need power plants). Picked at 3am from what's trending this week, scored
 curiosity × visual potential × evergreen, never a straight copy of a topic the big pages just did
 unless we have a new angle (e.g. not "how the iPhone fold works" but "why it's already cracking").
 
-**Script.** 60-85 s, ~180-230 words, one narrator. A hook with stakes in the first line, then an
+**Script.** 40-50 s (sahil's call after the first one), ~120-135 words, one narrator. A hook with stakes in the first line, then an
 *investigation* shape that holds people: "three suspects", "five layers", "four steps", with an
 on-screen counter that fills as the video goes (adilet's trick, it gives viewers a reason to
 stay). Every claim traces to a source, listed in the script file. The ending is share-bait, not a
@@ -45,18 +45,18 @@ Quaternius / Poly Haven when a real object is needed).
 them, fix framing, labels, empty frames and collisions, look again. At 3am this runs as Opus with
 vision over contact sheets, max 3 passes, before the full render.
 
-**Voice.** ElevenLabs ("Brian", multilingual v2) with a hard monthly cap of 10,000 credits
-(`bot/src/lib/elevenlabs.ts`: checks the account's real usage before every call, ledger
-backup, cache so a re-render never pays twice). One explainer ≈ 1,100-1,300 credits, so ~7 a
-month at full quality, ~14 on Flash v2.5. To go daily we need a free voice for the rest: the
-gym-page agent is benchmarking free models (Kokoro, Chatterbox…) on the runner right now. If one
-is close enough we use it as the default and keep ElevenLabs for the best topics.
+**Voice.** ElevenLabs "Brian" (approved), on **Flash v2.5** (half the credits of multilingual
+v2), under a hard monthly cap of 10,000 credits (`bot/src/lib/elevenlabs.ts`: checks the
+account's real usage before every call, ledger backup, cache so a re-render never pays twice).
+A 45 s explainer ≈ 350-380 credits, so ~25-28 a month: close to daily. If a month runs out early,
+a free voice takes over (the gym-page agent is benchmarking free models on the runner; whichever
+wins becomes the fallback).
 
 **Render.** On the runner with ANGLE-on-llvmpipe (no GPU): estimated 1-3 s a frame, so 40-120 min
 per video, inside the 3am-7am window, after the digest and never alongside a tool-reel render.
 
-**Publishing.** Telegram preview with [Post] / [Redo] / [Edit] (same as tool reels) for the first
-two weeks, then optionally auto-post. Trial reels (`trial_params`, graduation `SS_PERFORMANCE`:
+**Publishing.** Telegram preview with [Post] / [Redo] / [Edit], same as tool reels (sahil: keep the
+approval, it's one tap). Trial reels (`trial_params`, graduation `SS_PERFORMANCE`:
 Instagram shows it to non-followers first and promotes it to followers only if it does well) once
 the account is eligible (reportedly ~200+ followers; the bot tries and falls back). `is_ai_generated`
 set on every post with a synthetic voice (Meta requires it). Caption: a "comment HOW for the
@@ -91,10 +91,10 @@ the link in bio". Slide 2 is written as a second hook (carousels get re-served s
 
 ## 3. Stories
 
-Every post goes to the story automatically: the reel itself (if ≤60 s) or a 15-30 s teaser cut of
-a longer explainer, and the cover of a carousel. The API can't add stickers, polls, links or
-music, so twice a week the bot nudges sahil to do one by hand (a poll on the day's topic). No
-story for trial reels (it would show the trial to followers).
+Every post goes to the story automatically, as just the post itself: the reel (stories take
+videos up to 60 s, so a 40-50 s explainer fits whole) or a carousel's cover. No stickers (the API
+can't add them and sahil doesn't need them). No story for trial reels (it would show the trial
+to followers).
 
 ## 4. Growth levers we're pulling
 
@@ -117,7 +117,8 @@ story for trial reels (it would show the trial to followers).
 
 - **The DM follow gate breaks Meta's spam policy.** "Requiring users to engage (…follows…) to gain
   access to content" is on the not-allowed list, and `DM_FOLLOW_GATE=strict` does exactly that.
-  Recommendation: `soft` (ask once, send either way). Needs sahil's OK.
+  sahil keeps it on strict for now (enforcement is usually graduated: a warning or a DM limit
+  before anything worse, but not guaranteed); the 3am job reminds him every Monday.
 - **AI disclosure.** Synthetic voice → `is_ai_generated=true`. Faceless doesn't mean pretending
   to be human.
 - **Facts.** Every number and quote sourced and checked; honest "illustration" notes on
@@ -131,6 +132,6 @@ story for trial reels (it would show the trial to followers).
 | phase | what | when |
 |---|---|---|
 | A | explainer kit + first explainer; carousel design system + first carousel; ElevenLabs guard | done (Oct 25) |
-| B | carousel pipeline (copy → render → slice → Telegram album → publish), digest buttons + skip→carousel flow, stories on every post, follow gate → soft | next, ~1-2 days |
+| B | carousel pipeline (copy → render → slice → Telegram album → publish), digest buttons + skip→carousel flow, stories on every post | next, ~1-2 days |
 | C | explainer automation at 3am (topic → sourced script → voice → bespoke scenes → vision review → render → Telegram), free-voice fallback | ~2-4 days, first runs reviewed by sahil |
 | D | trial reels, format analytics, profile refresh (pins, bio, highlights) | after C |
