@@ -43,8 +43,7 @@ async function nextIssue(): Promise<number> {
   } catch {
     /* first issue */
   }
-  // issue 1 was the hand-made Dessa sample
-  const n = Math.max(1, s.lastIssue ?? 1) + 1;
+  const n = (s.lastIssue ?? 0) + 1;
   await mkdir(resolve(REPO_ROOT, "bot/data"), { recursive: true });
   await writeFile(STATE, JSON.stringify({ ...s, lastIssue: n }));
   return n;
@@ -65,7 +64,7 @@ const SCHEMA = `{
     {"type":"cta","handle":"@21stcentury.sahil","line":"The AI news that actually matters, explained like a human would.","keyword":"NEWS"}
   ],
   "station": ["one SHORT label per slide for the bottom wire, e.g. THE NEWS, HOW, SCALE, REACTION, THE CATCH, YOU, FOLLOW"],
-  "clip": {"x": 0, "y": 0, "w": 0, "h": 0, "invert": false, "caption": "domain/path · what it is, short"}
+  "clipUrl": "the single best page to show as the cover's clipping: the official announcement / product page if one exists (you fetched it), else the main article. Never a forum thread."
 }`;
 
 /**
@@ -79,11 +78,7 @@ export async function makeCarousel(card: Card, opts: { note?: string; prev?: Car
   await mkdir(gen, { recursive: true });
   await mkdir(resolve(config.studioDir, "out"), { recursive: true });
 
-  // 1. the primary source, for the clipping: prefer the company/product page over a forum thread
   const links = card.links ?? [];
-  const primary = links.find((l) => !/news\.ycombinator|reddit\.com|x\.com|twitter\.com|youtube\.com/.test(l)) ?? links[0];
-  const shotRel = `generated/${id}-src.png`;
-  const haveShot = primary ? await screenshot(primary, resolve(config.studioDir, "public", shotRel)) : false;
 
   const prompt = `You are writing a news CAROUSEL ("The Dispatch", a printed-zine style Instagram carousel)
 for @21stcentury.sahil: AI news for people who use AI but aren't developers. Plain, human,
@@ -103,25 +98,41 @@ ${opts.prev ? `\nTHE PREVIOUS VERSION OF THIS CAROUSEL:\n${JSON.stringify(opts.p
 2. Slide 2 is a second hook (Instagram re-serves carousels from slide 2): make it strong.
 3. Keep the order and types of the schema below, but you may drop the diagram, stat, quote or
    split slide when the story doesn't have that material (minimum 6 slides; cover first, cta last).
-4. ${haveShot ? `The cover's clipping comes from a screenshot of the primary source: ${resolve(config.studioDir, "public", shotRel)}
-   (2560 px wide). Read it and choose a crop box (pixels) around its most telling headline or
-   claim, readable text, aspect between 3:1 and 6:1 (wide strip). "invert": true if that region is
-   light text on a dark background. "caption": the domain + a few words.` : `There's no screenshot; set "clip" to null.`}
+4. "clipUrl": the page whose headline we'll show on the cover (screenshotted afterwards). Prefer the
+   official source (company announcement, product page, paper) over news coverage, and never a
+   forum thread (Hacker News, Reddit, X).
 
 Return ONLY this JSON shape:
 ${SCHEMA}`;
 
-  const out = await claudeJson<{ slides: DispatchSlide[]; station?: string[]; clip?: { x: number; y: number; w: number; h: number; invert?: boolean; caption?: string } | null }>(prompt, {
+  const out = await claudeJson<{ slides: DispatchSlide[]; station?: string[]; clipUrl?: string }>(prompt, {
     tools: TOOLS,
     timeoutMs: 10 * 60_000,
   });
   if (!Array.isArray(out.slides) || out.slides.length < 4) throw new Error("the writer returned no usable slides");
   for (const s of out.slides) if (s.type === "cta") s.avatar = "carousel-avatar.jpg"; // his halftoned profile picture
 
-  // 2. crop the clipping
+  // 2. the clipping: screenshot the page the writer chose, then a vision pass picks a crop
   const cover = out.slides.find((s) => s.type === "cover");
-  if (cover && haveShot && out.clip && out.clip.w > 50 && out.clip.h > 20) {
-    const c = out.clip;
+  const clipUrl = out.clipUrl && /^https?:\/\//.test(out.clipUrl) && !/news\.ycombinator|reddit\.com/.test(out.clipUrl) ? out.clipUrl : links.find((l) => !/news\.ycombinator|reddit\.com|x\.com|twitter\.com/.test(l));
+  const shotRel = `generated/${id}-src.png`;
+  const haveShot = cover && clipUrl ? await screenshot(clipUrl, resolve(config.studioDir, "public", shotRel)) : false;
+  type Clip = { x: number; y: number; w: number; h: number; invert?: boolean; caption?: string };
+  let clip = null as Clip | null;
+  if (haveShot) {
+    clip = await claudeJson<Clip | null>(
+      `This is a screenshot (2560 px wide, retina) of ${clipUrl}: ${resolve(config.studioDir, "public", shotRel)}
+Read it. Choose a crop box around its main headline or most telling claim for a newspaper-style
+"clipping" on an Instagram carousel cover. Rules: the text inside must be LARGE (letters at least
+40 px tall in this screenshot) and readable, 1-3 lines, nothing cut off; aspect between 2.5:1 and
+5:1; no navigation bars, buttons or cookie banners. If nothing on the page qualifies, return null.
+Return {"x":0,"y":0,"w":0,"h":0,"invert":false,"caption":"domain · a few words"} where invert is
+true for light text on a dark background.`,
+      { tools: ["Read"], timeoutMs: 4 * 60_000 },
+    ).catch(() => null);
+  }
+  if (cover && haveShot && clip && clip.w > 50 && clip.h > 20) {
+    const c = clip;
     const clipRel = `generated/${id}-clip.png`;
     const vf = [`crop=${Math.round(c.w)}:${Math.round(c.h)}:${Math.round(c.x)}:${Math.round(c.y)}`, "format=gray", ...(c.invert ? ["negate"] : []), "eq=contrast=1.6"].join(",");
     const r = await ffmpeg(["-y", "-i", resolve(config.studioDir, "public", shotRel), "-vf", vf, resolve(config.studioDir, "public", clipRel)]);
