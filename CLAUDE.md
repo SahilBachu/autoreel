@@ -84,6 +84,17 @@ Telegram Bot API server, whisper, cron all installed). Move the repo to the runn
   `clawd/` (read `clawd/REEL.md`); `bot/src/lib/clawd.ts` has Opus write + self-review one
   p5.brush shot per scene and renders a 720² 12 fps MP4 (Mesa llvmpipe on the runner, ~2 min a
   shot; no watercolour `fill`); `studio/src/auto/clawd-card.tsx` plays it on a paper card.
+- **More formats (2026-10, see [`GROWTH_PLAN.md`](./GROWTH_PLAN.md)):**
+  - *Faceless explainers* ("how it actually works"): [`EXPLAINER.md`](./EXPLAINER.md) is the series
+    guide. `bot/src/jobs/explainer.ts` runs from cron at 3:40: script → ElevenLabs (Brian, Flash v2.5,
+    `lib/elevenlabs.ts` caps the month at 10,000 credits) → Opus builds bespoke 3D scenes in
+    `studio/src/explainer/gen/<id>/` on `explainer/kit.tsx` → Vulkan render on the runner (~0.4 s a
+    frame) → a cover from `explainer/Cover.tsx` → staged in Telegram with [Post]. Reference video:
+    `explainer/duo/`. Test without credits: `npx tsx src/jobs/explainer.ts --reuse duo --dry`.
+  - *The Dispatch* (news carousels): `studio/src/carousel/Dispatch.tsx` + `bot/src/lib/carousel.ts`.
+    Offered when he skips the digest's news cards, and on the "post another?" buttons.
+  - *Stories*: NOT automatic. The API can't make the "share post → Add to story" card he wants, so
+    after each post the bot reminds him to share it himself.
 - **Model:** every Claude call uses `config.claude.model` (`CLAUDE_MODEL`, default Opus 5.5).
 
 ## Design system (BRAND V2 — replaced the old Nick/terracotta look, 2026-07-01)

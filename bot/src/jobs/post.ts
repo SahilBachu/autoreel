@@ -31,7 +31,8 @@ async function videoSeconds(path: string): Promise<number> {
 
 // Upload the mp4 to a public URL (Supabase, or tmpfiles fallback) then publish to Instagram.
 // Returns the permalink for the user and the media id for the site row / DM autoresponder.
-// The same video then goes to the story (stories take ≤60 s; longer reels skip it).
+// Stories are OFF by default: sahil wants the tappable "share → add to story" card, which the
+// API can't create (it can only upload raw media), so he adds it himself. opts.story re-enables.
 export async function postReel(
   mp4Path: string,
   caption: string,
@@ -52,7 +53,7 @@ export async function postReel(
   }
   const r = await publishReel(publicUrl, caption, hooks, coverUrl, { aiGenerated: opts.aiGenerated });
   let story: string | undefined;
-  if (opts.story !== false) story = await storyFor(mp4Path, publicUrl);
+  if (opts.story === true) story = await storyFor(mp4Path, publicUrl);
   return { ...r, story };
 }
 
@@ -77,14 +78,14 @@ async function storyFor(mp4Path: string, publicUrl: string): Promise<string | un
  * Publish a carousel from local JPEG slides (1080×1350): upload each, publish, then put the
  * cover on the story (padded to 9:16 on the paper colour so it doesn't get letterboxed black).
  */
-export async function postCarousel(slides: string[], caption: string, hooks: PostHooks = {}, opts: { storyBg?: string } = {}): Promise<{ permalink: string; mediaId: string; story?: string }> {
+export async function postCarousel(slides: string[], caption: string, hooks: PostHooks = {}, opts: { storyBg?: string; story?: boolean } = {}): Promise<{ permalink: string; mediaId: string; story?: string }> {
   const stamp = Date.now();
   const urls: string[] = [];
   for (const [i, s] of slides.entries()) urls.push(await uploadReel(s, `carousel-${stamp}-${String(i + 1).padStart(2, "0")}.jpg`, "image/jpeg"));
   hooks.onUploaded?.();
   const r = await publishCarousel(urls, caption, hooks);
   let story: string | undefined;
-  try {
+  if (opts.story === true) try {
     const storyPath = resolve(config.studioDir, "out", `carousel-${stamp}-story.jpg`);
     // the system ffmpeg (Remotion's bundled build has no pad filter); without it the plain 4:5
     // cover goes up and Instagram letterboxes it

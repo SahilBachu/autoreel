@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { AbsoluteFill, Easing, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import * as THREE from "three";
 import { F2 } from "../auto/theme";
+import { useGeistFonts } from "../auto/fonts2";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // EXPLAINER KIT — the shared vocabulary of the faceless "how it actually works" series.
@@ -86,6 +87,7 @@ const Handles: React.FC = () => {
 };
 
 export const Captions: React.FC<{ words: CW[]; top?: number }> = ({ words, top = 250 }) => {
+  useGeistFonts(); // every explainer gets the brand type, whoever builds it
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const ms = (frame / fps) * 1000;

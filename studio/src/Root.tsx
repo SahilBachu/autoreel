@@ -12,6 +12,8 @@ import { Thumbnail } from "./auto/Thumbnail";
 import { Dispatch, SLIDE_W, SLIDE_H, type DispatchProps } from "./carousel/Dispatch";
 import { dispatchSample } from "./carousel/sample";
 import { DuoExplainer, DUO_FRAMES } from "./explainer/duo/Duo";
+import { GENERATED_EXPLAINERS } from "./explainer/gen";
+import { ExplainerCover, type CoverProps } from "./explainer/Cover";
 import { WorldReel } from "./world/WorldReel";
 import { HereticWorld, type HereticWorldData } from "./world/heretic/HereticWorld";
 import { mockReel } from "./data/mockReel";
@@ -70,6 +72,20 @@ export const RemotionRoot: React.FC = () => {
     />
     {/* faceless explainer series ("how it actually works"): one composition per video for now */}
     <Composition id="ExplainerDuo" component={DuoExplainer} fps={30} width={1080} height={1920} durationInFrames={DUO_FRAMES} />
+    {/* the nightly ones (bot/src/jobs/explainer.ts writes src/explainer/gen/<id>/Video.tsx + the registry) */}
+    {GENERATED_EXPLAINERS.map((g) => (
+      <Composition key={g.id} id={`Explainer-${g.id}`} component={g.component} fps={30} width={1080} height={1920} durationInFrames={g.frames} />
+    ))}
+    {/* the series cover (title + key frame), rendered as a still for cover_url */}
+    <Composition
+      id="ExplainerCover"
+      component={ExplainerCover}
+      fps={30}
+      width={1080}
+      height={1920}
+      durationInFrames={1}
+      defaultProps={{ title: "Why the iPhone Duo is *already cracking*", image: "explainer/duo/cover-frame.png" } as CoverProps}
+    />
     {/* news carousel: the whole carousel as ONE wide still (slides x 1080 by 1350), sliced into
         slides by bot/src/lib/carousel.ts. Its own design system: carousel/Dispatch.tsx */}
     <Composition

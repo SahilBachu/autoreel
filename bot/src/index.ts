@@ -221,7 +221,14 @@ async function offerAnother(chat: string, postedTopic: string) {
   if (!rest.length) return;
   const lines = rest.map((c) => `${c.n}) [${c.type ?? "news"}] ${c.topic}`);
   anotherOffer = { at: Date.now(), lines };
-  await bot.api.sendMessage(chat, `post another? no need to answer. reply ${rest.map((c) => c.n).join(" or ")} for that script:\n\n${lines.join("\n")}`);
+  // a button per card (the script), and for news cards a second one: as a Dispatch carousel
+  const kb = new InlineKeyboard();
+  for (const c of rest) {
+    kb.text(`#${c.n}`, `pick:${c.n}`);
+    if (c.type === "news" && !c.unverified) kb.text(`#${c.n} as a carousel`, `car:yes:${c.n}`);
+    kb.row();
+  }
+  await bot.api.sendMessage(chat, `post another? no need to answer. tap a card for its script, or turn a news one into a carousel:\n\n${lines.join("\n")}`, { reply_markup: kb });
 }
 
 // ── The Dispatch: news cards as carousels ──────────────────────────────────────────
@@ -229,6 +236,7 @@ async function offerAnother(chat: string, postedTopic: string) {
 // as a carousel instead?" (unless that story already went out as a reel).
 bot.callbackQuery(/^pick:([1-3])$/, async (ctx) => {
   await ctx.answerCallbackQuery();
+  await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } }).catch(() => {});
   const chat = String(ctx.chat!.id);
   if (!(await pickCard(ctx, chat, Number(ctx.match[1])))) await ctx.reply("that card isn't in today's digest anymore.");
 });
@@ -311,6 +319,7 @@ async function postCarouselPending(chat: string) {
     const r = await publishWithRetry(p, mediaId, permalink, (note) => set(`*Posted:*\n${permalink}\n\n_${note}_`));
     if (r.url) await set(`*Posted:*\n${permalink}${story ? "\n(+ story)" : ""}\n\n*On the site:*\n${r.url}`);
     else await set(`*Posted:*\n${permalink}\n\n_site: ${String(r.error).slice(0, 160)}${r.queued ? " (retrying in the background)" : ""}_`);
+    await bot.api.sendMessage(chat, `share it to your story: open the post → ✈︎ → Add to story\n${permalink}`).catch(() => {});
   } catch (e: any) {
     state.patch(chat, { posting: false });
     await set(`*Post failed:* ${e.message}\nTap Post again to retry, or Redo.`);
@@ -505,6 +514,7 @@ async function postPending(chat: string) {
     else if (r.queued)
       await set(`*Posted:*\n${permalink}\n\n_site: couldn't add it yet (${String(r.error).slice(0, 120)}). I'll keep retrying in the background and tell you when it lands._`);
     else await set(`*Posted:*\n${permalink}\n\n_site: ${String(r.error).slice(0, 160)} — retrying won't fix that one. /retrysite once it's sorted._`);
+    await bot.api.sendMessage(chat, `share it to your story: open the post → ✈︎ → Add to story\n${permalink}`).catch(() => {});
     await offerAnother(chat, p.topic).catch(() => {});
   } catch (e: any) {
     state.patch(chat, { posting: false });
@@ -531,12 +541,14 @@ bot.callbackQuery("redo", async (ctx) => {
   const chat = String(ctx.chat!.id);
   const p = state.get(chat);
   if (p?.kind === "carousel" && p.carousel) return makeAndSendCarousel(ctx, chat, p.carousel.card as Card);
+  if (p?.kind === "explainer") return ctx.reply("explainers are built overnight, so there's no instant redo yet. tell me what's wrong with it and I'll fix it, or skip it and tomorrow's will be fresh.");
   learnFromRedo(p?.topic ?? "", p?.lastPlan); // they rejected that take — log WHICH plan
   await makeAndSendReel(ctx, chat); // re-renders with the last edit note still applied
 });
 
 bot.callbackQuery("edit", async (ctx) => {
   await ctx.answerCallbackQuery();
+  if (state.get(String(ctx.chat!.id))?.kind === "explainer") return ctx.reply("explainers are built overnight, so edits aren't instant yet. tell me what to change and I'll redo it by hand.");
   state.patch(String(ctx.chat!.id), { awaitingEdit: true });
   await ctx.reply("what should I change? (e.g. 'punchier hook', 'swap the title font')");
 });
@@ -695,7 +707,7 @@ async function stageFromFile(chat: string, file: string) {
     if (!p.mp4Path || !p.caption) throw new Error("needs mp4Path and caption");
     const cur = state.get(chat);
     if (cur?.script && !cur.mp4Path) await bot.api.sendMessage(chat, `(your open script "${cur.topic}" was set aside for this one)`);
-    state.set(chat, { ...p, stage: "reel", kind: "reel" });
+    state.set(chat, { ...p, stage: "reel", kind: p.kind ?? "reel" });
     await bot.api.sendVideo(chat, new InputFile(p.mp4Path), { caption: `${p.topic}\n\ncaption:\n${p.caption}`.slice(0, 1000), reply_markup: approveKeyboard, width: 1080, height: 1920, supports_streaming: true });
   } catch (e: any) {
     await bot.api.sendMessage(chat, `couldn't stage ${file}: ${String(e?.message ?? e).slice(0, 200)}`);

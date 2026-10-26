@@ -8,7 +8,7 @@ They stay at 1-2 a day. Around them we add three formats that need no recording 
 | **Tool reels** (existing) | his face, the script, motion graphics, hand-painted shots | 1-2 / day | live |
 | **Faceless explainers** | "how it actually works" + "how AI actually works", 3D animated, narrated | 3 / week, then daily | first video built |
 | **The Dispatch** (news carousels) | a news story as a swipeable printed-zine carousel | when a news card isn't recorded | design system + first carousel built |
-| **Stories** | every post re-shared to the story automatically | every post | planned |
+| **Stories** | sahil shares each post to his story by hand (the bot reminds him) | every post | reminder live |
 
 Research behind this: @speedy_devv (180K, "how does X really work under the hood", 17.5M views on
 touchscreens, 10.4M on phone keyboards), @scroll.engineer (147K from 31 posts, 3D engineering
@@ -86,15 +86,17 @@ the link in bio". Slide 2 is written as a second hook (carousels get re-served s
    source, like the Dessa sample), Playwright screenshots the source for the clipping, the strip
    renders and slices.
 4. Telegram shows the slides as an album with [Post] / [Redo] / [Edit].
-5. [Post] publishes a CAROUSEL via the API, adds the site row and article, posts a story, and the
+5. [Post] publishes a CAROUSEL via the API, adds the site row and article, reminds sahil to share it to his story, and the
    DM autoresponder answers NEWS with the article link.
 
 ## 3. Stories
 
-Every post goes to the story automatically, as just the post itself: the reel (stories take
-videos up to 60 s, so a 40-50 s explainer fits whole) or a carousel's cover. No stickers (the API
-can't add them and sahil doesn't need them). No story for trial reels (it would show the trial
-to followers).
+sahil wants the native "share post → Add to story" card (the tappable post preview), not the raw
+video re-uploaded. The Graph API can't make that card (it only uploads media to a story; the first
+auto-story went up as the bare video, 2026-10-25), so auto-stories are OFF and after every post the
+bot sends "share it to your story: open the post → ✈︎ → Add to story" with the link. The code can
+still post raw stories (`postReel(..., { story: true })`) if that's ever wanted. No story for trial
+reels (it would show the trial to followers).
 
 ## 4. Growth levers we're pulling
 
