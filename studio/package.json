@@ -6,8 +6,10 @@
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
+    "@react-three/drei": "^10.7.9",
     "@remotion/cli": "4.0.484",
     "@remotion/fonts": "^4.0.484",
+    "@remotion/google-fonts": "^4.0.484",
     "@remotion/media": "^4.0.484",
     "@remotion/shapes": "^4.0.484",
     "@remotion/tailwind-v4": "4.0.484",

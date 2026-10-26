@@ -9,6 +9,9 @@ import { CursorReel, CURSOR_TOTAL } from "./reel_cursor/CursorReel";
 import { AutoReel, type AutoReelData } from "./auto/AutoReel";
 import { Showcase, SHOWCASE_FRAMES } from "./showcase/Showcase";
 import { Thumbnail } from "./auto/Thumbnail";
+import { Dispatch, SLIDE_W, SLIDE_H, type DispatchProps } from "./carousel/Dispatch";
+import { dispatchSample } from "./carousel/sample";
+import { DuoExplainer, DUO_FRAMES } from "./explainer/duo/Duo";
 import { WorldReel } from "./world/WorldReel";
 import { HereticWorld, type HereticWorldData } from "./world/heretic/HereticWorld";
 import { mockReel } from "./data/mockReel";
@@ -64,6 +67,20 @@ export const RemotionRoot: React.FC = () => {
       height={HEIGHT}
       durationInFrames={1}
       defaultProps={autoDefaults}
+    />
+    {/* faceless explainer series ("how it actually works"): one composition per video for now */}
+    <Composition id="ExplainerDuo" component={DuoExplainer} fps={30} width={1080} height={1920} durationInFrames={DUO_FRAMES} />
+    {/* news carousel: the whole carousel as ONE wide still (slides x 1080 by 1350), sliced into
+        slides by bot/src/lib/carousel.ts. Its own design system: carousel/Dispatch.tsx */}
+    <Composition
+      id="Dispatch"
+      component={Dispatch}
+      fps={FPS}
+      width={SLIDE_W * dispatchSample.slides.length}
+      height={SLIDE_H}
+      durationInFrames={1}
+      defaultProps={dispatchSample}
+      calculateMetadata={({ props }: { props: DispatchProps }) => ({ width: SLIDE_W * Math.max(1, props.slides.length) })}
     />
     {/* reference: the hand-built Heretic world the camera grammar came from. not used by the bot. */}
     <Composition
