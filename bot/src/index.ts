@@ -493,7 +493,7 @@ async function postPending(chat: string) {
       onUploaded: () => set("*Posting…*\nuploaded — sending to Instagram"),
       onProcessing: () => set("*Posting…*\nuploaded, sent — Instagram is processing the reel (transcoding)…"),
       onPublishing: () => set("*Posting…*\nuploaded, sent, processed — publishing…"),
-    }, p.thumbPath);
+    }, p.thumbPath, { aiGenerated: p.aiGenerated });
     await set(`*Posted:*\n${permalink}\n\nadding it to the site${p.postType === "news" ? " — writing the article" : ""}…`);
     await rememberPost({ p, mediaId, permalink, at: new Date().toISOString() }); // so /retrysite has something to work from
     learnFromPost(p.topic, p.script).catch(() => {}); // approved = strongest signal; learn in bg
@@ -686,6 +686,22 @@ async function checkClaudeLogin() {
 setTimeout(checkClaudeLogin, 30_000);
 setInterval(checkClaudeLogin, 6 * 3600_000);
 
+// "stage <file.json>": load a finished video (a Pending: mp4Path, caption, topic, …) into the
+// chat as if it had just rendered, and show it with [Post] / [Redo] / [Edit]. How faceless
+// explainers (made outside the clip flow) reach the normal approve-and-post path.
+async function stageFromFile(chat: string, file: string) {
+  try {
+    const p = JSON.parse(await readFile(file, "utf8")) as Pending;
+    if (!p.mp4Path || !p.caption) throw new Error("needs mp4Path and caption");
+    const cur = state.get(chat);
+    if (cur?.script && !cur.mp4Path) await bot.api.sendMessage(chat, `(your open script "${cur.topic}" was set aside for this one)`);
+    state.set(chat, { ...p, stage: "reel", kind: "reel" });
+    await bot.api.sendVideo(chat, new InputFile(p.mp4Path), { caption: `${p.topic}\n\ncaption:\n${p.caption}`.slice(0, 1000), reply_markup: approveKeyboard, width: 1080, height: 1920, supports_streaming: true });
+  } catch (e: any) {
+    await bot.api.sendMessage(chat, `couldn't stage ${file}: ${String(e?.message ?? e).slice(0, 200)}`);
+  }
+}
+
 // TRIGGER INBOX — lets something outside the chat (a cron, a script, Claude over SSH) start
 // an idea exactly as if sahil had typed it. `npm run trigger -- "idea: ..."` drops a file in
 // bot/data/trigger/; the bot picks it up within a few seconds, deletes it, and runs it
@@ -718,6 +734,7 @@ setInterval(async () => {
       if (!(await pickCard(ctx, chat, Number(n), change.trim() || undefined))) await ctx.reply(`no card ${n} in today's digest.`);
     }
     else if (/^\/?post$/i.test(text)) await postPending(chat);
+    else if (/^stage\s+\S+\.json$/i.test(text)) await stageFromFile(chat, text.split(/\s+/)[1]);
     else console.error(`trigger: ignored "${text.slice(0, 60)}" (only "idea:/news:/tool: …", "idea", "pick N [change]", "retrysite" or "post")`);
   }
 }, 5000);

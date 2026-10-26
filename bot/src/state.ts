@@ -26,6 +26,7 @@ export type Pending = {
   lastEditNote?: string; // the last [Edit] instruction — a Redo must keep honoring it
   lastPlan?: string; // compact summary of the last rendered plan (so a Redo logs WHAT was rejected)
   kind?: "reel" | "carousel"; // what [Post] / [Redo] / [Edit] act on (absent = a reel)
+  aiGenerated?: boolean; // synthetic narration (faceless explainers): Meta's AI label on publish
   // a news card made into a Dispatch carousel (lib/carousel.ts): the rendered slides + the card
   carousel?: { id: string; issue: number; props: unknown; propsPath: string; slides: string[]; text: string; card: Record<string, any> };
 };

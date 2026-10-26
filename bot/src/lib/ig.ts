@@ -73,16 +73,22 @@ export async function publishReel(
   caption: string,
   hooks: PublishHooks = {},
   coverUrl?: string, // a public image to use as the reel's cover (the generated thumbnail)
+  opts: { aiGenerated?: boolean } = {},
 ): Promise<{ permalink: string; mediaId: string }> {
   if (!token() || !userId()) throw new Error("IG_ACCESS_TOKEN / IG_USER_ID not set");
 
-  // 1. create container
-  const { id: creationId } = await igPost(`${userId()}/media`, {
-    media_type: "REELS",
-    video_url: videoUrl,
-    caption,
-    ...(coverUrl ? { cover_url: coverUrl } : {}),
-  });
+  // 1. create container. aiGenerated = Meta's "AI info" label, required for realistic synthetic
+  // audio (the faceless explainers' narration). If this API version rejects the field, post
+  // without it rather than not at all, and say so in the log.
+  const base = { media_type: "REELS", video_url: videoUrl, caption, ...(coverUrl ? { cover_url: coverUrl } : {}) };
+  let creationId: string;
+  try {
+    ({ id: creationId } = await igPost(`${userId()}/media`, { ...base, ...(opts.aiGenerated ? { is_ai_generated: "true" } : {}) }));
+  } catch (e: any) {
+    if (!opts.aiGenerated || !/is_ai_generated|param/i.test(String(e?.message))) throw e;
+    console.error("IG rejected is_ai_generated, posting without the label:", e.message);
+    ({ id: creationId } = await igPost(`${userId()}/media`, base));
+  }
 
   // 2. poll status until FINISHED (video transcode can take a while)
   hooks.onProcessing?.();

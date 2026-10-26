@@ -37,7 +37,7 @@ export async function postReel(
   caption: string,
   hooks: PostHooks = {},
   thumbPath?: string,
-  opts: { story?: boolean } = {},
+  opts: { story?: boolean; aiGenerated?: boolean } = {},
 ): Promise<{ permalink: string; mediaId: string; story?: string }> {
   const { url: publicUrl, via } = await uploadPublic(mp4Path);
   console.log(`reel uploaded via ${via}: ${publicUrl}`);
@@ -50,7 +50,7 @@ export async function postReel(
       return undefined;
     });
   }
-  const r = await publishReel(publicUrl, caption, hooks, coverUrl);
+  const r = await publishReel(publicUrl, caption, hooks, coverUrl, { aiGenerated: opts.aiGenerated });
   let story: string | undefined;
   if (opts.story !== false) story = await storyFor(mp4Path, publicUrl);
   return { ...r, story };
