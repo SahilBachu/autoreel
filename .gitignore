@@ -54,3 +54,8 @@ studio/catalog/
 
 # Cloudflare API token + account id for deploys from the main machine
 .cloudflare.env
+
+# nightly explainers: generated per run on the runner (the registry file stays tracked, skip-worktree there)
+studio/src/explainer/gen/*/
+studio/public/explainer/*/
+!studio/public/explainer/duo/
