@@ -77,7 +77,17 @@ export async function claudeSession(
 // Convenience: ask for JSON and parse it (director/scene-plan/component generation).
 export async function claudeJson<T>(prompt: string, opts: Opts = {}): Promise<T> {
   const raw = await claude(prompt + "\n\nReturn ONLY valid JSON — no markdown fences, no prose.", opts);
-  return JSON.parse(extractJson(raw)) as T;
+  try {
+    return JSON.parse(extractJson(raw)) as T;
+  } catch (e) {
+    // the usual culprit: an unescaped " inside a quoted sentence (quote slides, scripts). One
+    // repair pass, no tools, same content, rather than failing the whole job.
+    const fixed = await claude(
+      `This was meant to be valid JSON but it doesn't parse (${(e as Error).message}). Fix ONLY the syntax: escape double quotes inside strings (or use curly quotes), drop comments and trailing commas, keep every value the same. Return ONLY the corrected JSON.\n\n${raw.slice(0, 60_000)}`,
+      { model: opts.model, timeoutMs: 3 * 60_000 },
+    );
+    return JSON.parse(extractJson(fixed)) as T;
+  }
 }
 
 // Pull the first balanced JSON value out of a model response — tolerant of ```json fences,

@@ -86,7 +86,11 @@ export async function postCarousel(slides: string[], caption: string, hooks: Pos
   let story: string | undefined;
   try {
     const storyPath = resolve(config.studioDir, "out", `carousel-${stamp}-story.jpg`);
-    const pad = await run("npx", ["remotion", "ffmpeg", "-y", "-i", slides[0], "-vf", `pad=1080:1920:0:285:color=0x${(opts.storyBg ?? "#F1ECE0").replace("#", "")}`, "-q:v", "2", storyPath]);
+    // the system ffmpeg (Remotion's bundled build has no pad filter); without it the plain 4:5
+    // cover goes up and Instagram letterboxes it
+    const padArgs = ["-y", "-i", slides[0], "-vf", `pad=1080:1920:0:285:color=0x${(opts.storyBg ?? "#F1ECE0").replace("#", "")}`, "-q:v", "2", storyPath];
+    let pad = await run("ffmpeg", ["-hide_banner", "-loglevel", "error", ...padArgs]);
+    if (!pad.ok) pad = await run("npx", ["remotion", "ffmpeg", ...padArgs]);
     const storyUrl = pad.ok ? await uploadReel(storyPath, `carousel-${stamp}-story.jpg`, "image/jpeg") : urls[0];
     story = await publishStory({ imageUrl: storyUrl });
   } catch (e: any) {
